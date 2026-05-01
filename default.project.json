@@ -6,82 +6,54 @@
       "$className": "ReplicatedStorage",
       "Modules": {
         "$className": "Folder",
-        "GameConfig": {
-          "$path": "src/ReplicatedStorage/Modules/GameConfig.lua"
-        },
-        "PrankConfig": {
-          "$path": "src/ReplicatedStorage/Modules/PrankConfig.lua"
-        },
-        "CosmeticConfig": {
-          "$path": "src/ReplicatedStorage/Modules/CosmeticConfig.lua"
-        },
-        "RemoteEvents": {
-          "$path": "src/ReplicatedStorage/Modules/RemoteEvents.lua"
-        }
+        "GameConfig": {"$path": "src/ReplicatedStorage/Modules/GameConfig.lua"},
+        "PrankConfig": {"$path": "src/ReplicatedStorage/Modules/PrankConfig.lua"},
+        "CosmeticConfig": {"$path": "src/ReplicatedStorage/Modules/CosmeticConfig.lua"},
+        "PerkConfig": {"$path": "src/ReplicatedStorage/Modules/PerkConfig.lua"},
+        "RemoteEvents": {"$path": "src/ReplicatedStorage/Modules/RemoteEvents.lua"}
       }
     },
     "ServerScriptService": {
       "$className": "ServerScriptService",
-      "AnalyticsHandler": {
-        "$path": "src/ServerScriptService/AnalyticsHandler.server.lua"
-      },
-      "AntiCheat": {
-        "$path": "src/ServerScriptService/AntiCheat.server.lua"
-      },
-      "DataHandler": {
-        "$path": "src/ServerScriptService/DataHandler.server.lua"
-      },
-      "SummonSystem": {
-        "$path": "src/ServerScriptService/SummonSystem.server.lua"
-      },
-      "PrankSystem": {
-        "$path": "src/ServerScriptService/PrankSystem.server.lua"
-      },
-      "MonetizationHandler": {
-        "$path": "src/ServerScriptService/MonetizationHandler.server.lua"
-      },
-      "RebirthHandler": {
-        "$path": "src/ServerScriptService/RebirthHandler.server.lua"
-      },
-      "CosmeticHandler": {
-        "$path": "src/ServerScriptService/CosmeticHandler.server.lua"
-      },
-      "LeaderboardHandler": {
-        "$path": "src/ServerScriptService/LeaderboardHandler.server.lua"
-      },
-      "MapBuilder": {
-        "$path": "src/Workspace/MapBuilder.server.lua"
-      }
+      "AnalyticsHandler": {"$path": "src/ServerScriptService/AnalyticsHandler.server.lua"},
+      "AntiCheat": {"$path": "src/ServerScriptService/AntiCheat.server.lua"},
+      "DataHandler": {"$path": "src/ServerScriptService/DataHandler.server.lua"},
+      "SummonSystem": {"$path": "src/ServerScriptService/SummonSystem.server.lua"},
+      "PrankSystem": {"$path": "src/ServerScriptService/PrankSystem.server.lua"},
+      "MonetizationHandler": {"$path": "src/ServerScriptService/MonetizationHandler.server.lua"},
+      "RebirthHandler": {"$path": "src/ServerScriptService/RebirthHandler.server.lua"},
+      "CosmeticHandler": {"$path": "src/ServerScriptService/CosmeticHandler.server.lua"},
+      "LeaderboardHandler": {"$path": "src/ServerScriptService/LeaderboardHandler.server.lua"},
+      "PerkSystem": {"$path": "src/ServerScriptService/PerkSystem.server.lua"},
+      "SurvivalSystem": {"$path": "src/ServerScriptService/SurvivalSystem.server.lua"},
+      "WeatherSystem": {"$path": "src/ServerScriptService/WeatherSystem.server.lua"},
+      "DailyRewardSystem": {"$path": "src/ServerScriptService/DailyRewardSystem.server.lua"},
+      "EmoteSystem": {"$path": "src/ServerScriptService/EmoteSystem.server.lua"},
+      "AdminSystem": {"$path": "src/ServerScriptService/AdminSystem.server.lua"},
+      "MapBuilder": {"$path": "src/Workspace/MapBuilder.server.lua"}
     },
     "StarterGui": {
       "$className": "StarterGui",
-      "HUDBuilder": {
-        "$path": "src/StarterGui/HUDBuilder.client.lua"
-      }
+      "HUDBuilder": {"$path": "src/StarterGui/HUDBuilder.client.lua"}
     },
     "StarterPlayer": {
       "$className": "StarterPlayer",
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
-        "HUDController": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/HUDController.client.lua"
-        },
-        "InputHandler": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/InputHandler.client.lua"
-        },
-        "EffectsController": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/EffectsController.client.lua"
-        },
-        "TutorialController": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/TutorialController.client.lua"
-        }
+        "HUDController": {"$path": "src/StarterPlayer/StarterPlayerScripts/HUDController.client.lua"},
+        "InputHandler": {"$path": "src/StarterPlayer/StarterPlayerScripts/InputHandler.client.lua"},
+        "EffectsController": {"$path": "src/StarterPlayer/StarterPlayerScripts/EffectsController.client.lua"},
+        "TutorialController": {"$path": "src/StarterPlayer/StarterPlayerScripts/TutorialController.client.lua"},
+        "PerkUI": {"$path": "src/StarterPlayer/StarterPlayerScripts/PerkUI.client.lua"},
+        "SurvivalUI": {"$path": "src/StarterPlayer/StarterPlayerScripts/SurvivalUI.client.lua"},
+        "EmoteWheel": {"$path": "src/StarterPlayer/StarterPlayerScripts/EmoteWheel.client.lua"},
+        "DailyRewardUI": {"$path": "src/StarterPlayer/StarterPlayerScripts/DailyRewardUI.client.lua"},
+        "WeatherClient": {"$path": "src/StarterPlayer/StarterPlayerScripts/WeatherClient.client.lua"}
       }
     },
     "Workspace": {
       "$className": "Workspace",
-      "$properties": {
-        "Gravity": 196.2
-      }
+      "$properties": {"Gravity": 196.2}
     },
     "Lighting": {
       "$className": "Lighting",

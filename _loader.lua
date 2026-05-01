@@ -1,0 +1,4276 @@
+-- KittyRaiser auto-loader (paste into Studio Command Bar, press Enter)
+local function getOrMake(parent, className, name)
+    local existing = parent:FindFirstChild(name)
+    if existing and existing.ClassName == className then return existing end
+    if existing then existing:Destroy() end
+    local obj = Instance.new(className)
+    obj.Name = name
+    obj.Parent = parent
+    return obj
+end
+
+-- Pre-create folders
+local modulesFolder = getOrMake(game.ReplicatedStorage, 'Folder', 'Modules')
+
+-- ReplicatedStorage/Modules/GameConfig.lua
+do
+    local s = getOrMake(modulesFolder, 'ModuleScript', 'GameConfig')
+    s.Source = [[
+-- GameConfig.lua
+-- Central configuration. Edit values here, do not hard-code in scripts.
+-- Place in: ReplicatedStorage > Modules > GameConfig (ModuleScript)
+
+local GameConfig = {}
+
+-- ===== ECONOMY =====
+GameConfig.STARTING_CHAOS = 0
+GameConfig.STARTING_HELLTOKENS = 0
+GameConfig.STARTING_LEVEL = 1
+GameConfig.LEVEL_CAP = 100  -- Per Grok: ~3 weeks at 8h/day
+GameConfig.REBIRTH_REQUIRED_LEVEL = 25
+GameConfig.REBIRTH_SOFT_CAP = 25
+GameConfig.REBIRTH_MULTIPLIER_PER_REBIRTH = 0.25
+
+-- XP curve
+GameConfig.XP_BASE = 100
+GameConfig.XP_EXPONENT = 1.4
+
+-- ===== PRANK BASE =====
+GameConfig.PRANK_RANGE_STUDS = 18
+GameConfig.PRANK_XP_PER_HIT = 10
+
+-- ===== STATS (Fallout-style) =====
+GameConfig.STATS_PER_LEVEL = 1
+GameConfig.STAT_NAMES = {"Speed", "Jump", "Luck", "Strength", "Agility"}
+GameConfig.STAT_MAX = 50
+GameConfig.STAT_BASE = 10
+GameConfig.STAT_EFFECTS = {
+    Speed = {walkSpeedPerPoint = 0.4},     -- 10 base speed -> +0.4/point
+    Jump = {jumpPowerPerPoint = 1.2},
+    Luck = {chaosBonusPerPoint = 0.01},    -- +1% chaos per point
+    Strength = {prankPowerPerPoint = 0.02},
+    Agility = {cooldownReducPerPoint = 0.005},
+}
+
+-- ===== PERKS =====
+GameConfig.PERK_GRANT_EVERY = 5  -- gain a perk slot every 5 levels
+GameConfig.PERK_RESET_HELLTOKENS = 100
+GameConfig.PERK_RESET_ROBUX_PRODUCT = "PERK_RESET"
+
+-- ===== SURVIVAL =====
+GameConfig.SURVIVAL_ENABLED = true
+GameConfig.HUNGER_DECAY_PER_MIN = 5    -- 100 -> 0 in 20 min
+GameConfig.THIRST_DECAY_PER_MIN = 8    -- 100 -> 0 in ~12 min
+GameConfig.SURVIVAL_DEBUFF_AT = 25     -- below 25, slowed
+GameConfig.SURVIVAL_DEATH_AT = 0
+GameConfig.FOOD_RESTORE = 40
+GameConfig.WATER_RESTORE = 50
+
+-- ===== WEATHER =====
+GameConfig.WEATHER_CYCLE_MIN = 8       -- a weather state lasts ~8 min
+GameConfig.WEATHER_TYPES = {"Sunny", "Rainy", "Foggy", "RedMist"}
+GameConfig.WEATHER_WEIGHTS = {Sunny=0.45, Rainy=0.25, Foggy=0.20, RedMist=0.10}
+GameConfig.RED_MIST_CHAOS_MULT = 2.0   -- 2x chaos during red mist
+GameConfig.RED_MIST_DURATION_MIN = 4
+
+-- ===== EMOTES =====
+GameConfig.EMOTES = {"Meow", "Hiss", "Dance", "Laugh", "Sit", "Wave"}
+
+-- ===== ANTI-CHEAT =====
+GameConfig.MAX_PRANKS_PER_SECOND = 6
+GameConfig.MAX_DISTANCE_TELEPORT = 60
+GameConfig.SUSPICIOUS_FLAG_THRESHOLD = 3
+
+-- ===== SAVE =====
+GameConfig.DATASTORE_NAME = "KittyRaiserData_v1"
+GameConfig.DATASTORE_KEY_PREFIX = "Player_"
+GameConfig.AUTOSAVE_INTERVAL = 60
+GameConfig.SCHEMA_VERSION = 2  -- bumped: added stats/survival/perks/hellTokens
+
+-- ===== MONETIZATION =====
+GameConfig.GAMEPASS_IDS = {
+    DEMON_SKIN = 0,
+    NEON_SKIN = 0,
+    HELLBORN_SKIN = 0,
+    VIP = 0,
+    GANG_LEADER = 0,
+    ULTIMATE_CHAOS = 0,
+}
+
+GameConfig.DEVPRODUCT_IDS = {
+    CHAOS_5K = 0,
+    CHAOS_50K = 0,
+    CHAOS_500K = 0,
+    HELLTOKENS_100 = 0,
+    HELLTOKENS_1000 = 0,
+    REBIRTH_SKIP = 0,
+    PERK_RESET = 0,
+    DAILY_DOUBLE = 0,
+}
+
+GameConfig.VIP_CHAOS_MULTIPLIER = 2.0
+
+-- ===== HUD =====
+GameConfig.HUD_PRIMARY_COLOR = Color3.fromRGB(150, 50, 200)
+GameConfig.HUD_ACCENT_COLOR = Color3.fromRGB(0, 255, 100)
+GameConfig.HUD_DANGER_COLOR = Color3.fromRGB(255, 60, 60)
+GameConfig.HUD_HELLTOKEN_COLOR = Color3.fromRGB(255, 200, 0)
+
+-- ===== ANALYTICS =====
+GameConfig.ANALYTICS_ENABLED = true
+
+-- ===== UTILITY =====
+function GameConfig.xpRequired(level)
+    return math.floor(GameConfig.XP_BASE * (level ^ GameConfig.XP_EXPONENT))
+end
+
+function GameConfig.computeMultiplier(rebirths, hasVIP, luckStat)
+    local rebirthMult = 1 + (GameConfig.REBIRTH_MULTIPLIER_PER_REBIRTH * (rebirths or 0))
+    local vipMult = hasVIP and GameConfig.VIP_CHAOS_MULTIPLIER or 1
+    local luckMult = 1 + ((luckStat or 0) * (GameConfig.STAT_EFFECTS.Luck.chaosBonusPerPoint or 0))
+    return rebirthMult * vipMult * luckMult
+end
+
+function GameConfig.perkSlotsAtLevel(level)
+    return math.floor((level or 1) / GameConfig.PERK_GRANT_EVERY)
+end
+
+return GameConfig
+
+]]
+end
+
+-- ReplicatedStorage/Modules/PrankConfig.lua
+do
+    local s = getOrMake(modulesFolder, 'ModuleScript', 'PrankConfig')
+    s.Source = [[
+-- PrankConfig.lua
+-- All prank/power types per Grok bible: Cat Scratch (starter), Pie, Hairball, Anvil, Fart, Laser, Whip, Purrgatory
+-- Place in: ReplicatedStorage > Modules > PrankConfig (ModuleScript)
+
+local PrankConfig = {}
+
+PrankConfig.Pranks = {
+    CatScratch = {
+        name = "CatScratch",
+        displayName = "Cat Scratch",
+        unlockLevel = 1,
+        baseChaos = 10,
+        cooldown = 0.8,
+        rangeStuds = 8,
+        soundId = "rbxassetid://9117567259",
+        particleColor = Color3.fromRGB(255, 220, 220),
+        screenShake = 1,
+        animation = "claw_swipe",
+        icon = "✊",
+    },
+    Pie = {
+        name = "Pie",
+        displayName = "Cream Pie",
+        unlockLevel = 2,
+        baseChaos = 25,
+        cooldown = 1.5,
+        rangeStuds = 14,
+        soundId = "rbxassetid://517040733",
+        particleColor = Color3.fromRGB(255, 240, 180),
+        screenShake = 0,
+        animation = "throw_pie",
+        icon = "🥧",
+    },
+    Hairball = {
+        name = "Hairball",
+        displayName = "Hairball Bomb",
+        unlockLevel = 5,
+        baseChaos = 50,
+        cooldown = 3,
+        rangeStuds = 16,
+        soundId = "rbxassetid://9117568141",
+        particleColor = Color3.fromRGB(180, 140, 100),
+        screenShake = 2,
+        animation = "hairball_pop",
+        icon = "🦴",
+    },
+    Anvil = {
+        name = "Anvil",
+        displayName = "Anvil Drop",
+        unlockLevel = 8,
+        baseChaos = 100,
+        cooldown = 4,
+        rangeStuds = 16,
+        soundId = "rbxassetid://5451260445",
+        particleColor = Color3.fromRGB(120, 120, 120),
+        screenShake = 4,
+        animation = "anvil_drop",
+        icon = "🔨",
+    },
+    FartCloud = {
+        name = "FartCloud",
+        displayName = "Fart Cloud",
+        unlockLevel = 12,
+        baseChaos = 200,
+        cooldown = 6,
+        rangeStuds = 12,
+        aoeStuds = 8,
+        soundId = "rbxassetid://1845015288",
+        particleColor = Color3.fromRGB(140, 200, 80),
+        screenShake = 2,
+        animation = "fart_butt",
+        icon = "💨",
+    },
+    LaserEyes = {
+        name = "LaserEyes",
+        displayName = "Laser Eyes",
+        unlockLevel = 18,
+        baseChaos = 350,
+        cooldown = 8,
+        rangeStuds = 28,
+        soundId = "rbxassetid://3820883381",
+        particleColor = Color3.fromRGB(255, 50, 50),
+        screenShake = 8,
+        animation = "laser_glare",
+        icon = "👁️",
+    },
+    Whip = {
+        name = "Whip",
+        displayName = "Tail Whip",
+        unlockLevel = 25,
+        baseChaos = 500,
+        cooldown = 6,
+        rangeStuds = 14,
+        soundId = "rbxassetid://9117569015",
+        particleColor = Color3.fromRGB(200, 100, 255),
+        screenShake = 4,
+        animation = "tail_whip",
+        icon = "🌀",
+    },
+    Purrgatory = {
+        name = "Purrgatory",
+        displayName = "Purrgatory",
+        unlockLevel = 35,
+        baseChaos = 1000,
+        cooldown = 12,
+        rangeStuds = 22,
+        aoeStuds = 14,
+        soundId = "rbxassetid://9117570233",
+        particleColor = Color3.fromRGB(255, 0, 200),
+        screenShake = 12,
+        animation = "soul_stare",
+        icon = "👻",
+    },
+}
+
+PrankConfig.Order = {"CatScratch", "Pie", "Hairball", "Anvil", "FartCloud", "LaserEyes", "Whip", "Purrgatory"}
+
+function PrankConfig.getPrank(name) return PrankConfig.Pranks[name] end
+function PrankConfig.isUnlocked(prankName, playerLevel)
+    local p = PrankConfig.Pranks[prankName]
+    if not p then return false end
+    return playerLevel >= p.unlockLevel
+end
+
+return PrankConfig
+
+]]
+end
+
+-- ReplicatedStorage/Modules/CosmeticConfig.lua
+do
+    local s = getOrMake(modulesFolder, 'ModuleScript', 'CosmeticConfig')
+    s.Source = [[
+-- CosmeticConfig.lua
+-- 25 cat skins per Grok bible expansion (full 75 in v2). Mix of Chaos / HellToken / Robux currency.
+-- Place in: ReplicatedStorage > Modules > CosmeticConfig (ModuleScript)
+
+local CosmeticConfig = {}
+
+local function rgb(r,g,b) return Color3.fromRGB(r,g,b) end
+local function uniformBody(c)
+    return {HeadColor=c, TorsoColor=c, LeftArmColor=c, RightArmColor=c, LeftLegColor=c, RightLegColor=c}
+end
+
+CosmeticConfig.Skins = {
+    -- COMMON (free / starter)
+    Default = {id="Default", displayName="Alley Cat", cost=0, currency="free", bodyColors=uniformBody(rgb(105,64,40)), chaosMultiplier=1.0, rarity="Common"},
+    Stripey = {id="Stripey", displayName="Stripey", cost=500, currency="chaos", bodyColors=uniformBody(rgb(245,165,80)), chaosMultiplier=1.05, rarity="Common"},
+    Black = {id="Black", displayName="Shadow", cost=750, currency="chaos", bodyColors=uniformBody(rgb(20,20,20)), chaosMultiplier=1.05, rarity="Common"},
+    White = {id="White", displayName="Snowball", cost=750, currency="chaos", bodyColors=uniformBody(rgb(245,245,245)), chaosMultiplier=1.05, rarity="Common"},
+    Gray = {id="Gray", displayName="Dust", cost=750, currency="chaos", bodyColors=uniformBody(rgb(140,140,140)), chaosMultiplier=1.05, rarity="Common"},
+
+    -- UNCOMMON (chaos)
+    Calico = {id="Calico", displayName="Calico", cost=2500, currency="chaos", bodyColors={HeadColor=rgb(255,255,255), TorsoColor=rgb(40,30,25), LeftArmColor=rgb(220,130,50), RightArmColor=rgb(255,255,255), LeftLegColor=rgb(40,30,25), RightLegColor=rgb(220,130,50)}, chaosMultiplier=1.10, rarity="Uncommon"},
+    Tuxedo = {id="Tuxedo", displayName="Tuxedo", cost=2500, currency="chaos", bodyColors={HeadColor=rgb(20,20,20), TorsoColor=rgb(20,20,20), LeftArmColor=rgb(245,245,245), RightArmColor=rgb(245,245,245), LeftLegColor=rgb(245,245,245), RightLegColor=rgb(245,245,245)}, chaosMultiplier=1.10, rarity="Uncommon"},
+    Ginger = {id="Ginger", displayName="Ginger", cost=2500, currency="chaos", bodyColors=uniformBody(rgb(220,90,30)), chaosMultiplier=1.10, rarity="Uncommon"},
+    Mint = {id="Mint", displayName="Mint", cost=4000, currency="chaos", bodyColors=uniformBody(rgb(140,220,180)), chaosMultiplier=1.12, rarity="Uncommon"},
+    Lilac = {id="Lilac", displayName="Lilac", cost=4000, currency="chaos", bodyColors=uniformBody(rgb(200,160,255)), chaosMultiplier=1.12, rarity="Uncommon"},
+
+    -- RARE (chaos high cost)
+    SiameseRoyal = {id="SiameseRoyal", displayName="Siamese Royal", cost=10000, currency="chaos", bodyColors={HeadColor=rgb(220,200,180), TorsoColor=rgb(50,30,20), LeftArmColor=rgb(50,30,20), RightArmColor=rgb(50,30,20), LeftLegColor=rgb(50,30,20), RightLegColor=rgb(50,30,20)}, chaosMultiplier=1.20, rarity="Rare"},
+    Sphinx = {id="Sphinx", displayName="Sphinx", cost=15000, currency="chaos", bodyColors=uniformBody(rgb(240,210,180)), chaosMultiplier=1.25, rarity="Rare"},
+    SpacePaws = {id="SpacePaws", displayName="Space Paws", cost=20000, currency="chaos", bodyColors=uniformBody(rgb(40,20,80)), chaosMultiplier=1.25, rarity="Rare", glowEffect=true},
+    GoldenTabby = {id="GoldenTabby", displayName="Golden Tabby", cost=25000, currency="chaos", bodyColors=uniformBody(rgb(255,210,80)), chaosMultiplier=1.30, rarity="Rare", material=Enum.Material.Metal},
+
+    -- EPIC (Hell Tokens)
+    Skeleton = {id="Skeleton", displayName="Skeleton", cost=50, currency="helltokens", bodyColors=uniformBody(rgb(245,245,235)), chaosMultiplier=1.40, rarity="Epic"},
+    Zombie = {id="Zombie", displayName="Zombie Cat", cost=75, currency="helltokens", bodyColors=uniformBody(rgb(120,160,80)), chaosMultiplier=1.40, rarity="Epic"},
+    Vampire = {id="Vampire", displayName="Vampire Cat", cost=100, currency="helltokens", bodyColors=uniformBody(rgb(60,0,30)), chaosMultiplier=1.45, rarity="Epic", glowEffect=true},
+    Mummy = {id="Mummy", displayName="Mummy Cat", cost=100, currency="helltokens", bodyColors=uniformBody(rgb(220,200,160)), chaosMultiplier=1.45, rarity="Epic"},
+
+    -- LEGENDARY (Robux GamePass)
+    Demon = {id="Demon", displayName="Demon Cat", cost=0, currency="robux", gamepassKey="DEMON_SKIN", bodyColors={HeadColor=rgb(120,0,0), TorsoColor=rgb(60,0,0), LeftArmColor=rgb(80,0,0), RightArmColor=rgb(80,0,0), LeftLegColor=rgb(60,0,0), RightLegColor=rgb(60,0,0)}, chaosMultiplier=1.5, rarity="Legendary", glowEffect=true},
+    Neon = {id="Neon", displayName="Neon Cat", cost=0, currency="robux", gamepassKey="NEON_SKIN", bodyColors={HeadColor=rgb(0,200,255), TorsoColor=rgb(255,0,200), LeftArmColor=rgb(0,255,100), RightArmColor=rgb(255,200,0), LeftLegColor=rgb(0,200,255), RightLegColor=rgb(255,0,200)}, chaosMultiplier=2.0, rarity="Legendary", glowEffect=true, material=Enum.Material.Neon},
+    Hellborn = {id="Hellborn", displayName="Hellborn", cost=0, currency="robux", gamepassKey="HELLBORN_SKIN", bodyColors=uniformBody(rgb(255,40,0)), chaosMultiplier=2.5, rarity="Legendary", glowEffect=true, material=Enum.Material.Neon},
+
+    -- MYTHIC (event-only / season pass — placeholders for v2)
+    GalaxyKing = {id="GalaxyKing", displayName="Galaxy King", cost=999999, currency="chaos", bodyColors=uniformBody(rgb(80,40,180)), chaosMultiplier=3.0, rarity="Mythic", glowEffect=true, material=Enum.Material.ForceField, eventOnly=true},
+    PhoenixCat = {id="PhoenixCat", displayName="Phoenix Cat", cost=500, currency="helltokens", bodyColors=uniformBody(rgb(255,120,0)), chaosMultiplier=3.0, rarity="Mythic", glowEffect=true, material=Enum.Material.Neon, eventOnly=true},
+    VoidCat = {id="VoidCat", displayName="Void Cat", cost=1000, currency="helltokens", bodyColors=uniformBody(rgb(10,0,30)), chaosMultiplier=3.5, rarity="Mythic", glowEffect=true},
+    KittyRaiser = {id="KittyRaiser", displayName="The KittyRaiser", cost=999, currency="helltokens", bodyColors={HeadColor=rgb(255,0,80), TorsoColor=rgb(0,0,0), LeftArmColor=rgb(255,0,80), RightArmColor=rgb(255,0,80), LeftLegColor=rgb(0,0,0), RightLegColor=rgb(0,0,0)}, chaosMultiplier=4.0, rarity="Mythic", glowEffect=true, material=Enum.Material.Neon},
+}
+
+CosmeticConfig.Order = {
+    "Default","Stripey","Black","White","Gray",
+    "Calico","Tuxedo","Ginger","Mint","Lilac",
+    "SiameseRoyal","Sphinx","SpacePaws","GoldenTabby",
+    "Skeleton","Zombie","Vampire","Mummy",
+    "Demon","Neon","Hellborn",
+    "GalaxyKing","PhoenixCat","VoidCat","KittyRaiser",
+}
+
+CosmeticConfig.DEFAULT_OWNED = {"Default"}
+
+function CosmeticConfig.getSkin(id) return CosmeticConfig.Skins[id] end
+function CosmeticConfig.getMultiplier(id)
+    local s = CosmeticConfig.Skins[id]
+    return s and s.chaosMultiplier or 1.0
+end
+
+return CosmeticConfig
+
+]]
+end
+
+-- ReplicatedStorage/Modules/PerkConfig.lua
+do
+    local s = getOrMake(modulesFolder, 'ModuleScript', 'PerkConfig')
+    s.Source = [[
+-- PerkConfig.lua
+-- Perks granted every 5 levels. Player picks 1 of 5 per slot. Reset costs Hell Tokens or Robux.
+-- Place in: ReplicatedStorage > Modules > PerkConfig (ModuleScript)
+
+local PerkConfig = {}
+
+-- Each perk has: id, name, description, effect (data flag the systems read)
+PerkConfig.Perks = {
+    -- Slot 1 (unlocks at L5)
+    QuickPaws = {id = "QuickPaws", name = "Quick Paws", desc = "-10% prank cooldown", slot = 1, effect = {cooldownReduc = 0.10}},
+    SharpClaws = {id = "SharpClaws", name = "Sharp Claws", desc = "+15% Cat Scratch chaos", slot = 1, effect = {prankBoost = {CatScratch = 0.15}}},
+    LightFeet = {id = "LightFeet", name = "Light Feet", desc = "+15% walk speed", slot = 1, effect = {speedMult = 0.15}},
+    KeenEyes = {id = "KeenEyes", name = "Keen Eyes", desc = "+25% prank range", slot = 1, effect = {rangeMult = 0.25}},
+    GoldenWhiskers = {id = "GoldenWhiskers", name = "Golden Whiskers", desc = "+10% Chaos on all pranks", slot = 1, effect = {chaosMult = 0.10}},
+
+    -- Slot 2 (L10)
+    PieMaster = {id = "PieMaster", name = "Pie Master", desc = "Pies splash 3 nearby targets", slot = 2, effect = {pieSplash = true, splashTargets = 3}},
+    HairballHurricane = {id = "HairballHurricane", name = "Hairball Hurricane", desc = "Hairballs ricochet 2x", slot = 2, effect = {hairballRicochet = 2}},
+    CatlikeReflex = {id = "CatlikeReflex", name = "Catlike Reflex", desc = "Dodge chance 15% on PvP", slot = 2, effect = {dodgeChance = 0.15}},
+    NineLives = {id = "NineLives", name = "Nine Lives", desc = "Auto-revive 1x per session", slot = 2, effect = {autoReviveCount = 1}},
+    LuckyTabby = {id = "LuckyTabby", name = "Lucky Tabby", desc = "+5 to Luck stat", slot = 2, effect = {luckBonus = 5}},
+
+    -- Slot 3 (L15)
+    AnvilArtisan = {id = "AnvilArtisan", name = "Anvil Artisan", desc = "Anvils crit 25% for 3x damage", slot = 3, effect = {anvilCritChance = 0.25, anvilCritMult = 3}},
+    ToxicGas = {id = "ToxicGas", name = "Toxic Gas", desc = "Fart Cloud DOT for 5s", slot = 3, effect = {fartDOT = {dur=5, tickChaos=20}}},
+    LaserFocus = {id = "LaserFocus", name = "Laser Focus", desc = "Laser pierces 3 targets", slot = 3, effect = {laserPierce = 3}},
+    ChaosFeast = {id = "ChaosFeast", name = "Chaos Feast", desc = "Pranks restore 5 hunger", slot = 3, effect = {prankHungerRestore = 5}},
+    ShadowStalker = {id = "ShadowStalker", name = "Shadow Stalker", desc = "Invisible after standing still 2s", slot = 3, effect = {stealthAfter = 2}},
+
+    -- Slot 4 (L20)
+    Whirlwind = {id = "Whirlwind", name = "Whirlwind", desc = "Tail Whip hits all in 8 studs", slot = 4, effect = {whipAOE = 8}},
+    Vampuss = {id = "Vampuss", name = "Vampuss", desc = "Restore 2 hunger per prank", slot = 4, effect = {prankHungerRestore = 2}},
+    HellfireAura = {id = "HellfireAura", name = "Hellfire Aura", desc = "+1 chaos/sec while Red Mist active", slot = 4, effect = {redMistChaosPerSec = 1}},
+    Bountybane = {id = "Bountybane", name = "Bountybane", desc = "+50% chaos during PvP", slot = 4, effect = {pvpChaosMult = 0.50}},
+    GoldenScratch = {id = "GoldenScratch", name = "Golden Scratch", desc = "5% chance for 10x Cat Scratch", slot = 4, effect = {catScratchJackpot = 0.05}},
+
+    -- Slot 5 (L25 — same level rebirth unlocks)
+    DemonForm = {id = "DemonForm", name = "Demon Form", desc = "Toggle: 2x speed, 2x chaos, drains hunger", slot = 5, effect = {demonForm = true}},
+    HellHarvester = {id = "HellHarvester", name = "Hell Harvester", desc = "+1 Hell Token per 1000 chaos earned", slot = 5, effect = {hellTokenPerKChaos = 1}},
+    Purrgatory_Prime = {id = "Purrgatory_Prime", name = "Purrgatory Prime", desc = "Purrgatory unlocks 10 levels early", slot = 5, effect = {purrgatoryEarly = 10}},
+    SoulCollector = {id = "SoulCollector", name = "Soul Collector", desc = "Pranked NPCs drop Soul Shards (cosmetic currency)", slot = 5, effect = {soulShardDropChance = 0.20}},
+    KingOfChaos = {id = "KingOfChaos", name = "King of Chaos", desc = "All pranks +25% chaos but cooldown +10%", slot = 5, effect = {chaosMult = 0.25, cooldownPenalty = 0.10}},
+}
+
+-- Per slot index, list the 5 options
+PerkConfig.SlotOptions = {
+    [1] = {"QuickPaws", "SharpClaws", "LightFeet", "KeenEyes", "GoldenWhiskers"},
+    [2] = {"PieMaster", "HairballHurricane", "CatlikeReflex", "NineLives", "LuckyTabby"},
+    [3] = {"AnvilArtisan", "ToxicGas", "LaserFocus", "ChaosFeast", "ShadowStalker"},
+    [4] = {"Whirlwind", "Vampuss", "HellfireAura", "Bountybane", "GoldenScratch"},
+    [5] = {"DemonForm", "HellHarvester", "Purrgatory_Prime", "SoulCollector", "KingOfChaos"},
+}
+
+function PerkConfig.getPerk(id) return PerkConfig.Perks[id] end
+function PerkConfig.optionsForSlot(slot) return PerkConfig.SlotOptions[slot] or {} end
+
+return PerkConfig
+
+]]
+end
+
+-- ReplicatedStorage/Modules/RemoteEvents.lua
+do
+    local s = getOrMake(modulesFolder, 'ModuleScript', 'RemoteEvents')
+    s.Source = [[
+-- RemoteEvents.lua
+-- Single source of truth for all RemoteEvents and RemoteFunctions.
+-- Place in: ReplicatedStorage > Modules > RemoteEvents (ModuleScript)
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Remotes = {}
+
+local DEFINITIONS = {
+    -- Client -> Server
+    RequestSummonHuman = "Event",
+    RequestPrank = "Event",
+    RequestRebirth = "Function",
+    RequestEquipSkin = "Function",
+    RequestPurchaseSkinChaos = "Function",
+    RequestPurchaseSkinHellTokens = "Function",
+    RequestUseDevProduct = "Event",
+    RequestEquipPerk = "Function",
+    RequestResetPerks = "Function",
+    RequestAllocStat = "Function",
+    RequestEatFood = "Event",
+    RequestDrinkWater = "Event",
+    RequestEmote = "Event",
+    RequestClaimDaily = "Function",
+    RequestSpawnCustomization = "Event",  -- pre-spawn cat color/skin
+    RequestAdminCommand = "Function",     -- admin only
+
+    -- Server -> Client
+    UpdatePlayerData = "Event",
+    PrankRegistered = "Event",
+    PrankFailed = "Event",
+    LevelUp = "Event",
+    PerkSlotEarned = "Event",  -- present picker
+    RebirthCompleted = "Event",
+    NotifyClient = "Event",
+    LeaderboardUpdated = "Event",
+    TutorialStep = "Event",
+    WeatherChanged = "Event",  -- ("Sunny" | "Rainy" | "Foggy" | "RedMist")
+    EventBroadcast = "Event",  -- server-wide event (eg "RedMistHour" with payload)
+    EmoteBroadcast = "Event",  -- announce other player emote
+    SurvivalUpdate = "Event",  -- (hunger, thirst)
+    DailyAvailable = "Event",  -- (day#, reward)
+}
+
+local FOLDER_NAME = "KittyRaiserRemotes"
+
+local function getOrCreateFolder()
+    local folder = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
+    if not folder and RunService:IsServer() then
+        folder = Instance.new("Folder")
+        folder.Name = FOLDER_NAME
+        folder.Parent = ReplicatedStorage
+    elseif not folder then
+        folder = ReplicatedStorage:WaitForChild(FOLDER_NAME, 10)
+    end
+    return folder
+end
+
+local folder = getOrCreateFolder()
+
+local function getOrCreate(name, kind)
+    local existing = folder:FindFirstChild(name)
+    if existing then return existing end
+    if RunService:IsServer() then
+        local className = kind == "Event" and "RemoteEvent" or "RemoteFunction"
+        local r = Instance.new(className)
+        r.Name = name
+        r.Parent = folder
+        return r
+    else
+        return folder:WaitForChild(name, 10)
+    end
+end
+
+for name, kind in pairs(DEFINITIONS) do
+    Remotes[name] = getOrCreate(name, kind)
+end
+
+return Remotes
+
+]]
+end
+
+-- ServerScriptService/AnalyticsHandler.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'AnalyticsHandler')
+    s.Source = [[
+-- AnalyticsHandler.server.lua
+-- Centralized analytics event firing. Uses Roblox AnalyticsService where possible,
+-- falls back to print() in studio. External adapters (PlayFab, etc.) can hook here.
+-- Place in: ServerScriptService > AnalyticsHandler (Script)
+
+local Players = game:GetService("Players")
+local AnalyticsService = game:GetService("AnalyticsService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local Analytics = {}
+
+local sessionStart = {}  -- userId -> os.time()
+
+local function emit(eventName, player, props)
+    if not GameConfig.ANALYTICS_ENABLED then return end
+    local userId = player and player.UserId or 0
+    local payload = {
+        event = eventName,
+        userId = userId,
+        ts = os.time(),
+        props = props or {},
+    }
+    if RunService:IsStudio() then
+        print(string.format("[Analytics] %s userId=%d %s",
+            eventName, userId, game:GetService("HttpService"):JSONEncode(props or {})))
+    end
+    -- Roblox built-in funnel tracking (when applicable)
+    pcall(function()
+        if eventName == "level_up" and props and props.newLevel then
+            AnalyticsService:LogProgressionEvent(
+                player,
+                "MainProgression",
+                Enum.AnalyticsProgressionStatus.Complete,
+                props.newLevel
+            )
+        end
+    end)
+end
+
+function Analytics.sessionStart(player)
+    sessionStart[player.UserId] = os.time()
+    emit("session_start", player)
+end
+
+function Analytics.sessionEnd(player)
+    local start = sessionStart[player.UserId]
+    local duration = start and (os.time() - start) or 0
+    emit("session_end", player, {duration = duration})
+    sessionStart[player.UserId] = nil
+end
+
+function Analytics.firstSummon(player)
+    emit("first_summon", player)
+end
+
+function Analytics.firstPrank(player, prankName)
+    emit("first_prank", player, {prank = prankName})
+end
+
+function Analytics.levelUp(player, newLevel)
+    emit("level_up", player, {newLevel = newLevel})
+end
+
+function Analytics.rebirth(player, rebirths)
+    emit("rebirth_completed", player, {rebirths = rebirths})
+end
+
+function Analytics.gamepassPurchased(player, gamepassId)
+    emit("gamepass_purchased", player, {gamepassId = gamepassId})
+end
+
+function Analytics.devProductPurchased(player, productId)
+    emit("devproduct_purchased", player, {productId = productId})
+end
+
+Players.PlayerAdded:Connect(function(p) Analytics.sessionStart(p) end)
+Players.PlayerRemoving:Connect(function(p) Analytics.sessionEnd(p) end)
+
+_G.KittyRaiserAnalytics = Analytics
+return Analytics
+
+]]
+end
+
+-- ServerScriptService/AntiCheat.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'AntiCheat')
+    s.Source = [[
+-- AntiCheat.server.lua
+-- Server-side rate limiting + sanity checks. Anti-cheat is server-authoritative.
+-- Place in: ServerScriptService > AntiCheat (Script)
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local AntiCheat = {}
+
+-- Per-player rolling window: { [userId] = { lastPrankTime, prankCount, windowStart, lastPos, lastPosTime } }
+local State = {}
+
+local function getState(userId)
+    if not State[userId] then
+        State[userId] = {
+            lastPrankTime = {},  -- per prank type
+            prankWindow = {},    -- list of recent prank times
+            lastPos = nil,
+            lastPosTime = 0,
+            flagCount = 0,
+        }
+    end
+    return State[userId]
+end
+
+-- ===== Cooldown check =====
+function AntiCheat.checkPrankCooldown(player, prankName, cooldownSec)
+    local s = getState(player.UserId)
+    local now = os.clock()
+    local last = s.lastPrankTime[prankName] or 0
+    if (now - last) < cooldownSec then
+        return false, "cooldown"
+    end
+    s.lastPrankTime[prankName] = now
+    return true, nil
+end
+
+-- ===== Rate limit (global pranks/sec) =====
+function AntiCheat.checkRateLimit(player)
+    local s = getState(player.UserId)
+    local now = os.clock()
+    -- Clean window
+    local cutoff = now - 1
+    local cleaned = {}
+    for _, t in ipairs(s.prankWindow) do
+        if t > cutoff then table.insert(cleaned, t) end
+    end
+    s.prankWindow = cleaned
+    if #s.prankWindow >= GameConfig.MAX_PRANKS_PER_SECOND then
+        AntiCheat.flag(player, "rate_limit_exceeded")
+        return false, "rate_limited"
+    end
+    table.insert(s.prankWindow, now)
+    return true, nil
+end
+
+-- ===== Distance check =====
+function AntiCheat.checkPrankDistance(player, targetPart, maxStuds)
+    local char = player.Character
+    if not char then return false, "no_character" end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false, "no_root" end
+    if not targetPart or not targetPart:IsA("BasePart") then return false, "invalid_target" end
+    local dist = (hrp.Position - targetPart.Position).Magnitude
+    if dist > maxStuds then
+        return false, "out_of_range"
+    end
+    return true, nil
+end
+
+-- ===== Teleport detection =====
+function AntiCheat.checkTeleport(player)
+    local char = player.Character
+    if not char then return true end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return true end
+    local s = getState(player.UserId)
+    local now = os.clock()
+    if s.lastPos then
+        local dt = math.max(now - s.lastPosTime, 0.001)
+        local dist = (hrp.Position - s.lastPos).Magnitude
+        local speed = dist / dt
+        -- Roblox max running speed ~24 studs/sec; allow 3x for jumps/lag
+        if speed > 80 and dist > GameConfig.MAX_DISTANCE_TELEPORT then
+            AntiCheat.flag(player, "teleport_detected")
+            return false
+        end
+    end
+    s.lastPos = hrp.Position
+    s.lastPosTime = now
+    return true
+end
+
+-- ===== Validate target NPC =====
+function AntiCheat.isValidNPC(targetModel)
+    if not targetModel or not targetModel:IsA("Model") then return false end
+    if not targetModel:GetAttribute("KittyRaiserNPC") then return false end
+    if targetModel:GetAttribute("Pranked") then return false end -- already pranked, prevent double-grant
+    return true
+end
+
+-- ===== Flag a suspicious event =====
+function AntiCheat.flag(player, reason)
+    local s = getState(player.UserId)
+    s.flagCount = s.flagCount + 1
+    warn("[AntiCheat] FLAG", player.Name, reason, "total flags:", s.flagCount)
+    if s.flagCount >= GameConfig.SUSPICIOUS_FLAG_THRESHOLD then
+        warn("[AntiCheat] Player", player.Name, "exceeded flag threshold - chaos grants suspended for session")
+    end
+end
+
+function AntiCheat.isSuspended(player)
+    local s = getState(player.UserId)
+    return s.flagCount >= GameConfig.SUSPICIOUS_FLAG_THRESHOLD
+end
+
+-- Cleanup on leave
+Players.PlayerRemoving:Connect(function(player)
+    State[player.UserId] = nil
+end)
+
+-- Heartbeat teleport check
+game:GetService("RunService").Heartbeat:Connect(function()
+    for _, player in ipairs(Players:GetPlayers()) do
+        AntiCheat.checkTeleport(player)
+    end
+end)
+
+_G.KittyRaiserAntiCheat = AntiCheat
+return AntiCheat
+
+]]
+end
+
+-- ServerScriptService/DataHandler.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'DataHandler')
+    s.Source = [[
+-- DataHandler.server.lua
+-- Session-locked DataStore wrapper. Schema v2 (adds Hell Tokens, perks, stats, survival, daily streak).
+-- Place in: ServerScriptService > DataHandler (Script)
+
+local Players = game:GetService("Players")
+local DataStoreService = game:GetService("DataStoreService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
+local CosmeticConfig = require(ReplicatedStorage.Modules.CosmeticConfig)
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+
+local store = DataStoreService:GetDataStore(GameConfig.DATASTORE_NAME)
+
+local PlayerData = {}
+local LastSave = {}
+local LoadingPlayers = {}
+
+local DataHandler = {}
+
+local function defaultData()
+    return {
+        version = GameConfig.SCHEMA_VERSION,
+        chaosPoints = GameConfig.STARTING_CHAOS,
+        hellTokens = GameConfig.STARTING_HELLTOKENS,
+        level = GameConfig.STARTING_LEVEL,
+        xp = 0,
+        rebirths = 0,
+        equippedSkin = "Default",
+        ownedSkins = table.clone(CosmeticConfig.DEFAULT_OWNED),
+        soulShards = 0,        -- secondary cosmetic currency
+        totalPranks = 0,
+        totalRobuxSpent = 0,
+        firstPlayDate = os.time(),
+        lastPlayDate = os.time(),
+        flagCount = 0,
+        settingsMusicOn = true,
+        settingsSFXOn = true,
+        purchasedDevProductIds = {},
+        -- Stats (Fallout style)
+        stats = {Speed=0, Jump=0, Luck=0, Strength=0, Agility=0},
+        unspentStatPoints = 0,
+        -- Perks (slot -> perkId)
+        perks = {},  -- {[1]="QuickPaws", [2]="PieMaster", ...}
+        -- Survival
+        hunger = 100,
+        thirst = 100,
+        -- Daily reward
+        dailyStreak = 0,
+        lastDailyClaim = 0,
+        -- Pre-spawn customization (custom color override)
+        customSpawnColor = nil,
+        customSpawnSkin = nil,
+        -- Tutorial flags
+        seenTutorial = false,
+    }
+end
+
+local function migrate(data)
+    if not data then data = defaultData() end
+    if not data.version then data.version = 1 end
+    if data.version < 2 then
+        data.hellTokens = data.hellTokens or 0
+        data.soulShards = data.soulShards or 0
+        data.stats = data.stats or {Speed=0, Jump=0, Luck=0, Strength=0, Agility=0}
+        data.unspentStatPoints = data.unspentStatPoints or 0
+        data.perks = data.perks or {}
+        data.hunger = data.hunger or 100
+        data.thirst = data.thirst or 100
+        data.dailyStreak = data.dailyStreak or 0
+        data.lastDailyClaim = data.lastDailyClaim or 0
+        data.version = 2
+    end
+    -- Backfill any new keys
+    local def = defaultData()
+    for k, v in pairs(def) do
+        if data[k] == nil then data[k] = v end
+    end
+    return data
+end
+
+local function key(userId)
+    return GameConfig.DATASTORE_KEY_PREFIX .. tostring(userId)
+end
+
+local function attemptSessionLock(userId)
+    local jobId = game.JobId == "" and "studio_" .. tostring(os.time()) or game.JobId
+    local acquired = false
+    local existingData = nil
+    local ok, err = pcall(function()
+        store:UpdateAsync(key(userId), function(old)
+            old = old or defaultData()
+            old = migrate(old)
+            if old.activeJobId and old.activeJobId ~= jobId then
+                local lockTime = old.lockTime or 0
+                if (os.time() - lockTime) < 120 then
+                    return nil
+                end
+            end
+            old.activeJobId = jobId
+            old.lockTime = os.time()
+            existingData = old
+            acquired = true
+            return old
+        end)
+    end)
+    if not ok then warn("[DataHandler] Lock acquire failed:", err); return false, nil end
+    return acquired, existingData
+end
+
+local function releaseLock(userId, finalData)
+    finalData.activeJobId = nil
+    finalData.lockTime = nil
+    finalData.lastPlayDate = os.time()
+    local ok, err = pcall(function()
+        store:UpdateAsync(key(userId), function(_) return finalData end)
+    end)
+    if not ok then warn("[DataHandler] Release lock failed:", err) end
+end
+
+function DataHandler.getData(player) return PlayerData[player.UserId] end
+function DataHandler.setData(player, data)
+    PlayerData[player.UserId] = data
+    DataHandler.replicateToClient(player)
+end
+
+function DataHandler.modify(player, modifierFn)
+    local data = PlayerData[player.UserId]
+    if not data then return false end
+    modifierFn(data)
+    DataHandler.replicateToClient(player)
+    return true
+end
+
+function DataHandler.replicateToClient(player)
+    local data = PlayerData[player.UserId]
+    if not data then return end
+    local copy = {}
+    for k, v in pairs(data) do
+        if k ~= "activeJobId" and k ~= "lockTime" then copy[k] = v end
+    end
+    Remotes.UpdatePlayerData:FireClient(player, copy)
+end
+
+function DataHandler.save(player, releaseSessionLock)
+    local data = PlayerData[player.UserId]
+    if not data then return end
+    if releaseSessionLock then
+        releaseLock(player.UserId, data)
+    else
+        local ok, err = pcall(function()
+            store:UpdateAsync(key(player.UserId), function(_)
+                data.lastPlayDate = os.time()
+                return data
+            end)
+        end)
+        if not ok then warn("[DataHandler] Save failed:", player.Name, err) end
+    end
+    LastSave[player.UserId] = os.time()
+end
+
+local function onPlayerAdded(player)
+    LoadingPlayers[player.UserId] = true
+    local acquired, data = attemptSessionLock(player.UserId)
+    LoadingPlayers[player.UserId] = nil
+    if not acquired then
+        player:Kick("Could not load your save data. Please rejoin.")
+        return
+    end
+    PlayerData[player.UserId] = migrate(data)
+    DataHandler.replicateToClient(player)
+    print("[DataHandler] Loaded", player.Name, "L"..data.level, "Chaos="..data.chaosPoints, "HT="..data.hellTokens)
+end
+
+local function onPlayerRemoving(player)
+    if PlayerData[player.UserId] then
+        DataHandler.save(player, true)
+        PlayerData[player.UserId] = nil
+    end
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+for _, player in ipairs(Players:GetPlayers()) do task.spawn(onPlayerAdded, player) end
+
+task.spawn(function()
+    while true do
+        task.wait(GameConfig.AUTOSAVE_INTERVAL)
+        for userId, _ in pairs(PlayerData) do
+            local player = Players:GetPlayerByUserId(userId)
+            if player then DataHandler.save(player, false) end
+        end
+    end
+end)
+
+game:BindToClose(function()
+    if RunService:IsStudio() then return end
+    for _, player in ipairs(Players:GetPlayers()) do
+        task.spawn(function() DataHandler.save(player, true) end)
+    end
+    task.wait(3)
+end)
+
+_G.KittyRaiserData = DataHandler
+return DataHandler
+
+]]
+end
+
+-- ServerScriptService/SummonSystem.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'SummonSystem')
+    s.Source = [[
+-- SummonSystem.server.lua
+-- Spawns Robloxian "human" NPCs for the player to prank.
+-- Place in: ServerScriptService > SummonSystem (Script)
+
+local Players = game:GetService("Players")
+local ServerStorage = game:GetService("ServerStorage")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local SummonSystem = {}
+
+local SUMMON_COOLDOWN = 1.5
+local NPC_DESPAWN_AFTER = 25 -- seconds if not pranked
+local lastSummonTime = {}  -- [userId] = os.clock()
+
+-- Find or create the NPC folder in workspace
+local npcFolder = Workspace:FindFirstChild("PrankNPCs")
+if not npcFolder then
+    npcFolder = Instance.new("Folder")
+    npcFolder.Name = "PrankNPCs"
+    npcFolder.Parent = Workspace
+end
+
+-- Get spawn pads (placed in workspace by MapBuilder)
+local function getSpawnPads()
+    local pads = Workspace:FindFirstChild("SpawnPads")
+    if not pads then return {} end
+    return pads:GetChildren()
+end
+
+-- Build a simple Robloxian-style NPC programmatically (no asset deps)
+local function buildHumanNPC()
+    local model = Instance.new("Model")
+    model.Name = "PrankTarget"
+    model:SetAttribute("KittyRaiserNPC", true)
+    model:SetAttribute("Pranked", false)
+
+    -- HumanoidRootPart
+    local hrp = Instance.new("Part")
+    hrp.Name = "HumanoidRootPart"
+    hrp.Size = Vector3.new(2, 2, 1)
+    hrp.Transparency = 1
+    hrp.CanCollide = false
+    hrp.Anchored = false
+    hrp.Parent = model
+
+    -- Torso
+    local torso = Instance.new("Part")
+    torso.Name = "Torso"
+    torso.Size = Vector3.new(2, 2, 1)
+    torso.Color = Color3.fromRGB(0, 100, 200)
+    torso.Position = hrp.Position
+    torso.Parent = model
+    local torsoWeld = Instance.new("WeldConstraint")
+    torsoWeld.Part0 = hrp
+    torsoWeld.Part1 = torso
+    torsoWeld.Parent = torso
+
+    -- Head
+    local head = Instance.new("Part")
+    head.Name = "Head"
+    head.Size = Vector3.new(1.5, 1.5, 1.5)
+    head.Shape = Enum.PartType.Ball
+    head.Color = Color3.fromRGB(245, 205, 160)
+    head.Position = torso.Position + Vector3.new(0, 1.75, 0)
+    head.Parent = model
+    local headWeld = Instance.new("WeldConstraint")
+    headWeld.Part0 = torso
+    headWeld.Part1 = head
+    headWeld.Parent = head
+
+    -- Face decal (simple)
+    local face = Instance.new("Decal")
+    face.Texture = "rbxasset://textures/face.png"
+    face.Face = Enum.NormalId.Front
+    face.Parent = head
+
+    -- Legs (combined block)
+    local legs = Instance.new("Part")
+    legs.Name = "Legs"
+    legs.Size = Vector3.new(2, 2, 1)
+    legs.Color = Color3.fromRGB(40, 40, 80)
+    legs.Position = torso.Position + Vector3.new(0, -2, 0)
+    legs.Parent = model
+    local legWeld = Instance.new("WeldConstraint")
+    legWeld.Part0 = torso
+    legWeld.Part1 = legs
+    legWeld.Parent = legs
+
+    -- Humanoid for ragdoll-style animation later
+    local humanoid = Instance.new("Humanoid")
+    humanoid.MaxHealth = 100
+    humanoid.Health = 100
+    humanoid.WalkSpeed = 8
+    humanoid.Parent = model
+
+    model.PrimaryPart = hrp
+    return model
+end
+
+-- Wander AI: NPC walks randomly until pranked or despawn
+local function wanderAI(model)
+    task.spawn(function()
+        local hum = model:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+        local startTime = os.clock()
+        while model.Parent and (os.clock() - startTime) < NPC_DESPAWN_AFTER do
+            local hrp = model.PrimaryPart
+            if not hrp then break end
+            local rand = Vector3.new(math.random(-15, 15), 0, math.random(-15, 15))
+            hum:MoveTo(hrp.Position + rand)
+            task.wait(math.random(2, 4))
+        end
+        if model.Parent and not model:GetAttribute("Pranked") then
+            model:Destroy()
+        end
+    end)
+end
+
+-- Public: summon an NPC for a player
+function SummonSystem.summon(player)
+    local now = os.clock()
+    local last = lastSummonTime[player.UserId] or 0
+    if (now - last) < SUMMON_COOLDOWN then
+        return false, "summon_cooldown"
+    end
+    lastSummonTime[player.UserId] = now
+
+    local pads = getSpawnPads()
+    if #pads == 0 then
+        warn("[SummonSystem] No spawn pads found - using default position")
+    end
+
+    local npc = buildHumanNPC()
+    local spawnPos
+    if #pads > 0 then
+        local pad = pads[math.random(1, #pads)]
+        spawnPos = pad.Position + Vector3.new(0, 4, 0)
+    else
+        local char = player.Character
+        if char and char.PrimaryPart then
+            spawnPos = char.PrimaryPart.Position + Vector3.new(math.random(-10, 10), 5, math.random(-10, 10))
+        else
+            spawnPos = Vector3.new(0, 10, 0)
+        end
+    end
+
+    npc:PivotTo(CFrame.new(spawnPos))
+    npc:SetAttribute("SummonedBy", player.UserId)
+    npc.Parent = npcFolder
+
+    -- Spawn-in animation: tween scale up
+    for _, p in ipairs(npc:GetDescendants()) do
+        if p:IsA("BasePart") then
+            local origSize = p.Size
+            p.Size = Vector3.new(0.1, 0.1, 0.1)
+            TweenService:Create(p, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = origSize}):Play()
+        end
+    end
+
+    wanderAI(npc)
+    return true, npc
+end
+
+-- Despawn pranked NPC after a delay
+function SummonSystem.markPranked(npc)
+    if not npc then return end
+    npc:SetAttribute("Pranked", true)
+    task.delay(2, function()
+        if npc.Parent then npc:Destroy() end
+    end)
+end
+
+-- Wire remote
+Remotes.RequestSummonHuman.OnServerEvent:Connect(function(player)
+    SummonSystem.summon(player)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    lastSummonTime[player.UserId] = nil
+    -- Despawn this player's NPCs
+    for _, npc in ipairs(npcFolder:GetChildren()) do
+        if npc:GetAttribute("SummonedBy") == player.UserId then
+            npc:Destroy()
+        end
+    end
+end)
+
+_G.KittyRaiserSummon = SummonSystem
+return SummonSystem
+
+]]
+end
+
+-- ServerScriptService/PrankSystem.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'PrankSystem')
+    s.Source = [[
+-- PrankSystem.server.lua
+-- Receives prank requests from client, validates, awards Chaos & XP, fires effect events.
+-- Place in: ServerScriptService > PrankSystem (Script)
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+local CosmeticConfig = require(ReplicatedStorage.Modules.CosmeticConfig)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local function waitFor(globalName)
+    while not _G[globalName] do task.wait() end
+    return _G[globalName]
+end
+
+local DataHandler = waitFor("KittyRaiserData")
+local AntiCheat = waitFor("KittyRaiserAntiCheat")
+local SummonSystem = waitFor("KittyRaiserSummon")
+
+local PrankSystem = {}
+
+local function hasVIP(player)
+    local vipId = GameConfig.GAMEPASS_IDS.VIP
+    if vipId == 0 then return false end
+    local ok, owns = pcall(function()
+        return MarketplaceService:UserOwnsGamePassAsync(player.UserId, vipId)
+    end)
+    return ok and owns or false
+end
+
+local function awardChaosAndXP(player, baseChaos)
+    local data = DataHandler.getData(player)
+    if not data then return 0, 0 end
+
+    -- Multiplier from skin + rebirths + VIP
+    local skinMult = CosmeticConfig.getMultiplier(data.equippedSkin or "Default")
+    local totalMult = GameConfig.computeMultiplier(data.rebirths or 0, hasVIP(player)) * skinMult
+
+    local chaosGained = math.floor(baseChaos * totalMult)
+
+    DataHandler.modify(player, function(d)
+        d.chaosPoints = (d.chaosPoints or 0) + chaosGained
+        d.totalPranks = (d.totalPranks or 0) + 1
+        local xpGain = GameConfig.PRANK_XP_PER_HIT
+        d.xp = (d.xp or 0) + xpGain
+        -- Level up loop
+        while d.level < GameConfig.LEVEL_CAP and d.xp >= GameConfig.xpRequired(d.level) do
+            d.xp = d.xp - GameConfig.xpRequired(d.level)
+            d.level = d.level + 1
+            -- Determine newly unlocked pranks
+            local unlocked = {}
+            for _, name in ipairs(PrankConfig.Order) do
+                if PrankConfig.Pranks[name].unlockLevel == d.level then
+                    table.insert(unlocked, name)
+                end
+            end
+            Remotes.LevelUp:FireClient(player, d.level, unlocked)
+        end
+    end)
+    return chaosGained, GameConfig.PRANK_XP_PER_HIT
+end
+
+function PrankSystem.handlePrankRequest(player, prankName, targetModel)
+    if AntiCheat.isSuspended(player) then
+        Remotes.PrankFailed:FireClient(player, "suspended")
+        return
+    end
+
+    local prank = PrankConfig.getPrank(prankName)
+    if not prank then
+        Remotes.PrankFailed:FireClient(player, "invalid_prank")
+        return
+    end
+
+    local data = DataHandler.getData(player)
+    if not data then
+        Remotes.PrankFailed:FireClient(player, "no_data")
+        return
+    end
+
+    -- Level lock
+    if data.level < prank.unlockLevel then
+        Remotes.PrankFailed:FireClient(player, "level_locked")
+        return
+    end
+
+    -- Rate limit
+    local rlOk = AntiCheat.checkRateLimit(player)
+    if not rlOk then
+        Remotes.PrankFailed:FireClient(player, "rate_limited")
+        return
+    end
+
+    -- Cooldown
+    local cdOk = AntiCheat.checkPrankCooldown(player, prankName, prank.cooldown)
+    if not cdOk then
+        Remotes.PrankFailed:FireClient(player, "cooldown")
+        return
+    end
+
+    -- NPC validity
+    if not AntiCheat.isValidNPC(targetModel) then
+        Remotes.PrankFailed:FireClient(player, "invalid_target")
+        return
+    end
+
+    -- Distance
+    local primary = targetModel.PrimaryPart or targetModel:FindFirstChild("HumanoidRootPart")
+    local distOk, distErr = AntiCheat.checkPrankDistance(player, primary, prank.rangeStuds)
+    if not distOk then
+        Remotes.PrankFailed:FireClient(player, distErr or "out_of_range")
+        return
+    end
+
+    -- All checks pass — award + mark
+    local chaos, xp = awardChaosAndXP(player, prank.baseChaos)
+    SummonSystem.markPranked(targetModel)
+
+    -- Tell client to play effects
+    local fxPayload = {
+        prank = prankName,
+        targetCFrame = primary.CFrame,
+        chaosGained = chaos,
+        screenShake = prank.screenShake,
+    }
+    Remotes.PrankRegistered:FireClient(player, prankName, targetModel, chaos, fxPayload)
+
+    -- Tell ALL clients in range to see the splash effect (so it's social)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player then
+            local pChar = p.Character
+            if pChar and pChar.PrimaryPart then
+                if (pChar.PrimaryPart.Position - primary.Position).Magnitude < 80 then
+                    Remotes.PrankRegistered:FireClient(p, prankName, targetModel, 0, fxPayload)
+                end
+            end
+        end
+    end
+end
+
+Remotes.RequestPrank.OnServerEvent:Connect(function(player, prankName, targetModel)
+    PrankSystem.handlePrankRequest(player, prankName, targetModel)
+end)
+
+return PrankSystem
+
+]]
+end
+
+-- ServerScriptService/MonetizationHandler.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'MonetizationHandler')
+    s.Source = [[
+-- MonetizationHandler.server.lua
+-- Processes GamePass ownership checks + DevProduct ProcessReceipt.
+-- Place in: ServerScriptService > MonetizationHandler (Script)
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DataStoreService = game:GetService("DataStoreService")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local CosmeticConfig = require(ReplicatedStorage.Modules.CosmeticConfig)
+
+local function waitFor(globalName)
+    while not _G[globalName] do task.wait() end
+    return _G[globalName]
+end
+local DataHandler = waitFor("KittyRaiserData")
+
+-- Receipt de-dup store
+local receiptStore = DataStoreService:GetDataStore("KittyRaiserReceipts_v1")
+
+-- Map DevProduct ID -> handler function
+local DevProductHandlers = {}
+
+local function awardChaos(player, amount)
+    DataHandler.modify(player, function(d)
+        d.chaosPoints = (d.chaosPoints or 0) + amount
+        d.totalRobuxSpent = (d.totalRobuxSpent or 0) + 1 -- approximate, real R$ via API
+    end)
+    Remotes.NotifyClient:FireClient(player, "+" .. amount .. " Chaos!", "success")
+end
+
+-- Wire DevProducts (filled when IDs are known)
+local function registerDevProducts()
+    if GameConfig.DEVPRODUCT_IDS.CHAOS_5K ~= 0 then
+        DevProductHandlers[GameConfig.DEVPRODUCT_IDS.CHAOS_5K] = function(player) awardChaos(player, 5000) end
+    end
+    if GameConfig.DEVPRODUCT_IDS.CHAOS_50K ~= 0 then
+        DevProductHandlers[GameConfig.DEVPRODUCT_IDS.CHAOS_50K] = function(player) awardChaos(player, 50000) end
+    end
+    if GameConfig.DEVPRODUCT_IDS.REBIRTH_SKIP ~= 0 then
+        DevProductHandlers[GameConfig.DEVPRODUCT_IDS.REBIRTH_SKIP] = function(player)
+            DataHandler.modify(player, function(d)
+                d.level = math.max(d.level, GameConfig.REBIRTH_REQUIRED_LEVEL)
+                d.xp = 0
+            end)
+            Remotes.NotifyClient:FireClient(player, "Rebirth requirement skipped!", "success")
+        end
+    end
+end
+registerDevProducts()
+
+-- ProcessReceipt: must return PurchaseGranted or NotProcessedYet
+MarketplaceService.ProcessReceipt = function(receiptInfo)
+    local player = Players:GetPlayerByUserId(receiptInfo.PlayerId)
+    if not player then return Enum.ProductPurchaseDecision.NotProcessedYet end
+
+    local key = "p_" .. receiptInfo.PurchaseId
+
+    -- Already processed?
+    local alreadyProcessed = false
+    local ok = pcall(function()
+        receiptStore:UpdateAsync(key, function(old)
+            if old then
+                alreadyProcessed = true
+                return old
+            end
+            return os.time()
+        end)
+    end)
+    if not ok then
+        return Enum.ProductPurchaseDecision.NotProcessedYet
+    end
+    if alreadyProcessed then
+        return Enum.ProductPurchaseDecision.PurchaseGranted
+    end
+
+    local handler = DevProductHandlers[receiptInfo.ProductId]
+    if not handler then
+        warn("[Monetization] No handler for product", receiptInfo.ProductId)
+        return Enum.ProductPurchaseDecision.NotProcessedYet
+    end
+
+    local handled = pcall(function() handler(player) end)
+    if handled then
+        return Enum.ProductPurchaseDecision.PurchaseGranted
+    end
+    return Enum.ProductPurchaseDecision.NotProcessedYet
+end
+
+-- GamePass purchase listener (live grants)
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gamepassId, purchased)
+    if not purchased then return end
+    -- Demon skin
+    if gamepassId == GameConfig.GAMEPASS_IDS.DEMON_SKIN then
+        DataHandler.modify(player, function(d)
+            if not table.find(d.ownedSkins, "Demon") then
+                table.insert(d.ownedSkins, "Demon")
+            end
+        end)
+        Remotes.NotifyClient:FireClient(player, "Demon Cat unlocked!", "success")
+    elseif gamepassId == GameConfig.GAMEPASS_IDS.NEON_SKIN then
+        DataHandler.modify(player, function(d)
+            if not table.find(d.ownedSkins, "Neon") then
+                table.insert(d.ownedSkins, "Neon")
+            end
+        end)
+        Remotes.NotifyClient:FireClient(player, "Neon Cat unlocked!", "success")
+    elseif gamepassId == GameConfig.GAMEPASS_IDS.VIP then
+        Remotes.NotifyClient:FireClient(player, "VIP active! 2x Chaos!", "success")
+    end
+end)
+
+-- On player join, sync their existing GamePass ownership into ownedSkins (covers prior purchases)
+Players.PlayerAdded:Connect(function(player)
+    task.wait(2) -- let DataHandler load
+    local data = DataHandler.getData(player)
+    if not data then return end
+    for skinId, skin in pairs(CosmeticConfig.Skins) do
+        if skin.currency == "robux" then
+            local gpId = GameConfig.GAMEPASS_IDS[string.upper(skinId) .. "_SKIN"]
+            if gpId and gpId ~= 0 then
+                local ok, owns = pcall(function()
+                    return MarketplaceService:UserOwnsGamePassAsync(player.UserId, gpId)
+                end)
+                if ok and owns and not table.find(data.ownedSkins, skinId) then
+                    table.insert(data.ownedSkins, skinId)
+                end
+            end
+        end
+    end
+    DataHandler.replicateToClient(player)
+end)
+
+-- DevProduct purchase via remote (client-initiated prompt is fine, but server is source of truth)
+Remotes.RequestUseDevProduct.OnServerEvent:Connect(function(player, productKey)
+    local id = GameConfig.DEVPRODUCT_IDS[productKey]
+    if not id or id == 0 then return end
+    MarketplaceService:PromptProductPurchase(player, id)
+end)
+
+return true
+
+]]
+end
+
+-- ServerScriptService/RebirthHandler.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'RebirthHandler')
+    s.Source = [[
+-- RebirthHandler.server.lua
+-- Handles rebirth requests, validates eligibility, applies prestige.
+-- Place in: ServerScriptService > RebirthHandler (Script)
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local function waitFor(globalName)
+    while not _G[globalName] do task.wait() end
+    return _G[globalName]
+end
+local DataHandler = waitFor("KittyRaiserData")
+
+Remotes.RequestRebirth.OnServerInvoke = function(player)
+    local data = DataHandler.getData(player)
+    if not data then return false, "no_data" end
+
+    if data.level < GameConfig.REBIRTH_REQUIRED_LEVEL then
+        return false, "level_too_low"
+    end
+
+    if data.rebirths >= GameConfig.REBIRTH_SOFT_CAP then
+        return false, "soft_cap_reached"
+    end
+
+    DataHandler.modify(player, function(d)
+        d.rebirths = (d.rebirths or 0) + 1
+        d.level = 1
+        d.xp = 0
+        -- Keep chaos points across rebirths so player feels progress
+        -- Drop ownedSkins, equippedSkin remain
+    end)
+
+    local newData = DataHandler.getData(player)
+    local newMult = GameConfig.computeMultiplier(newData.rebirths, false)
+    Remotes.RebirthCompleted:FireClient(player, newData.rebirths, newMult)
+    return true, newData.rebirths
+end
+
+return true
+
+]]
+end
+
+-- ServerScriptService/CosmeticHandler.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'CosmeticHandler')
+    s.Source = [[
+-- CosmeticHandler.server.lua
+-- Handles skin purchase (Chaos currency) + equip + applies skin to character.
+-- Place in: ServerScriptService > CosmeticHandler (Script)
+
+local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local CosmeticConfig = require(ReplicatedStorage.Modules.CosmeticConfig)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local function waitFor(globalName)
+    while not _G[globalName] do task.wait() end
+    return _G[globalName]
+end
+local DataHandler = waitFor("KittyRaiserData")
+
+local CosmeticHandler = {}
+
+local function applySkinToCharacter(character, skinId)
+    if not character then return end
+    local skin = CosmeticConfig.getSkin(skinId)
+    if not skin then return end
+
+    local bodyColors = character:FindFirstChildOfClass("BodyColors")
+    if not bodyColors then
+        bodyColors = Instance.new("BodyColors")
+        bodyColors.Parent = character
+    end
+
+    -- Apply colors via BrickColor (BodyColors uses BrickColor)
+    local function toBrick(c) return BrickColor.new(c) end
+    if skin.bodyColors.HeadColor then bodyColors.HeadColor = toBrick(skin.bodyColors.HeadColor) end
+    if skin.bodyColors.TorsoColor then bodyColors.TorsoColor = toBrick(skin.bodyColors.TorsoColor) end
+    if skin.bodyColors.LeftArmColor then bodyColors.LeftArmColor = toBrick(skin.bodyColors.LeftArmColor) end
+    if skin.bodyColors.RightArmColor then bodyColors.RightArmColor = toBrick(skin.bodyColors.RightArmColor) end
+    if skin.bodyColors.LeftLegColor then bodyColors.LeftLegColor = toBrick(skin.bodyColors.LeftLegColor) end
+    if skin.bodyColors.RightLegColor then bodyColors.RightLegColor = toBrick(skin.bodyColors.RightLegColor) end
+
+    -- Material override for Neon
+    if skin.material then
+        for _, p in ipairs(character:GetDescendants()) do
+            if p:IsA("BasePart") then
+                p.Material = skin.material
+            end
+        end
+    end
+
+    -- Glow effect
+    if skin.glowEffect then
+        local existing = character:FindFirstChild("SkinGlow")
+        if not existing then
+            local light = Instance.new("PointLight")
+            light.Name = "SkinGlow"
+            light.Brightness = 2
+            light.Range = 12
+            light.Color = skin.bodyColors.TorsoColor or Color3.new(1,1,1)
+            local hrp = character:FindFirstChild("HumanoidRootPart")
+            if hrp then light.Parent = hrp end
+        end
+    end
+end
+
+local function applyOnRespawn(player, character)
+    local data = DataHandler.getData(player)
+    if not data then return end
+    -- wait for body parts
+    character:WaitForChild("Humanoid")
+    task.wait(0.1)
+    applySkinToCharacter(character, data.equippedSkin or "Default")
+end
+
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(char) applyOnRespawn(player, char) end)
+end)
+
+-- Equip
+Remotes.RequestEquipSkin.OnServerInvoke = function(player, skinId)
+    local data = DataHandler.getData(player)
+    if not data then return false, "no_data" end
+    if not table.find(data.ownedSkins, skinId) then return false, "not_owned" end
+    DataHandler.modify(player, function(d) d.equippedSkin = skinId end)
+    if player.Character then applySkinToCharacter(player.Character, skinId) end
+    return true, nil
+end
+
+-- Purchase with Chaos
+Remotes.RequestPurchaseSkinChaos.OnServerInvoke = function(player, skinId)
+    local skin = CosmeticConfig.getSkin(skinId)
+    if not skin then return false, "invalid_skin" end
+    if skin.currency ~= "chaos" then return false, "wrong_currency" end
+    local data = DataHandler.getData(player)
+    if not data then return false, "no_data" end
+    if table.find(data.ownedSkins, skinId) then return false, "already_owned" end
+    if (data.chaosPoints or 0) < skin.cost then return false, "not_enough_chaos" end
+    DataHandler.modify(player, function(d)
+        d.chaosPoints = d.chaosPoints - skin.cost
+        table.insert(d.ownedSkins, skinId)
+    end)
+    return true, nil
+end
+
+return CosmeticHandler
+
+]]
+end
+
+-- ServerScriptService/LeaderboardHandler.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'LeaderboardHandler')
+    s.Source = [[
+-- LeaderboardHandler.server.lua
+-- Maintains a per-server live leaderboard of top 10 Chaos earners.
+-- Place in: ServerScriptService > LeaderboardHandler (Script)
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+
+local function waitFor(globalName) while not _G[globalName] do task.wait() end return _G[globalName] end
+local DataHandler = waitFor("KittyRaiserData")
+
+local UPDATE_INTERVAL = 5
+
+local function buildAndBroadcast()
+    local entries = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        local d = DataHandler.getData(p)
+        if d then
+            table.insert(entries, {
+                name = p.DisplayName or p.Name,
+                userId = p.UserId,
+                chaos = d.chaosPoints or 0,
+                level = d.level or 1,
+                rebirths = d.rebirths or 0,
+            })
+        end
+    end
+    table.sort(entries, function(a, b) return a.chaos > b.chaos end)
+    -- Top 10
+    local top = {}
+    for i = 1, math.min(10, #entries) do top[i] = entries[i] end
+    Remotes.LeaderboardUpdated:FireAllClients(top)
+end
+
+task.spawn(function()
+    while true do
+        task.wait(UPDATE_INTERVAL)
+        pcall(buildAndBroadcast)
+    end
+end)
+
+return true
+
+]]
+end
+
+-- ServerScriptService/PerkSystem.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'PerkSystem')
+    s.Source = [[
+-- PerkSystem.server.lua
+-- Grants perk slots every 5 levels, presents picker, applies effects, allows reset.
+-- Place in: ServerScriptService > PerkSystem (Script)
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local PerkConfig = require(ReplicatedStorage.Modules.PerkConfig)
+
+local function waitFor(g) while not _G[g] do task.wait() end return _G[g] end
+local DataHandler = waitFor("KittyRaiserData")
+
+local PerkSystem = {}
+
+-- Equip / pick perk for slot
+Remotes.RequestEquipPerk.OnServerInvoke = function(player, slot, perkId)
+    if type(slot) ~= "number" or not perkId then return false, "bad_args" end
+    local data = DataHandler.getData(player)
+    if not data then return false, "no_data" end
+    local availableSlots = GameConfig.perkSlotsAtLevel(data.level or 1)
+    if slot > availableSlots then return false, "slot_locked" end
+    local options = PerkConfig.optionsForSlot(slot)
+    if not options or not table.find(options, perkId) then return false, "invalid_perk_for_slot" end
+    DataHandler.modify(player, function(d)
+        d.perks = d.perks or {}
+        d.perks[tostring(slot)] = perkId  -- store keys as strings (DataStore quirk)
+    end)
+    return true, nil
+end
+
+-- Reset all perks (Hell Tokens cost or Robux)
+Remotes.RequestResetPerks.OnServerInvoke = function(player, useRobux)
+    local data = DataHandler.getData(player)
+    if not data then return false, "no_data" end
+    if useRobux then
+        local prodId = GameConfig.DEVPRODUCT_IDS.PERK_RESET
+        if prodId == 0 then return false, "robux_product_unset" end
+        -- Server can't directly charge; needs PromptProductPurchase via client.
+        -- For server-side flow, the client should call MarketplaceService:PromptProductPurchase first then we await ProcessReceipt.
+        return false, "use_client_prompt"
+    else
+        local cost = GameConfig.PERK_RESET_HELLTOKENS
+        if (data.hellTokens or 0) < cost then return false, "not_enough_helltokens" end
+        DataHandler.modify(player, function(d)
+            d.hellTokens = d.hellTokens - cost
+            d.perks = {}
+        end)
+        return true, nil
+    end
+end
+
+-- Stat allocation (each level gives 1 unspent stat point + 5 levels gives a perk slot)
+Remotes.RequestAllocStat.OnServerInvoke = function(player, statName)
+    local data = DataHandler.getData(player)
+    if not data then return false, "no_data" end
+    if not table.find(GameConfig.STAT_NAMES, statName) then return false, "bad_stat" end
+    if (data.unspentStatPoints or 0) <= 0 then return false, "no_points" end
+    if (data.stats[statName] or 0) >= GameConfig.STAT_MAX then return false, "maxed" end
+    DataHandler.modify(player, function(d)
+        d.unspentStatPoints = d.unspentStatPoints - 1
+        d.stats[statName] = (d.stats[statName] or 0) + 1
+    end)
+    -- Apply on character
+    PerkSystem.applyStatsToCharacter(player)
+    return true, nil
+end
+
+function PerkSystem.applyStatsToCharacter(player)
+    local data = DataHandler.getData(player)
+    if not data or not data.stats then return end
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    -- Speed
+    hum.WalkSpeed = 16 + (data.stats.Speed or 0) * GameConfig.STAT_EFFECTS.Speed.walkSpeedPerPoint
+    -- Jump
+    hum.JumpPower = 50 + (data.stats.Jump or 0) * GameConfig.STAT_EFFECTS.Jump.jumpPowerPerPoint
+end
+
+-- Hook into LevelUp event to grant stat points + perk slots
+Remotes.LevelUp.OnServerEvent:Connect(function() end)  -- noop, but let server scripts watch
+local function grantOnLevelUp(player)
+    local data = DataHandler.getData(player)
+    if not data then return end
+    DataHandler.modify(player, function(d)
+        d.unspentStatPoints = (d.unspentStatPoints or 0) + GameConfig.STATS_PER_LEVEL
+    end)
+    -- If multiple of 5, prompt perk picker
+    if data.level % GameConfig.PERK_GRANT_EVERY == 0 then
+        local slot = math.floor(data.level / GameConfig.PERK_GRANT_EVERY)
+        Remotes.PerkSlotEarned:FireClient(player, slot, PerkConfig.optionsForSlot(slot))
+    end
+end
+
+-- We can't directly listen to PrankSystem's level-up easily without a global pubsub.
+-- Use a watcher on data.level.
+local Players = game:GetService("Players")
+local lastSeenLevel = {}
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(char)
+        task.wait(0.5)
+        PerkSystem.applyStatsToCharacter(player)
+    end)
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        for _, player in ipairs(Players:GetPlayers()) do
+            local data = DataHandler.getData(player)
+            if data then
+                local prev = lastSeenLevel[player.UserId] or data.level
+                if data.level > prev then
+                    -- Level up happened
+                    for newLvl = prev+1, data.level do
+                        DataHandler.modify(player, function(d)
+                            d.unspentStatPoints = (d.unspentStatPoints or 0) + GameConfig.STATS_PER_LEVEL
+                        end)
+                        if newLvl % GameConfig.PERK_GRANT_EVERY == 0 then
+                            local slot = math.floor(newLvl / GameConfig.PERK_GRANT_EVERY)
+                            Remotes.PerkSlotEarned:FireClient(player, slot, PerkConfig.optionsForSlot(slot))
+                        end
+                    end
+                end
+                lastSeenLevel[player.UserId] = data.level
+            end
+        end
+    end
+end)
+
+_G.KittyRaiserPerks = PerkSystem
+return PerkSystem
+
+]]
+end
+
+-- ServerScriptService/SurvivalSystem.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'SurvivalSystem')
+    s.Source = [[
+-- SurvivalSystem.server.lua
+-- Hunger/thirst decay over time. Below 25 = slow. At 0 = ragdoll respawn.
+-- Place in: ServerScriptService > SurvivalSystem (Script)
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local function waitFor(g) while not _G[g] do task.wait() end return _G[g] end
+local DataHandler = waitFor("KittyRaiserData")
+
+if not GameConfig.SURVIVAL_ENABLED then
+    print("[SurvivalSystem] Disabled in config")
+    return
+end
+
+local TICK = 5  -- decay every 5 sec
+local hungerPerTick = (GameConfig.HUNGER_DECAY_PER_MIN / 60) * TICK
+local thirstPerTick = (GameConfig.THIRST_DECAY_PER_MIN / 60) * TICK
+
+task.spawn(function()
+    while true do
+        task.wait(TICK)
+        for _, player in ipairs(Players:GetPlayers()) do
+            local data = DataHandler.getData(player)
+            if data then
+                DataHandler.modify(player, function(d)
+                    d.hunger = math.clamp((d.hunger or 100) - hungerPerTick, 0, 100)
+                    d.thirst = math.clamp((d.thirst or 100) - thirstPerTick, 0, 100)
+                end)
+                Remotes.SurvivalUpdate:FireClient(player, data.hunger, data.thirst)
+                -- Apply slow if low
+                local char = player.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        if data.hunger < GameConfig.SURVIVAL_DEBUFF_AT or data.thirst < GameConfig.SURVIVAL_DEBUFF_AT then
+                            hum.WalkSpeed = math.max(8, hum.WalkSpeed - 4)
+                        end
+                        if data.hunger <= 0 or data.thirst <= 0 then
+                            hum.Health = 0  -- respawn
+                            DataHandler.modify(player, function(d)
+                                d.hunger = 50
+                                d.thirst = 50
+                            end)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Food/water sources detection: parts with attribute "FoodSource" or "WaterSource"
+local function setupFoodPart(part)
+    if not part:IsA("BasePart") then return end
+    if not part:GetAttribute("FoodSource") and not part:GetAttribute("WaterSource") then return end
+    part.Touched:Connect(function(hit)
+        local char = hit and hit.Parent
+        if not char then return end
+        local player = Players:GetPlayerFromCharacter(char)
+        if not player then return end
+        local now = os.clock()
+        local lastUse = part:GetAttribute("LastUse_"..player.UserId) or 0
+        if (now - lastUse) < 5 then return end
+        part:SetAttribute("LastUse_"..player.UserId, now)
+        DataHandler.modify(player, function(d)
+            if part:GetAttribute("FoodSource") then
+                d.hunger = math.min(100, (d.hunger or 0) + GameConfig.FOOD_RESTORE)
+            end
+            if part:GetAttribute("WaterSource") then
+                d.thirst = math.min(100, (d.thirst or 0) + GameConfig.WATER_RESTORE)
+            end
+        end)
+        Remotes.NotifyClient:FireClient(player, part:GetAttribute("FoodSource") and "+Food" or "+Water", "success")
+    end)
+end
+
+for _, p in ipairs(Workspace:GetDescendants()) do setupFoodPart(p) end
+Workspace.DescendantAdded:Connect(setupFoodPart)
+
+-- Direct request remotes (used by interaction prompts)
+Remotes.RequestEatFood.OnServerEvent:Connect(function(player, sourceModel)
+    if sourceModel and sourceModel:GetAttribute("FoodSource") then
+        DataHandler.modify(player, function(d)
+            d.hunger = math.min(100, (d.hunger or 0) + GameConfig.FOOD_RESTORE)
+        end)
+    end
+end)
+Remotes.RequestDrinkWater.OnServerEvent:Connect(function(player, sourceModel)
+    if sourceModel and sourceModel:GetAttribute("WaterSource") then
+        DataHandler.modify(player, function(d)
+            d.thirst = math.min(100, (d.thirst or 0) + GameConfig.WATER_RESTORE)
+        end)
+    end
+end)
+
+return true
+
+]]
+end
+
+-- ServerScriptService/WeatherSystem.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'WeatherSystem')
+    s.Source = [[
+-- WeatherSystem.server.lua
+-- Cycles Sunny / Rainy / Foggy / RedMist. Broadcasts state, applies bonuses.
+-- Place in: ServerScriptService > WeatherSystem (Script)
+
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local function waitFor(g) while not _G[g] do task.wait() end return _G[g] end
+local DataHandler = waitFor("KittyRaiserData")
+
+local CurrentWeather = "Sunny"
+local CurrentMultBonus = 1.0
+
+local function pickWeather()
+    local roll = math.random()
+    local cum = 0
+    for k, w in pairs(GameConfig.WEATHER_WEIGHTS) do
+        cum = cum + w
+        if roll <= cum then return k end
+    end
+    return "Sunny"
+end
+
+local function applyVisuals(weather)
+    if weather == "Sunny" then
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 1000
+        Lighting.FogStart = 200
+        Lighting.FogColor = Color3.fromRGB(180, 180, 200)
+    elseif weather == "Rainy" then
+        Lighting.ClockTime = 13
+        Lighting.FogEnd = 400
+        Lighting.FogStart = 50
+        Lighting.FogColor = Color3.fromRGB(100, 100, 130)
+    elseif weather == "Foggy" then
+        Lighting.ClockTime = 18
+        Lighting.FogEnd = 200
+        Lighting.FogStart = 20
+        Lighting.FogColor = Color3.fromRGB(220, 220, 220)
+    elseif weather == "RedMist" then
+        Lighting.ClockTime = 22
+        Lighting.FogEnd = 250
+        Lighting.FogStart = 30
+        Lighting.FogColor = Color3.fromRGB(180, 0, 0)
+    end
+end
+
+function _G.KittyRaiserGetWeatherMult()
+    return CurrentMultBonus
+end
+
+local function setWeather(weather)
+    CurrentWeather = weather
+    CurrentMultBonus = (weather == "RedMist") and GameConfig.RED_MIST_CHAOS_MULT or 1.0
+    applyVisuals(weather)
+    Remotes.WeatherChanged:FireAllClients(weather)
+    Remotes.EventBroadcast:FireAllClients(
+        weather == "RedMist" and "RED MIST! 2x Chaos for "..GameConfig.RED_MIST_DURATION_MIN.." min!"
+        or weather:upper(),
+        weather
+    )
+end
+
+task.spawn(function()
+    while true do
+        local weather = pickWeather()
+        setWeather(weather)
+        local dur = (weather == "RedMist") and GameConfig.RED_MIST_DURATION_MIN or GameConfig.WEATHER_CYCLE_MIN
+        task.wait(dur * 60)
+    end
+end)
+
+return true
+
+]]
+end
+
+-- ServerScriptService/DailyRewardSystem.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'DailyRewardSystem')
+    s.Source = [[
+-- DailyRewardSystem.server.lua
+-- Daily login reward with 7-day streak cycle.
+-- Place in: ServerScriptService > DailyRewardSystem (Script)
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+
+local function waitFor(g) while not _G[g] do task.wait() end return _G[g] end
+local DataHandler = waitFor("KittyRaiserData")
+
+local DAY_SECONDS = 86400
+
+-- 7-day streak rewards
+local REWARDS = {
+    [1] = {chaos = 500, hellTokens = 0, msg = "Day 1: 500 Chaos"},
+    [2] = {chaos = 1500, hellTokens = 0, msg = "Day 2: 1.5K Chaos"},
+    [3] = {chaos = 3000, hellTokens = 1, msg = "Day 3: 3K Chaos + 1 Hell Token"},
+    [4] = {chaos = 5000, hellTokens = 0, msg = "Day 4: 5K Chaos"},
+    [5] = {chaos = 7500, hellTokens = 2, msg = "Day 5: 7.5K Chaos + 2 Hell Tokens"},
+    [6] = {chaos = 10000, hellTokens = 0, msg = "Day 6: 10K Chaos"},
+    [7] = {chaos = 25000, hellTokens = 5, msg = "Day 7: 25K Chaos + 5 Hell Tokens! 🎉"},
+}
+
+local function isAvailable(data)
+    if not data.lastDailyClaim then return true end
+    return (os.time() - data.lastDailyClaim) >= DAY_SECONDS
+end
+
+local function streakBroken(data)
+    if not data.lastDailyClaim then return true end
+    return (os.time() - data.lastDailyClaim) >= (DAY_SECONDS * 2)
+end
+
+Remotes.RequestClaimDaily.OnServerInvoke = function(player)
+    local data = DataHandler.getData(player)
+    if not data then return false, "no_data" end
+    if not isAvailable(data) then
+        local nextAt = (data.lastDailyClaim or 0) + DAY_SECONDS
+        return false, "wait", nextAt - os.time()
+    end
+    local newStreak
+    if streakBroken(data) then newStreak = 1
+    else newStreak = ((data.dailyStreak or 0) % 7) + 1 end
+    local reward = REWARDS[newStreak]
+    DataHandler.modify(player, function(d)
+        d.chaosPoints = (d.chaosPoints or 0) + reward.chaos
+        d.hellTokens = (d.hellTokens or 0) + reward.hellTokens
+        d.dailyStreak = newStreak
+        d.lastDailyClaim = os.time()
+    end)
+    Remotes.NotifyClient:FireClient(player, reward.msg, "success")
+    return true, newStreak
+end
+
+Players.PlayerAdded:Connect(function(player)
+    task.wait(3)
+    local data = DataHandler.getData(player)
+    if data and isAvailable(data) then
+        local nextStreak
+        if streakBroken(data) then nextStreak = 1
+        else nextStreak = ((data.dailyStreak or 0) % 7) + 1 end
+        Remotes.DailyAvailable:FireClient(player, nextStreak, REWARDS[nextStreak])
+    end
+end)
+
+return true
+
+]]
+end
+
+-- ServerScriptService/EmoteSystem.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'EmoteSystem')
+    s.Source = [[
+-- EmoteSystem.server.lua
+-- Broadcasts emote requests to nearby players.
+-- Place in: ServerScriptService > EmoteSystem (Script)
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local EMOTE_COOLDOWN = 1.5
+local lastUse = {}
+
+Remotes.RequestEmote.OnServerEvent:Connect(function(player, emoteName)
+    if not table.find(GameConfig.EMOTES, emoteName) then return end
+    local now = os.clock()
+    if lastUse[player.UserId] and (now - lastUse[player.UserId]) < EMOTE_COOLDOWN then return end
+    lastUse[player.UserId] = now
+    local char = player.Character
+    if not char or not char.PrimaryPart then return end
+    local origin = char.PrimaryPart.Position
+    -- Broadcast to nearby players (within 80 studs) for FX
+    for _, p in ipairs(Players:GetPlayers()) do
+        local pchar = p.Character
+        if pchar and pchar.PrimaryPart and (pchar.PrimaryPart.Position - origin).Magnitude < 80 then
+            Remotes.EmoteBroadcast:FireClient(p, player.UserId, emoteName)
+        end
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(p) lastUse[p.UserId] = nil end)
+
+return true
+
+]]
+end
+
+-- ServerScriptService/AdminSystem.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'AdminSystem')
+    s.Source = [[
+-- AdminSystem.server.lua
+-- Admin-only chat commands and remote calls. Edit ADMIN_USERIDS below.
+-- Place in: ServerScriptService > AdminSystem (Script)
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+
+local function waitFor(g) while not _G[g] do task.wait() end return _G[g] end
+local DataHandler = waitFor("KittyRaiserData")
+
+-- TODO: replace with real admin UserIds (yours + trusted staff)
+local ADMIN_USERIDS = {
+    -- 12345678,
+}
+
+local function isAdmin(player)
+    return table.find(ADMIN_USERIDS, player.UserId) ~= nil or player:GetAttribute("AdminOverride") == true
+end
+
+local Commands = {}
+
+Commands.chaos = function(player, amount)
+    amount = tonumber(amount) or 0
+    DataHandler.modify(player, function(d) d.chaosPoints = (d.chaosPoints or 0) + amount end)
+    return "chaos +" .. amount
+end
+
+Commands.helltokens = function(player, amount)
+    amount = tonumber(amount) or 0
+    DataHandler.modify(player, function(d) d.hellTokens = (d.hellTokens or 0) + amount end)
+    return "hellTokens +" .. amount
+end
+
+Commands.level = function(player, amount)
+    amount = tonumber(amount) or 1
+    DataHandler.modify(player, function(d) d.level = math.clamp(amount, 1, 100); d.xp = 0 end)
+    return "level set to " .. amount
+end
+
+Commands.skin = function(player, skinId)
+    DataHandler.modify(player, function(d)
+        if not table.find(d.ownedSkins, skinId) then table.insert(d.ownedSkins, skinId) end
+        d.equippedSkin = skinId
+    end)
+    return "skin set " .. tostring(skinId)
+end
+
+Commands.reset = function(player)
+    DataHandler.modify(player, function(d)
+        d.chaosPoints = 0
+        d.level = 1
+        d.xp = 0
+        d.rebirths = 0
+        d.perks = {}
+        d.unspentStatPoints = 0
+        d.stats = {Speed=0,Jump=0,Luck=0,Strength=0,Agility=0}
+    end)
+    return "reset"
+end
+
+Commands.kick = function(player, targetName, reason)
+    local target = Players:FindFirstChild(targetName)
+    if target then target:Kick(reason or "Admin kick"); return "kicked "..targetName end
+    return "not found"
+end
+
+local function processChatCommand(player, msg)
+    if not msg or msg:sub(1,1) ~= "/" then return end
+    if not isAdmin(player) then return end
+    local parts = msg:sub(2):split(" ")
+    local cmd = parts[1]
+    local args = {}
+    for i = 2, #parts do args[i-1] = parts[i] end
+    local fn = Commands[cmd]
+    if fn then
+        local ok, result = pcall(fn, player, table.unpack(args))
+        if ok then
+            Remotes.NotifyClient:FireClient(player, "admin: "..tostring(result), "success")
+        end
+    end
+end
+
+Players.PlayerAdded:Connect(function(player)
+    player.Chatted:Connect(function(msg)
+        processChatCommand(player, msg)
+    end)
+end)
+
+-- Allow Studio testing without admin list (auto-admin in Studio)
+local RunService = game:GetService("RunService")
+if RunService:IsStudio() then
+    Players.PlayerAdded:Connect(function(player)
+        player:SetAttribute("AdminOverride", true)
+        print("[AdminSystem] Studio auto-admin granted to", player.Name)
+    end)
+end
+
+Remotes.RequestAdminCommand.OnServerInvoke = function(player, cmd, ...)
+    if not isAdmin(player) then return false, "not_admin" end
+    local fn = Commands[cmd]
+    if not fn then return false, "unknown_cmd" end
+    local args = {...}
+    local ok, result = pcall(fn, player, table.unpack(args))
+    return ok, result
+end
+
+return true
+
+]]
+end
+
+-- Workspace/MapBuilder.server.lua
+do
+    local s = getOrMake(game.ServerScriptService, 'Script', 'MapBuilder')
+    s.Source = [[
+-- MapBuilder.server.lua
+-- Programmatically builds Cat Alley (200x200 stud zone) on server start.
+-- Place in: ServerScriptService > MapBuilder (Script)
+-- Run once per server boot, idempotent (skips if map already built).
+
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+
+local MAP_NAME = "CatAlley"
+local MAP_SIZE = 200
+local FLOOR_THICKNESS = 4
+
+local function part(props)
+    local p = Instance.new("Part")
+    p.Anchored = true
+    p.CanCollide = props.CanCollide ~= false
+    for k, v in pairs(props) do
+        if k ~= "CanCollide" and k ~= "Children" then
+            p[k] = v
+        end
+    end
+    if props.Children then
+        for _, c in ipairs(props.Children) do c.Parent = p end
+    end
+    return p
+end
+
+local function buildLighting()
+    Lighting.Ambient = Color3.fromRGB(60, 30, 80)
+    Lighting.Brightness = 1.5
+    Lighting.ColorShift_Bottom = Color3.fromRGB(100, 50, 150)
+    Lighting.ColorShift_Top = Color3.fromRGB(255, 100, 200)
+    Lighting.ClockTime = 19.5  -- dusk
+    Lighting.FogColor = Color3.fromRGB(80, 40, 100)
+    Lighting.FogEnd = 500
+    Lighting.FogStart = 100
+    Lighting.GlobalShadows = true
+
+    -- Bloom
+    local existingBloom = Lighting:FindFirstChildOfClass("BloomEffect")
+    if not existingBloom then
+        local bloom = Instance.new("BloomEffect")
+        bloom.Intensity = 0.6
+        bloom.Size = 24
+        bloom.Threshold = 1.5
+        bloom.Parent = Lighting
+    end
+
+    -- ColorCorrection for purple tint
+    if not Lighting:FindFirstChildOfClass("ColorCorrectionEffect") then
+        local cc = Instance.new("ColorCorrectionEffect")
+        cc.Saturation = 0.15
+        cc.Contrast = 0.1
+        cc.TintColor = Color3.fromRGB(255, 230, 240)
+        cc.Parent = Lighting
+    end
+end
+
+local function buildBaseplate(parent)
+    local floor = part({
+        Name = "Baseplate",
+        Size = Vector3.new(MAP_SIZE, FLOOR_THICKNESS, MAP_SIZE),
+        Position = Vector3.new(0, -FLOOR_THICKNESS/2, 0),
+        Color = Color3.fromRGB(40, 30, 50),
+        Material = Enum.Material.Concrete,
+        Parent = parent,
+    })
+    return floor
+end
+
+local function buildAlleyWalls(parent)
+    local wallH = 30
+    local thickness = 4
+    local positions = {
+        {Vector3.new(0, wallH/2, MAP_SIZE/2), Vector3.new(MAP_SIZE, wallH, thickness)},
+        {Vector3.new(0, wallH/2, -MAP_SIZE/2), Vector3.new(MAP_SIZE, wallH, thickness)},
+        {Vector3.new(MAP_SIZE/2, wallH/2, 0), Vector3.new(thickness, wallH, MAP_SIZE)},
+        {Vector3.new(-MAP_SIZE/2, wallH/2, 0), Vector3.new(thickness, wallH, MAP_SIZE)},
+    }
+    for i, def in ipairs(positions) do
+        part({
+            Name = "Wall_" .. i,
+            Size = def[2],
+            Position = def[1],
+            Color = Color3.fromRGB(60, 40, 70),
+            Material = Enum.Material.Brick,
+            Parent = parent,
+        })
+    end
+end
+
+local function buildSpawnPads(parent)
+    local padFolder = Workspace:FindFirstChild("SpawnPads") or Instance.new("Folder")
+    padFolder.Name = "SpawnPads"
+    padFolder.Parent = Workspace
+    -- 4 pads in corners-ish, well inside walls
+    local positions = {
+        Vector3.new(-60, 1, -60),
+        Vector3.new(60, 1, -60),
+        Vector3.new(-60, 1, 60),
+        Vector3.new(60, 1, 60),
+    }
+    for i, pos in ipairs(positions) do
+        part({
+            Name = "SpawnPad_" .. i,
+            Size = Vector3.new(8, 0.4, 8),
+            Position = pos,
+            Color = Color3.fromRGB(255, 100, 200),
+            Material = Enum.Material.Neon,
+            Parent = padFolder,
+        })
+    end
+end
+
+local function buildCosmeticShop(parent)
+    local shop = Instance.new("Model")
+    shop.Name = "CosmeticShop"
+    local base = part({
+        Name = "Floor",
+        Size = Vector3.new(20, 1, 20),
+        Position = Vector3.new(-70, 0.5, 0),
+        Color = Color3.fromRGB(80, 40, 120),
+        Material = Enum.Material.Neon,
+        Parent = shop,
+    })
+    -- 3 walls
+    part({Name="Back", Size=Vector3.new(20, 14, 1), Position=Vector3.new(-70, 7, -10), Color=Color3.fromRGB(120,40,200), Material=Enum.Material.Brick, Parent=shop})
+    part({Name="Left", Size=Vector3.new(1, 14, 20), Position=Vector3.new(-80, 7, 0), Color=Color3.fromRGB(120,40,200), Material=Enum.Material.Brick, Parent=shop})
+    part({Name="Right", Size=Vector3.new(1, 14, 20), Position=Vector3.new(-60, 7, 0), Color=Color3.fromRGB(120,40,200), Material=Enum.Material.Brick, Parent=shop})
+    -- Sign
+    local sign = part({
+        Name = "Sign",
+        Size = Vector3.new(16, 4, 0.5),
+        Position = Vector3.new(-70, 12, -9.4),
+        Color = Color3.fromRGB(0, 255, 100),
+        Material = Enum.Material.Neon,
+        Parent = shop,
+    })
+    local signGui = Instance.new("SurfaceGui")
+    signGui.Face = Enum.NormalId.Front
+    signGui.Parent = sign
+    local signLabel = Instance.new("TextLabel")
+    signLabel.Size = UDim2.new(1,0,1,0)
+    signLabel.BackgroundTransparency = 1
+    signLabel.Text = "COSMETIC SHOP"
+    signLabel.TextColor3 = Color3.fromRGB(0,0,0)
+    signLabel.Font = Enum.Font.GothamBlack
+    signLabel.TextScaled = true
+    signLabel.Parent = signGui
+    -- Shop trigger (touch part inside)
+    local trigger = part({
+        Name = "ShopTrigger",
+        Size = Vector3.new(10, 4, 10),
+        Position = Vector3.new(-70, 2, 0),
+        Color = Color3.fromRGB(0, 255, 100),
+        Material = Enum.Material.ForceField,
+        Transparency = 0.7,
+        CanCollide = false,
+        Parent = shop,
+    })
+    trigger:SetAttribute("ShopTrigger", true)
+    shop.Parent = parent
+end
+
+local function buildRebirthStatue(parent)
+    local statue = Instance.new("Model")
+    statue.Name = "RebirthStatue"
+    -- Pedestal
+    part({Name="Pedestal", Size=Vector3.new(10,4,10), Position=Vector3.new(0,2,-50), Color=Color3.fromRGB(40,40,40), Material=Enum.Material.Slate, Parent=statue})
+    -- Cat block (simplified statue)
+    part({Name="StatueBody", Size=Vector3.new(4,8,4), Position=Vector3.new(0,8,-50), Color=Color3.fromRGB(255,200,80), Material=Enum.Material.Neon, Parent=statue})
+    part({Name="StatueHead", Size=Vector3.new(3,3,3), Position=Vector3.new(0,13.5,-50), Color=Color3.fromRGB(255,200,80), Material=Enum.Material.Neon, Parent=statue})
+    -- Trigger
+    local trig = part({
+        Name = "RebirthTrigger",
+        Size = Vector3.new(12, 4, 12),
+        Position = Vector3.new(0, 2, -50),
+        Material = Enum.Material.ForceField,
+        Color = Color3.fromRGB(255, 200, 80),
+        Transparency = 0.7,
+        CanCollide = false,
+        Parent = statue,
+    })
+    trig:SetAttribute("RebirthTrigger", true)
+    statue.Parent = parent
+end
+
+local function buildLeaderboardPillar(parent)
+    local pillar = Instance.new("Model")
+    pillar.Name = "LeaderboardPillar"
+    local body = part({
+        Name = "Body",
+        Size = Vector3.new(4, 20, 4),
+        Position = Vector3.new(50, 10, 0),
+        Color = Color3.fromRGB(0, 100, 255),
+        Material = Enum.Material.Neon,
+        Parent = pillar,
+    })
+    -- SurfaceGui front face
+    local sg = Instance.new("SurfaceGui")
+    sg.Face = Enum.NormalId.Front
+    sg.Name = "LeaderboardSurfaceGui"
+    sg.Parent = body
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1,0,1,0)
+    frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    frame.BackgroundTransparency = 0.3
+    frame.Name = "Container"
+    frame.Parent = sg
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1,0,0.1,0)
+    title.Text = "TOP CHAOS"
+    title.Font = Enum.Font.GothamBlack
+    title.TextColor3 = Color3.fromRGB(0, 255, 100)
+    title.BackgroundTransparency = 1
+    title.TextScaled = true
+    title.Parent = frame
+    local listFrame = Instance.new("Frame")
+    listFrame.Position = UDim2.new(0, 0, 0.1, 0)
+    listFrame.Size = UDim2.new(1, 0, 0.9, 0)
+    listFrame.BackgroundTransparency = 1
+    listFrame.Name = "ListFrame"
+    listFrame.Parent = frame
+    pillar.Parent = parent
+end
+
+local function buildFoodSources(parent)
+    -- Taco stand (food) + water puddle (drink)
+    local taco = part({
+        Name = "TacoStand",
+        Size = Vector3.new(6, 4, 4),
+        Position = Vector3.new(40, 2, -40),
+        Color = Color3.fromRGB(255, 200, 80),
+        Material = Enum.Material.Plastic,
+        Parent = parent,
+    })
+    taco:SetAttribute("FoodSource", true)
+    local tacoSign = Instance.new("BillboardGui")
+    tacoSign.Size = UDim2.new(0, 100, 0, 30)
+    tacoSign.StudsOffset = Vector3.new(0, 4, 0)
+    tacoSign.Parent = taco
+    local tacoLbl = Instance.new("TextLabel")
+    tacoLbl.Size = UDim2.new(1, 0, 1, 0)
+    tacoLbl.BackgroundTransparency = 1
+    tacoLbl.Text = "🌮 FOOD"
+    tacoLbl.TextColor3 = Color3.fromRGB(255, 200, 80)
+    tacoLbl.TextStrokeTransparency = 0
+    tacoLbl.Font = Enum.Font.GothamBlack
+    tacoLbl.TextScaled = true
+    tacoLbl.Parent = tacoSign
+
+    local puddle = part({
+        Name = "WaterPuddle",
+        Size = Vector3.new(8, 0.4, 8),
+        Position = Vector3.new(-40, 0.2, 40),
+        Color = Color3.fromRGB(60, 180, 255),
+        Material = Enum.Material.Glass,
+        Transparency = 0.3,
+        Parent = parent,
+    })
+    puddle:SetAttribute("WaterSource", true)
+    local pSign = Instance.new("BillboardGui")
+    pSign.Size = UDim2.new(0, 100, 0, 30)
+    pSign.StudsOffset = Vector3.new(0, 4, 0)
+    pSign.Parent = puddle
+    local pLbl = Instance.new("TextLabel")
+    pLbl.Size = UDim2.new(1, 0, 1, 0)
+    pLbl.BackgroundTransparency = 1
+    pLbl.Text = "💧 WATER"
+    pLbl.TextColor3 = Color3.fromRGB(60, 180, 255)
+    pLbl.TextStrokeTransparency = 0
+    pLbl.Font = Enum.Font.GothamBlack
+    pLbl.TextScaled = true
+    pLbl.Parent = pSign
+
+    -- Garbage can
+    local garbage = part({
+        Name = "GarbageCan",
+        Size = Vector3.new(3, 5, 3),
+        Position = Vector3.new(20, 2.5, 60),
+        Color = Color3.fromRGB(80, 80, 80),
+        Material = Enum.Material.Metal,
+        Parent = parent,
+    })
+    garbage:SetAttribute("FoodSource", true)
+end
+
+local function buildSpawnLocation(parent)
+    local sl = Instance.new("SpawnLocation")
+    sl.Name = "MainSpawn"
+    sl.Size = Vector3.new(8, 1, 8)
+    sl.Position = Vector3.new(0, 1, 0)
+    sl.Anchored = true
+    sl.Color = Color3.fromRGB(150, 50, 200)
+    sl.Material = Enum.Material.Neon
+    sl.TopSurface = Enum.SurfaceType.Smooth
+    sl.Parent = parent
+end
+
+local function buildNeonSigns(parent)
+    -- A few decorative neon signs
+    local signs = {
+        {pos=Vector3.new(-30, 18, -98), text="MEOW", color=Color3.fromRGB(255, 50, 200)},
+        {pos=Vector3.new(30, 22, -98), text="CHAOS", color=Color3.fromRGB(0, 255, 100)},
+        {pos=Vector3.new(-50, 16, 98), text="24/7", color=Color3.fromRGB(255, 200, 0)},
+    }
+    for i, def in ipairs(signs) do
+        local p = part({
+            Name = "Sign_" .. i,
+            Size = Vector3.new(12, 4, 0.5),
+            Position = def.pos,
+            Color = def.color,
+            Material = Enum.Material.Neon,
+            Parent = parent,
+        })
+        local sg = Instance.new("SurfaceGui")
+        sg.Face = Enum.NormalId.Front
+        sg.Parent = p
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1,0,1,0)
+        lbl.Text = def.text
+        lbl.TextScaled = true
+        lbl.Font = Enum.Font.GothamBlack
+        lbl.TextColor3 = Color3.fromRGB(255,255,255)
+        lbl.BackgroundTransparency = 1
+        lbl.Parent = sg
+    end
+end
+
+-- =========================================================================
+local function build()
+    local existing = Workspace:FindFirstChild(MAP_NAME)
+    if existing then
+        warn("[MapBuilder] Map already exists, skipping rebuild")
+        return existing
+    end
+
+    buildLighting()
+
+    local mapModel = Instance.new("Model")
+    mapModel.Name = MAP_NAME
+    mapModel.Parent = Workspace
+
+    buildBaseplate(mapModel)
+    buildAlleyWalls(mapModel)
+    buildSpawnPads(mapModel)
+    buildCosmeticShop(mapModel)
+    buildRebirthStatue(mapModel)
+    buildLeaderboardPillar(mapModel)
+    buildNeonSigns(mapModel)
+    buildFoodSources(mapModel)
+    buildSpawnLocation(mapModel)
+
+    print("[MapBuilder] Cat Alley built.")
+    return mapModel
+end
+
+build()
+return true
+
+]]
+end
+
+-- StarterGui/HUDBuilder.client.lua
+do
+    local s = getOrMake(game.StarterGui, 'LocalScript', 'HUDBuilder')
+    s.Source = [[
+-- HUDBuilder.client.lua
+-- Programmatically constructs the entire MainHUD ScreenGui.
+-- Place in: StarterGui > HUDBuilder (LocalScript)
+-- Other client scripts (HUDController, InputHandler) reference its named children.
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
+local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Remove any existing MainHUD (dev hot reload)
+local existing = playerGui:FindFirstChild("MainHUD")
+if existing then existing:Destroy() end
+
+local IS_MOBILE = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MainHUD"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = playerGui
+
+-- ===== Helpers =====
+local function makeFrame(props)
+    local f = Instance.new("Frame")
+    for k, v in pairs(props) do f[k] = v end
+    return f
+end
+
+local function makeLabel(props)
+    local l = Instance.new("TextLabel")
+    l.BackgroundTransparency = 1
+    l.Font = Enum.Font.GothamBlack
+    l.TextColor3 = Color3.fromRGB(255,255,255)
+    l.TextStrokeTransparency = 0
+    l.TextStrokeColor3 = Color3.new(0,0,0)
+    l.TextScaled = true
+    for k, v in pairs(props) do l[k] = v end
+    return l
+end
+
+local function makeButton(props)
+    local b = Instance.new("TextButton")
+    b.AutoButtonColor = false
+    b.Font = Enum.Font.GothamBlack
+    b.TextColor3 = Color3.fromRGB(255,255,255)
+    b.TextScaled = true
+    b.BorderSizePixel = 0
+    for k, v in pairs(props) do b[k] = v end
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = b
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2
+    stroke.Color = Color3.new(0,0,0)
+    stroke.Parent = b
+    return b
+end
+
+-- ===== TOP BAR =====
+local topBar = makeFrame({
+    Name = "TopBar",
+    Size = UDim2.new(1, 0, 0, IS_MOBILE and 80 or 70),
+    Position = UDim2.new(0, 0, 0, 0),
+    BackgroundColor3 = Color3.fromRGB(20, 10, 30),
+    BackgroundTransparency = 0.15,
+    BorderSizePixel = 0,
+    Parent = screenGui,
+})
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 2
+stroke.Color = GameConfig.HUD_PRIMARY_COLOR
+stroke.Parent = topBar
+
+makeLabel({
+    Name = "ChaosLabel",
+    Size = UDim2.new(0.3, 0, 0.7, 0),
+    Position = UDim2.new(0.01, 0, 0.15, 0),
+    Text = "💚 0",
+    TextColor3 = GameConfig.HUD_ACCENT_COLOR,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    Parent = topBar,
+}).Parent = topBar
+
+local levelContainer = makeFrame({
+    Name = "LevelContainer",
+    Size = UDim2.new(0.3, 0, 0.7, 0),
+    Position = UDim2.new(0.35, 0, 0.15, 0),
+    BackgroundTransparency = 1,
+    Parent = topBar,
+})
+makeLabel({
+    Name = "LevelLabel",
+    Size = UDim2.new(1, 0, 0.5, 0),
+    Position = UDim2.new(0, 0, 0, 0),
+    Text = "Level 1",
+    Parent = levelContainer,
+})
+local xpBarBg = makeFrame({
+    Name = "XPBarBG",
+    Size = UDim2.new(0.9, 0, 0.3, 0),
+    Position = UDim2.new(0.05, 0, 0.6, 0),
+    BackgroundColor3 = Color3.fromRGB(40, 20, 60),
+    BorderSizePixel = 0,
+    Parent = levelContainer,
+})
+Instance.new("UICorner", xpBarBg).CornerRadius = UDim.new(1, 0)
+local xpBarFill = makeFrame({
+    Name = "XPBarFill",
+    Size = UDim2.new(0, 0, 1, 0),
+    BackgroundColor3 = GameConfig.HUD_ACCENT_COLOR,
+    BorderSizePixel = 0,
+    Parent = xpBarBg,
+})
+Instance.new("UICorner", xpBarFill).CornerRadius = UDim.new(1, 0)
+
+makeLabel({
+    Name = "RebirthLabel",
+    Size = UDim2.new(0.3, 0, 0.7, 0),
+    Position = UDim2.new(0.69, 0, 0.15, 0),
+    Text = "👑 0",
+    TextXAlignment = Enum.TextXAlignment.Right,
+    Parent = topBar,
+})
+
+-- ===== CENTER BOTTOM: SUMMON BUTTON =====
+local summonSize = IS_MOBILE and 180 or 140
+local summonBtn = makeButton({
+    Name = "SummonButton",
+    Size = UDim2.new(0, summonSize, 0, summonSize),
+    Position = UDim2.new(0.5, -summonSize/2, 1, -(summonSize + 30)),
+    BackgroundColor3 = GameConfig.HUD_DANGER_COLOR,
+    Text = "SUMMON\nHUMAN",
+    Parent = screenGui,
+})
+
+-- ===== RIGHT SIDE: PRANK BUTTONS =====
+local prankColumn = makeFrame({
+    Name = "PrankColumn",
+    Size = UDim2.new(0, IS_MOBILE and 80 or 70, 0, 4 * (IS_MOBILE and 90 or 80)),
+    Position = UDim2.new(1, -(IS_MOBILE and 90 or 80), 0.5, -(2 * (IS_MOBILE and 90 or 80))),
+    BackgroundTransparency = 1,
+    Parent = screenGui,
+})
+local listLayout = Instance.new("UIListLayout")
+listLayout.FillDirection = Enum.FillDirection.Vertical
+listLayout.Padding = UDim.new(0, 6)
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Parent = prankColumn
+
+for i, prankName in ipairs(PrankConfig.Order) do
+    local prank = PrankConfig.Pranks[prankName]
+    local btn = makeButton({
+        Name = "Prank_" .. prankName,
+        Size = UDim2.new(0, IS_MOBILE and 70 or 60, 0, IS_MOBILE and 70 or 60),
+        BackgroundColor3 = Color3.fromRGB(60, 30, 90),
+        Text = prankName == "Pie" and "🥧" or prankName == "Anvil" and "🔨" or prankName == "FartCloud" and "💨" or "👁️",
+        TextSize = 36,
+        LayoutOrder = i,
+        Parent = prankColumn,
+    })
+    btn:SetAttribute("PrankName", prankName)
+    btn:SetAttribute("Locked", true)
+    btn:SetAttribute("UnlockLevel", prank.unlockLevel)
+    -- Locked overlay
+    local lock = makeLabel({
+        Name = "LockOverlay",
+        Size = UDim2.new(1, 0, 1, 0),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = Color3.new(0,0,0),
+        BackgroundTransparency = 0.5,
+        Text = "🔒\nLv " .. prank.unlockLevel,
+        TextSize = 18,
+    })
+    lock.BackgroundTransparency = 0.5
+    lock.Parent = btn
+    -- Cooldown overlay
+    local cd = makeFrame({
+        Name = "CooldownOverlay",
+        Size = UDim2.new(1, 0, 0, 0),
+        AnchorPoint = Vector2.new(0, 1),
+        Position = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = Color3.new(0,0,0),
+        BackgroundTransparency = 0.6,
+        BorderSizePixel = 0,
+        Visible = false,
+    })
+    cd.Parent = btn
+end
+
+-- ===== BOTTOM BAR: SHOP / INVENTORY / REBIRTH / LEADERBOARD =====
+local bottomBar = makeFrame({
+    Name = "BottomBar",
+    Size = UDim2.new(0, IS_MOBILE and 360 or 320, 0, IS_MOBILE and 60 or 50),
+    AnchorPoint = Vector2.new(0.5, 1),
+    Position = UDim2.new(0.5, 0, 1, -10),
+    BackgroundTransparency = 1,
+    Parent = screenGui,
+})
+local botLayout = Instance.new("UIListLayout")
+botLayout.FillDirection = Enum.FillDirection.Horizontal
+botLayout.Padding = UDim.new(0, 6)
+botLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+botLayout.Parent = bottomBar
+
+local function bottomButton(name, text, color, layoutOrder)
+    return makeButton({
+        Name = name,
+        Size = UDim2.new(0, IS_MOBILE and 80 or 70, 0, IS_MOBILE and 56 or 44),
+        BackgroundColor3 = color,
+        Text = text,
+        TextSize = IS_MOBILE and 18 or 14,
+        LayoutOrder = layoutOrder,
+        Parent = bottomBar,
+    })
+end
+
+bottomButton("ShopButton", "SHOP", Color3.fromRGB(0, 200, 100), 1)
+bottomButton("InventoryButton", "INV", Color3.fromRGB(80, 60, 200), 2)
+bottomButton("RebirthButton", "REBIRTH", Color3.fromRGB(255, 150, 0), 3)
+bottomButton("LeaderboardButton", "TOP", Color3.fromRGB(0, 150, 255), 4)
+
+-- ===== NOTIFICATION TOAST AREA =====
+local toastFrame = makeFrame({
+    Name = "ToastFrame",
+    Size = UDim2.new(0, 400, 0, 60),
+    AnchorPoint = Vector2.new(0.5, 0),
+    Position = UDim2.new(0.5, 0, 0, 90),
+    BackgroundTransparency = 1,
+    Parent = screenGui,
+})
+
+-- ===== SHOP MODAL (hidden by default) =====
+local shopModal = makeFrame({
+    Name = "ShopModal",
+    Size = UDim2.new(0, 600, 0, 500),
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.new(0.5, 0, 0.5, 0),
+    BackgroundColor3 = Color3.fromRGB(20, 10, 30),
+    BorderSizePixel = 0,
+    Visible = false,
+    Parent = screenGui,
+})
+Instance.new("UICorner", shopModal).CornerRadius = UDim.new(0, 16)
+local shopStroke = Instance.new("UIStroke")
+shopStroke.Thickness = 3
+shopStroke.Color = GameConfig.HUD_PRIMARY_COLOR
+shopStroke.Parent = shopModal
+
+makeLabel({
+    Name = "ShopTitle",
+    Size = UDim2.new(1, -20, 0, 50),
+    Position = UDim2.new(0, 10, 0, 10),
+    Text = "COSMETIC SHOP",
+    TextColor3 = GameConfig.HUD_ACCENT_COLOR,
+    Parent = shopModal,
+})
+
+local shopClose = makeButton({
+    Name = "CloseButton",
+    Size = UDim2.new(0, 40, 0, 40),
+    Position = UDim2.new(1, -50, 0, 10),
+    BackgroundColor3 = GameConfig.HUD_DANGER_COLOR,
+    Text = "X",
+    Parent = shopModal,
+})
+
+local shopList = Instance.new("ScrollingFrame")
+shopList.Name = "ShopList"
+shopList.Size = UDim2.new(1, -20, 1, -80)
+shopList.Position = UDim2.new(0, 10, 0, 70)
+shopList.BackgroundTransparency = 1
+shopList.BorderSizePixel = 0
+shopList.CanvasSize = UDim2.new(0, 0, 0, 0)
+shopList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+shopList.ScrollBarThickness = 8
+shopList.Parent = shopModal
+local shopLayout = Instance.new("UIListLayout")
+shopLayout.Padding = UDim.new(0, 8)
+shopLayout.SortOrder = Enum.SortOrder.LayoutOrder
+shopLayout.Parent = shopList
+
+-- ===== LEADERBOARD MODAL =====
+local lbModal = makeFrame({
+    Name = "LeaderboardModal",
+    Size = UDim2.new(0, 360, 0, 480),
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.new(0.5, 0, 0.5, 0),
+    BackgroundColor3 = Color3.fromRGB(20, 10, 30),
+    BorderSizePixel = 0,
+    Visible = false,
+    Parent = screenGui,
+})
+Instance.new("UICorner", lbModal).CornerRadius = UDim.new(0, 16)
+local lbStroke = Instance.new("UIStroke")
+lbStroke.Thickness = 3
+lbStroke.Color = GameConfig.HUD_ACCENT_COLOR
+lbStroke.Parent = lbModal
+
+makeLabel({
+    Name = "LBTitle",
+    Size = UDim2.new(1, -20, 0, 50),
+    Position = UDim2.new(0, 10, 0, 10),
+    Text = "TOP CHAOS",
+    TextColor3 = GameConfig.HUD_ACCENT_COLOR,
+    Parent = lbModal,
+})
+local lbClose = makeButton({
+    Name = "CloseButton",
+    Size = UDim2.new(0, 40, 0, 40),
+    Position = UDim2.new(1, -50, 0, 10),
+    BackgroundColor3 = GameConfig.HUD_DANGER_COLOR,
+    Text = "X",
+    Parent = lbModal,
+})
+local lbList = Instance.new("Frame")
+lbList.Name = "LBList"
+lbList.Size = UDim2.new(1, -20, 1, -80)
+lbList.Position = UDim2.new(0, 10, 0, 70)
+lbList.BackgroundTransparency = 1
+lbList.Parent = lbModal
+local lbLayout = Instance.new("UIListLayout")
+lbLayout.Padding = UDim.new(0, 4)
+lbLayout.Parent = lbList
+
+-- ===== TUTORIAL TOOLTIP (hidden, controller drives it) =====
+local tutorial = makeFrame({
+    Name = "TutorialTooltip",
+    Size = UDim2.new(0, 400, 0, 90),
+    AnchorPoint = Vector2.new(0.5, 0),
+    Position = UDim2.new(0.5, 0, 0, 100),
+    BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+    BackgroundTransparency = 0.2,
+    BorderSizePixel = 0,
+    Visible = false,
+    Parent = screenGui,
+})
+Instance.new("UICorner", tutorial).CornerRadius = UDim.new(0, 12)
+local tutLabel = makeLabel({
+    Name = "Text",
+    Size = UDim2.new(1, -20, 1, -20),
+    Position = UDim2.new(0, 10, 0, 10),
+    Text = "",
+    TextColor3 = Color3.fromRGB(255, 255, 255),
+    Parent = tutorial,
+})
+
+print("[HUDBuilder] MainHUD constructed")
+
+-- Expose remote-controlled refs (other client scripts find by Name)
+return screenGui
+
+]]
+end
+
+-- StarterPlayer/StarterPlayerScripts/HUDController.client.lua
+do
+    local s = getOrMake(game.StarterPlayer:WaitForChild('StarterPlayerScripts'), 'LocalScript', 'HUDController')
+    s.Source = [[
+-- HUDController.client.lua
+-- Subscribes to player data updates and refreshes HUD state.
+-- Place in: StarterPlayer > StarterPlayerScripts > HUDController (LocalScript)
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+local CosmeticConfig = require(ReplicatedStorage.Modules.CosmeticConfig)
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local hud = playerGui:WaitForChild("MainHUD", 30)
+if not hud then warn("[HUDController] No HUD found"); return end
+
+local topBar = hud:WaitForChild("TopBar")
+local chaosLabel = topBar:WaitForChild("ChaosLabel")
+local levelContainer = topBar:WaitForChild("LevelContainer")
+local levelLabel = levelContainer:WaitForChild("LevelLabel")
+local xpFill = levelContainer:WaitForChild("XPBarBG"):WaitForChild("XPBarFill")
+local rebirthLabel = topBar:WaitForChild("RebirthLabel")
+
+local prankCol = hud:WaitForChild("PrankColumn")
+
+local CurrentData = {}
+local CurrentLBData = {}
+
+local function formatNum(n)
+    if n >= 1e9 then return string.format("%.2fB", n/1e9) end
+    if n >= 1e6 then return string.format("%.2fM", n/1e6) end
+    if n >= 1e3 then return string.format("%.1fK", n/1e3) end
+    return tostring(math.floor(n))
+end
+
+local function refresh()
+    if not CurrentData then return end
+    chaosLabel.Text = "💚 " .. formatNum(CurrentData.chaosPoints or 0)
+    levelLabel.Text = "Level " .. (CurrentData.level or 1)
+    rebirthLabel.Text = "👑 " .. (CurrentData.rebirths or 0)
+    -- XP bar fill
+    local lvl = CurrentData.level or 1
+    local xpReq = GameConfig.xpRequired(lvl)
+    local pct = math.clamp((CurrentData.xp or 0) / xpReq, 0, 1)
+    TweenService:Create(xpFill, TweenInfo.new(0.3), {Size = UDim2.new(pct, 0, 1, 0)}):Play()
+    -- Prank locks
+    for _, btn in ipairs(prankCol:GetChildren()) do
+        if btn:IsA("TextButton") and btn:GetAttribute("PrankName") then
+            local unlock = btn:GetAttribute("UnlockLevel")
+            local locked = (CurrentData.level or 1) < unlock
+            local overlay = btn:FindFirstChild("LockOverlay")
+            if overlay then overlay.Visible = locked end
+            btn:SetAttribute("Locked", locked)
+        end
+    end
+end
+
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(data)
+    CurrentData = data
+    refresh()
+end)
+
+Remotes.LevelUp.OnClientEvent:Connect(function(newLevel, unlocked)
+    -- Toast
+    local toast = hud:FindFirstChild("ToastFrame")
+    if toast then
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 0.2
+        label.BackgroundColor3 = GameConfig.HUD_ACCENT_COLOR
+        label.TextColor3 = Color3.new(0,0,0)
+        label.TextScaled = true
+        label.Font = Enum.Font.GothamBlack
+        label.Text = "LEVEL UP! " .. newLevel
+        Instance.new("UICorner", label).CornerRadius = UDim.new(0, 12)
+        label.Parent = toast
+        task.delay(2.5, function()
+            TweenService:Create(label, TweenInfo.new(0.5), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
+            task.wait(0.6)
+            label:Destroy()
+        end)
+    end
+    if unlocked and #unlocked > 0 then
+        for _, prankName in ipairs(unlocked) do
+            print("[HUDController] Unlocked prank:", prankName)
+        end
+    end
+end)
+
+Remotes.NotifyClient.OnClientEvent:Connect(function(message, severity)
+    local toast = hud:FindFirstChild("ToastFrame")
+    if not toast then return end
+    local color = severity == "success" and GameConfig.HUD_ACCENT_COLOR or
+                  severity == "warn" and Color3.fromRGB(255, 200, 0) or
+                  Color3.fromRGB(255, 100, 100)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 0.2
+    lbl.BackgroundColor3 = color
+    lbl.TextColor3 = Color3.new(0,0,0)
+    lbl.TextScaled = true
+    lbl.Font = Enum.Font.GothamBlack
+    lbl.Text = message
+    Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 12)
+    lbl.Parent = toast
+    task.delay(2.0, function()
+        TweenService:Create(lbl, TweenInfo.new(0.5), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
+        task.wait(0.6)
+        lbl:Destroy()
+    end)
+end)
+
+Remotes.RebirthCompleted.OnClientEvent:Connect(function(newRebirths, newMult)
+    local toast = hud:FindFirstChild("ToastFrame")
+    if toast then
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, 0, 1, 0)
+        lbl.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+        lbl.TextColor3 = Color3.new(0,0,0)
+        lbl.TextScaled = true
+        lbl.Font = Enum.Font.GothamBlack
+        lbl.Text = "REBIRTH! 👑 " .. newRebirths .. "  x" .. string.format("%.2f", newMult)
+        Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 12)
+        lbl.Parent = toast
+        task.delay(3, function() lbl:Destroy() end)
+    end
+end)
+
+Remotes.LeaderboardUpdated.OnClientEvent:Connect(function(top)
+    CurrentLBData = top
+    local lbModal = hud:FindFirstChild("LeaderboardModal")
+    if not lbModal then return end
+    local list = lbModal:FindFirstChild("LBList")
+    if not list then return end
+    -- Clear
+    for _, c in ipairs(list:GetChildren()) do
+        if c:IsA("TextLabel") then c:Destroy() end
+    end
+    for i, entry in ipairs(top) do
+        local row = Instance.new("TextLabel")
+        row.Size = UDim2.new(1, 0, 0, 32)
+        row.BackgroundColor3 = i == 1 and Color3.fromRGB(255, 200, 0)
+                              or i == 2 and Color3.fromRGB(180, 180, 180)
+                              or i == 3 and Color3.fromRGB(180, 100, 50)
+                              or Color3.fromRGB(40, 30, 60)
+        row.TextColor3 = i <= 3 and Color3.new(0,0,0) or Color3.new(1,1,1)
+        row.Font = Enum.Font.GothamBlack
+        row.TextScaled = true
+        row.LayoutOrder = i
+        row.Text = string.format("%d. %s — %s", i, entry.name, formatNum(entry.chaos))
+        Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+        row.Parent = list
+    end
+end)
+
+-- ===== Modal toggles =====
+local function toggle(modalName)
+    local m = hud:FindFirstChild(modalName)
+    if m then m.Visible = not m.Visible end
+end
+
+local botBar = hud:FindFirstChild("BottomBar")
+if botBar then
+    local shopBtn = botBar:FindFirstChild("ShopButton")
+    local invBtn = botBar:FindFirstChild("InventoryButton")
+    local rebirthBtn = botBar:FindFirstChild("RebirthButton")
+    local lbBtn = botBar:FindFirstChild("LeaderboardButton")
+
+    if shopBtn then shopBtn.MouseButton1Click:Connect(function() toggle("ShopModal"); buildShopList() end) end
+    if invBtn then invBtn.MouseButton1Click:Connect(function() toggle("ShopModal"); buildShopList(true) end) end
+    if rebirthBtn then
+        rebirthBtn.MouseButton1Click:Connect(function()
+            local ok, result = Remotes.RequestRebirth:InvokeServer()
+            if not ok then
+                Remotes.NotifyClient:FireClient -- not callable client-side; instead show toast directly
+            end
+        end)
+    end
+    if lbBtn then lbBtn.MouseButton1Click:Connect(function() toggle("LeaderboardModal") end) end
+end
+
+-- Close buttons
+for _, m in ipairs({hud:FindFirstChild("ShopModal"), hud:FindFirstChild("LeaderboardModal")}) do
+    if m then
+        local close = m:FindFirstChild("CloseButton")
+        if close then close.MouseButton1Click:Connect(function() m.Visible = false end) end
+    end
+end
+
+-- ===== Shop list builder =====
+function buildShopList(inventoryMode)
+    local modal = hud:FindFirstChild("ShopModal")
+    if not modal then return end
+    local list = modal:FindFirstChild("ShopList")
+    if not list then return end
+    -- Clear
+    for _, c in ipairs(list:GetChildren()) do
+        if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end
+    end
+    for _, skinId in ipairs(CosmeticConfig.Order) do
+        local skin = CosmeticConfig.Skins[skinId]
+        local owned = CurrentData.ownedSkins and table.find(CurrentData.ownedSkins, skinId)
+        if inventoryMode and not owned then
+            -- inventory mode hides unowned
+        else
+            local row = Instance.new("Frame")
+            row.Size = UDim2.new(1, -16, 0, 70)
+            row.BackgroundColor3 = Color3.fromRGB(40, 25, 60)
+            row.BorderSizePixel = 0
+            Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+            row.Parent = list
+
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Size = UDim2.new(0.4, 0, 0.5, 0)
+            nameLabel.Position = UDim2.new(0.02, 0, 0, 0)
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.Text = skin.displayName
+            nameLabel.TextColor3 = Color3.new(1,1,1)
+            nameLabel.Font = Enum.Font.GothamBlack
+            nameLabel.TextScaled = true
+            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+            nameLabel.Parent = row
+
+            local rarityLabel = Instance.new("TextLabel")
+            rarityLabel.Size = UDim2.new(0.4, 0, 0.5, 0)
+            rarityLabel.Position = UDim2.new(0.02, 0, 0.5, 0)
+            rarityLabel.BackgroundTransparency = 1
+            rarityLabel.Text = skin.rarity .. "  x" .. string.format("%.2f", skin.chaosMultiplier)
+            rarityLabel.TextColor3 = skin.rarity == "Legendary" and Color3.fromRGB(255, 200, 0)
+                                    or skin.rarity == "Epic" and Color3.fromRGB(200, 50, 255)
+                                    or skin.rarity == "Rare" and Color3.fromRGB(80, 150, 255)
+                                    or Color3.fromRGB(180, 180, 180)
+            rarityLabel.Font = Enum.Font.Gotham
+            rarityLabel.TextScaled = true
+            rarityLabel.TextXAlignment = Enum.TextXAlignment.Left
+            rarityLabel.Parent = row
+
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(0.35, 0, 0.8, 0)
+            btn.Position = UDim2.new(0.6, 0, 0.1, 0)
+            btn.Font = Enum.Font.GothamBlack
+            btn.TextScaled = true
+            btn.TextColor3 = Color3.new(1,1,1)
+            btn.BorderSizePixel = 0
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+            btn.Parent = row
+
+            if owned then
+                if CurrentData.equippedSkin == skinId then
+                    btn.Text = "EQUIPPED"
+                    btn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+                else
+                    btn.Text = "EQUIP"
+                    btn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+                    btn.MouseButton1Click:Connect(function()
+                        Remotes.RequestEquipSkin:InvokeServer(skinId)
+                    end)
+                end
+            else
+                if skin.currency == "chaos" then
+                    btn.Text = "💚 " .. formatNum(skin.cost)
+                    btn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+                    btn.MouseButton1Click:Connect(function()
+                        local ok, err = Remotes.RequestPurchaseSkinChaos:InvokeServer(skinId)
+                        if not ok then
+                            print("Purchase failed:", err)
+                        end
+                    end)
+                else
+                    btn.Text = "ROBUX"
+                    btn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+                    btn.MouseButton1Click:Connect(function()
+                        local gpKey = string.upper(skinId) .. "_SKIN"
+                        local gpId = GameConfig.GAMEPASS_IDS[gpKey]
+                        if gpId and gpId ~= 0 then
+                            MarketplaceService:PromptGamePassPurchase(player, gpId)
+                        else
+                            print("Gamepass ID not configured for", skinId)
+                        end
+                    end)
+                end
+            end
+        end
+    end
+end
+
+return true
+
+]]
+end
+
+-- StarterPlayer/StarterPlayerScripts/InputHandler.client.lua
+do
+    local s = getOrMake(game.StarterPlayer:WaitForChild('StarterPlayerScripts'), 'LocalScript', 'InputHandler')
+    s.Source = [[
+-- InputHandler.client.lua
+-- Wires HUD buttons (Summon, Pranks) to RemoteEvents. Also handles auto-target finding.
+-- Place in: StarterPlayer > StarterPlayerScripts > InputHandler (LocalScript)
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local hud = playerGui:WaitForChild("MainHUD", 30)
+if not hud then return end
+
+local summonBtn = hud:WaitForChild("SummonButton")
+local prankCol = hud:WaitForChild("PrankColumn")
+
+-- ===== Find nearest valid NPC =====
+local function nearestNPC(maxRange)
+    local char = player.Character
+    if not char then return nil end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    local folder = Workspace:FindFirstChild("PrankNPCs")
+    if not folder then return nil end
+    local closest, dist = nil, math.huge
+    for _, m in ipairs(folder:GetChildren()) do
+        if m:IsA("Model") and m:GetAttribute("KittyRaiserNPC") and not m:GetAttribute("Pranked") then
+            local p = m.PrimaryPart or m:FindFirstChild("HumanoidRootPart")
+            if p then
+                local d = (p.Position - hrp.Position).Magnitude
+                if d < dist and d <= maxRange then
+                    dist = d
+                    closest = m
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- ===== Button pop animation =====
+local function pop(btn)
+    local origSize = btn.Size
+    local big = UDim2.new(origSize.X.Scale, origSize.X.Offset + 8, origSize.Y.Scale, origSize.Y.Offset + 8)
+    TweenService:Create(btn, TweenInfo.new(0.08), {Size = big}):Play()
+    task.delay(0.08, function()
+        TweenService:Create(btn, TweenInfo.new(0.1), {Size = origSize}):Play()
+    end)
+end
+
+-- ===== Summon =====
+summonBtn.MouseButton1Click:Connect(function()
+    pop(summonBtn)
+    Remotes.RequestSummonHuman:FireServer()
+end)
+
+-- ===== Prank buttons =====
+local prankBtnCooldowns = {} -- visual cooldown only
+for _, btn in ipairs(prankCol:GetChildren()) do
+    if btn:IsA("TextButton") and btn:GetAttribute("PrankName") then
+        local prankName = btn:GetAttribute("PrankName")
+        local prank = PrankConfig.Pranks[prankName]
+        btn.MouseButton1Click:Connect(function()
+            if btn:GetAttribute("Locked") then
+                return
+            end
+            if prankBtnCooldowns[prankName] and os.clock() < prankBtnCooldowns[prankName] then
+                return
+            end
+            local npc = nearestNPC(prank.rangeStuds)
+            if not npc then
+                -- nothing in range
+                return
+            end
+            pop(btn)
+            Remotes.RequestPrank:FireServer(prankName, npc)
+            -- Visual cooldown overlay
+            prankBtnCooldowns[prankName] = os.clock() + prank.cooldown
+            local cdOverlay = btn:FindFirstChild("CooldownOverlay")
+            if cdOverlay then
+                cdOverlay.Visible = true
+                cdOverlay.Size = UDim2.new(1, 0, 1, 0)
+                local tween = TweenService:Create(cdOverlay, TweenInfo.new(prank.cooldown, Enum.EasingStyle.Linear), {Size = UDim2.new(1, 0, 0, 0)})
+                tween:Play()
+                tween.Completed:Connect(function() cdOverlay.Visible = false end)
+            end
+        end)
+    end
+end
+
+-- Keyboard shortcuts (PC) for power users
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.E then
+        Remotes.RequestSummonHuman:FireServer()
+    elseif input.KeyCode == Enum.KeyCode.One then
+        local b = prankCol:FindFirstChild("Prank_Pie")
+        if b and not b:GetAttribute("Locked") then
+            local npc = nearestNPC(PrankConfig.Pranks.Pie.rangeStuds)
+            if npc then Remotes.RequestPrank:FireServer("Pie", npc) end
+        end
+    elseif input.KeyCode == Enum.KeyCode.Two then
+        local b = prankCol:FindFirstChild("Prank_Anvil")
+        if b and not b:GetAttribute("Locked") then
+            local npc = nearestNPC(PrankConfig.Pranks.Anvil.rangeStuds)
+            if npc then Remotes.RequestPrank:FireServer("Anvil", npc) end
+        end
+    elseif input.KeyCode == Enum.KeyCode.Three then
+        local b = prankCol:FindFirstChild("Prank_FartCloud")
+        if b and not b:GetAttribute("Locked") then
+            local npc = nearestNPC(PrankConfig.Pranks.FartCloud.rangeStuds)
+            if npc then Remotes.RequestPrank:FireServer("FartCloud", npc) end
+        end
+    elseif input.KeyCode == Enum.KeyCode.Four then
+        local b = prankCol:FindFirstChild("Prank_LaserEyes")
+        if b and not b:GetAttribute("Locked") then
+            local npc = nearestNPC(PrankConfig.Pranks.LaserEyes.rangeStuds)
+            if npc then Remotes.RequestPrank:FireServer("LaserEyes", npc) end
+        end
+    end
+end)
+
+return true
+
+]]
+end
+
+-- StarterPlayer/StarterPlayerScripts/EffectsController.client.lua
+do
+    local s = getOrMake(game.StarterPlayer:WaitForChild('StarterPlayerScripts'), 'LocalScript', 'EffectsController')
+    s.Source = [[
+-- EffectsController.client.lua
+-- Plays prank visual + audio effects on PrankRegistered events.
+-- Place in: StarterPlayer > StarterPlayerScripts > EffectsController (LocalScript)
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+local function shake(intensity)
+    if intensity <= 0 then return end
+    task.spawn(function()
+        local steps = 10
+        for i = 1, steps do
+            local off = CFrame.new(
+                (math.random()-0.5) * intensity * 0.1,
+                (math.random()-0.5) * intensity * 0.1,
+                0
+            )
+            camera.CFrame = camera.CFrame * off
+            task.wait(0.02)
+        end
+    end)
+end
+
+local function spawnParticleBurst(cf, color, count)
+    local emitterPart = Instance.new("Part")
+    emitterPart.Anchored = true
+    emitterPart.CanCollide = false
+    emitterPart.Transparency = 1
+    emitterPart.Size = Vector3.new(1,1,1)
+    emitterPart.CFrame = cf
+    emitterPart.Parent = Workspace
+
+    local emitter = Instance.new("ParticleEmitter")
+    emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+    emitter.Color = ColorSequence.new(color)
+    emitter.Lifetime = NumberRange.new(0.5, 1.0)
+    emitter.Rate = 0
+    emitter.Speed = NumberRange.new(8, 18)
+    emitter.SpreadAngle = Vector2.new(180, 180)
+    emitter.Size = NumberSequence.new(1.5, 0.2)
+    emitter.Parent = emitterPart
+    emitter:Emit(count)
+    Debris:AddItem(emitterPart, 2)
+end
+
+local function playSound(soundId, parent)
+    if not soundId or soundId == "" then return end
+    local s = Instance.new("Sound")
+    s.SoundId = soundId
+    s.Volume = 1
+    s.Parent = parent or SoundService
+    s:Play()
+    Debris:AddItem(s, 5)
+end
+
+local function chaosFlyUp(amount, atCFrame)
+    if amount <= 0 then return end
+    local b = Instance.new("BillboardGui")
+    b.Size = UDim2.new(0, 120, 0, 50)
+    b.AlwaysOnTop = true
+    b.StudsOffset = Vector3.new(0, 4, 0)
+    -- attach to a temp part
+    local p = Instance.new("Part")
+    p.Anchored = true
+    p.CanCollide = false
+    p.Transparency = 1
+    p.Size = Vector3.new(0.1,0.1,0.1)
+    p.CFrame = atCFrame
+    p.Parent = Workspace
+    b.Parent = p
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = "+" .. amount .. " 💚"
+    lbl.TextColor3 = GameConfig.HUD_ACCENT_COLOR
+    lbl.TextStrokeTransparency = 0
+    lbl.Font = Enum.Font.GothamBlack
+    lbl.TextScaled = true
+    lbl.Parent = b
+
+    TweenService:Create(p, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = atCFrame * CFrame.new(0, 6, 0)}):Play()
+    TweenService:Create(lbl, TweenInfo.new(1.2), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+    Debris:AddItem(p, 1.5)
+end
+
+-- ===== Prank effect dispatch =====
+local function effectFor(prankName, cf, color)
+    if prankName == "Pie" then
+        spawnParticleBurst(cf, color, 35)
+    elseif prankName == "Anvil" then
+        -- Spawn a fake anvil that drops from sky
+        local anvil = Instance.new("Part")
+        anvil.Size = Vector3.new(4, 3, 3)
+        anvil.Color = Color3.fromRGB(80, 80, 80)
+        anvil.Material = Enum.Material.Metal
+        anvil.Anchored = true
+        anvil.CanCollide = false
+        anvil.CFrame = cf * CFrame.new(0, 30, 0)
+        anvil.Parent = Workspace
+        TweenService:Create(anvil, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {CFrame = cf * CFrame.new(0, 1.5, 0)}):Play()
+        task.delay(0.4, function()
+            spawnParticleBurst(cf, Color3.fromRGB(150, 150, 150), 50)
+            Debris:AddItem(anvil, 1)
+        end)
+    elseif prankName == "FartCloud" then
+        -- AOE green smoke
+        local part = Instance.new("Part")
+        part.Anchored = true
+        part.CanCollide = false
+        part.Size = Vector3.new(8, 4, 8)
+        part.Material = Enum.Material.SmoothPlastic
+        part.Color = Color3.fromRGB(140, 200, 80)
+        part.Transparency = 0.4
+        part.CFrame = cf
+        part.Parent = Workspace
+        TweenService:Create(part, TweenInfo.new(1.2), {Transparency = 1, Size = Vector3.new(16, 8, 16)}):Play()
+        Debris:AddItem(part, 1.5)
+        spawnParticleBurst(cf, color, 80)
+    elseif prankName == "LaserEyes" then
+        -- Beam from player char head to target
+        local char = player.Character
+        if char and char:FindFirstChild("Head") then
+            local origin = char.Head.Position
+            local target = cf.Position
+            local mid = (origin + target) / 2
+            local dist = (origin - target).Magnitude
+            local beam = Instance.new("Part")
+            beam.Anchored = true
+            beam.CanCollide = false
+            beam.Size = Vector3.new(0.5, 0.5, dist)
+            beam.Color = Color3.fromRGB(255, 50, 50)
+            beam.Material = Enum.Material.Neon
+            beam.CFrame = CFrame.new(mid, target)
+            beam.Parent = Workspace
+            TweenService:Create(beam, TweenInfo.new(0.4), {Transparency = 1}):Play()
+            Debris:AddItem(beam, 0.5)
+        end
+        spawnParticleBurst(cf, color, 60)
+    end
+end
+
+Remotes.PrankRegistered.OnClientEvent:Connect(function(prankName, target, chaosGained, fxPayload)
+    local prank = PrankConfig.getPrank(prankName)
+    if not prank then return end
+    local cf = fxPayload and fxPayload.targetCFrame or (target and target.PrimaryPart and target.PrimaryPart.CFrame) or CFrame.new()
+    effectFor(prankName, cf, prank.particleColor)
+    playSound(prank.soundId)
+    if chaosGained and chaosGained > 0 then
+        chaosFlyUp(chaosGained, cf)
+        shake(prank.screenShake or 0)
+    end
+end)
+
+return true
+
+]]
+end
+
+-- StarterPlayer/StarterPlayerScripts/TutorialController.client.lua
+do
+    local s = getOrMake(game.StarterPlayer:WaitForChild('StarterPlayerScripts'), 'LocalScript', 'TutorialController')
+    s.Source = [[
+-- TutorialController.client.lua
+-- First-session tutorial: 3 step tooltips on first summon + first prank.
+-- Place in: StarterPlayer > StarterPlayerScripts > TutorialController (LocalScript)
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local hud = playerGui:WaitForChild("MainHUD", 30)
+if not hud then return end
+
+local tooltip = hud:WaitForChild("TutorialTooltip")
+local txt = tooltip:WaitForChild("Text")
+
+local seenSummon = false
+local seenPrank = false
+
+local function show(message, ms)
+    txt.Text = message
+    tooltip.Visible = true
+    if ms then
+        task.delay(ms / 1000, function() tooltip.Visible = false end)
+    end
+end
+
+-- Initial step
+task.delay(2, function()
+    if not seenSummon then
+        show("Tap SUMMON HUMAN to spawn your first victim 😈")
+    end
+end)
+
+-- After first summon, show next tip
+local function onPlayerData()
+    -- Listen once when summons happen
+end
+
+-- Register hooks via remotes
+local origConnect
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(data)
+    if data.totalPranks and data.totalPranks > 0 and not seenPrank then
+        seenPrank = true
+        show("Nice! Get to Level 5 to unlock Anvil. Press SHOP to see cosmetics.", 5000)
+    end
+end)
+
+-- Detect first summon by watching workspace
+task.spawn(function()
+    local Workspace = game:GetService("Workspace")
+    while not seenSummon do
+        task.wait(0.5)
+        local folder = Workspace:FindFirstChild("PrankNPCs")
+        if folder then
+            for _, m in ipairs(folder:GetChildren()) do
+                if m:GetAttribute("SummonedBy") == player.UserId then
+                    seenSummon = true
+                    show("Walk close, then tap PIE 🥧 to throw a pie!", 6000)
+                    return
+                end
+            end
+        end
+    end
+end)
+
+return true
+
+]]
+end
+
+-- StarterPlayer/StarterPlayerScripts/PerkUI.client.lua
+do
+    local s = getOrMake(game.StarterPlayer:WaitForChild('StarterPlayerScripts'), 'LocalScript', 'PerkUI')
+    s.Source = [[
+-- PerkUI.client.lua
+-- Shows perk picker modal when a slot unlocks. Stats UI for allocating points.
+-- Place in: StarterPlayer > StarterPlayerScripts > PerkUI (LocalScript)
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local PerkConfig = require(ReplicatedStorage.Modules.PerkConfig)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local hud = playerGui:WaitForChild("MainHUD", 30)
+if not hud then return end
+
+local function makeModal(title, color)
+    local modal = Instance.new("Frame")
+    modal.Name = title
+    modal.Size = UDim2.new(0, 700, 0, 480)
+    modal.AnchorPoint = Vector2.new(0.5, 0.5)
+    modal.Position = UDim2.new(0.5, 0, 0.5, 0)
+    modal.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+    modal.BorderSizePixel = 0
+    modal.Visible = false
+    modal.ZIndex = 50
+    Instance.new("UICorner", modal).CornerRadius = UDim.new(0, 16)
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 3
+    stroke.Color = color
+    stroke.Parent = modal
+    modal.Parent = hud
+
+    local titleLbl = Instance.new("TextLabel")
+    titleLbl.Size = UDim2.new(1, -20, 0, 50)
+    titleLbl.Position = UDim2.new(0, 10, 0, 10)
+    titleLbl.BackgroundTransparency = 1
+    titleLbl.Text = title
+    titleLbl.TextColor3 = color
+    titleLbl.Font = Enum.Font.GothamBlack
+    titleLbl.TextScaled = true
+    titleLbl.Parent = modal
+
+    local close = Instance.new("TextButton")
+    close.Size = UDim2.new(0, 40, 0, 40)
+    close.Position = UDim2.new(1, -50, 0, 10)
+    close.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+    close.Text = "X"
+    close.TextColor3 = Color3.new(1,1,1)
+    close.Font = Enum.Font.GothamBlack
+    close.TextScaled = true
+    Instance.new("UICorner", close).CornerRadius = UDim.new(0, 8)
+    close.Parent = modal
+    close.MouseButton1Click:Connect(function() modal.Visible = false end)
+
+    return modal
+end
+
+-- ===== Perk Picker (forced when slot earned) =====
+local perkModal = makeModal("PERK_PICKER", Color3.fromRGB(255, 200, 0))
+perkModal.Name = "PerkPickerModal"
+local perkSubtitle = Instance.new("TextLabel")
+perkSubtitle.Size = UDim2.new(1, -20, 0, 30)
+perkSubtitle.Position = UDim2.new(0, 10, 0, 60)
+perkSubtitle.BackgroundTransparency = 1
+perkSubtitle.Text = "Pick 1 perk for this slot"
+perkSubtitle.TextColor3 = Color3.fromRGB(220, 220, 220)
+perkSubtitle.Font = Enum.Font.Gotham
+perkSubtitle.TextScaled = true
+perkSubtitle.Parent = perkModal
+
+local perkList = Instance.new("Frame")
+perkList.Size = UDim2.new(1, -20, 1, -110)
+perkList.Position = UDim2.new(0, 10, 0, 100)
+perkList.BackgroundTransparency = 1
+perkList.Parent = perkModal
+local perkLayout = Instance.new("UIListLayout")
+perkLayout.Padding = UDim.new(0, 8)
+perkLayout.Parent = perkList
+
+local function showPerkPicker(slot, options)
+    perkSubtitle.Text = "SLOT " .. slot .. " — pick 1 perk"
+    for _, c in ipairs(perkList:GetChildren()) do
+        if not c:IsA("UIListLayout") then c:Destroy() end
+    end
+    for _, perkId in ipairs(options) do
+        local p = PerkConfig.getPerk(perkId)
+        if p then
+            local row = Instance.new("Frame")
+            row.Size = UDim2.new(1, 0, 0, 64)
+            row.BackgroundColor3 = Color3.fromRGB(40, 25, 60)
+            Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+            row.Parent = perkList
+            local nameLbl = Instance.new("TextLabel")
+            nameLbl.Size = UDim2.new(0.55, 0, 0.5, 0)
+            nameLbl.Position = UDim2.new(0.02, 0, 0, 0)
+            nameLbl.BackgroundTransparency = 1
+            nameLbl.Text = p.name
+            nameLbl.TextColor3 = Color3.fromRGB(255, 200, 0)
+            nameLbl.Font = Enum.Font.GothamBlack
+            nameLbl.TextScaled = true
+            nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+            nameLbl.Parent = row
+            local descLbl = Instance.new("TextLabel")
+            descLbl.Size = UDim2.new(0.55, 0, 0.5, 0)
+            descLbl.Position = UDim2.new(0.02, 0, 0.5, 0)
+            descLbl.BackgroundTransparency = 1
+            descLbl.Text = p.desc
+            descLbl.TextColor3 = Color3.fromRGB(220, 220, 220)
+            descLbl.Font = Enum.Font.Gotham
+            descLbl.TextScaled = true
+            descLbl.TextXAlignment = Enum.TextXAlignment.Left
+            descLbl.Parent = row
+            local pickBtn = Instance.new("TextButton")
+            pickBtn.Size = UDim2.new(0.35, 0, 0.8, 0)
+            pickBtn.Position = UDim2.new(0.62, 0, 0.1, 0)
+            pickBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+            pickBtn.TextColor3 = Color3.new(0,0,0)
+            pickBtn.Font = Enum.Font.GothamBlack
+            pickBtn.Text = "PICK"
+            pickBtn.TextScaled = true
+            Instance.new("UICorner", pickBtn).CornerRadius = UDim.new(0, 8)
+            pickBtn.Parent = row
+            pickBtn.MouseButton1Click:Connect(function()
+                local ok = Remotes.RequestEquipPerk:InvokeServer(slot, perkId)
+                if ok then perkModal.Visible = false end
+            end)
+        end
+    end
+    perkModal.Visible = true
+end
+
+Remotes.PerkSlotEarned.OnClientEvent:Connect(showPerkPicker)
+
+-- ===== Stats Screen =====
+local statsModal = makeModal("STATS", Color3.fromRGB(0, 200, 255))
+statsModal.Name = "StatsModal"
+local statsSubtitle = Instance.new("TextLabel")
+statsSubtitle.Size = UDim2.new(1, -20, 0, 30)
+statsSubtitle.Position = UDim2.new(0, 10, 0, 60)
+statsSubtitle.BackgroundTransparency = 1
+statsSubtitle.TextColor3 = Color3.fromRGB(220, 220, 220)
+statsSubtitle.Font = Enum.Font.Gotham
+statsSubtitle.TextScaled = true
+statsSubtitle.Text = "Allocate stat points each level"
+statsSubtitle.Parent = statsModal
+
+local statsList = Instance.new("Frame")
+statsList.Size = UDim2.new(1, -20, 1, -110)
+statsList.Position = UDim2.new(0, 10, 0, 100)
+statsList.BackgroundTransparency = 1
+statsList.Parent = statsModal
+local statsLayout = Instance.new("UIListLayout")
+statsLayout.Padding = UDim.new(0, 8)
+statsLayout.Parent = statsList
+
+local function rebuildStats(data)
+    statsSubtitle.Text = "Unspent points: " .. (data.unspentStatPoints or 0)
+    for _, c in ipairs(statsList:GetChildren()) do
+        if not c:IsA("UIListLayout") then c:Destroy() end
+    end
+    for _, statName in ipairs(GameConfig.STAT_NAMES) do
+        local current = (data.stats and data.stats[statName]) or 0
+        local row = Instance.new("Frame")
+        row.Size = UDim2.new(1, 0, 0, 50)
+        row.BackgroundColor3 = Color3.fromRGB(40, 25, 60)
+        Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+        row.Parent = statsList
+        local nameLbl = Instance.new("TextLabel")
+        nameLbl.Size = UDim2.new(0.4, 0, 1, 0)
+        nameLbl.Position = UDim2.new(0.02, 0, 0, 0)
+        nameLbl.BackgroundTransparency = 1
+        nameLbl.Text = statName .. ": " .. current
+        nameLbl.TextColor3 = Color3.fromRGB(0, 200, 255)
+        nameLbl.Font = Enum.Font.GothamBlack
+        nameLbl.TextScaled = true
+        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+        nameLbl.Parent = row
+        local plus = Instance.new("TextButton")
+        plus.Size = UDim2.new(0, 50, 0.8, 0)
+        plus.Position = UDim2.new(1, -60, 0.1, 0)
+        plus.Text = "+"
+        plus.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+        plus.TextColor3 = Color3.new(1,1,1)
+        plus.Font = Enum.Font.GothamBlack
+        plus.TextScaled = true
+        Instance.new("UICorner", plus).CornerRadius = UDim.new(0, 6)
+        plus.Parent = row
+        plus.MouseButton1Click:Connect(function()
+            local ok = Remotes.RequestAllocStat:InvokeServer(statName)
+            if not ok then return end
+        end)
+    end
+end
+
+local cachedData
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(d)
+    cachedData = d
+    if statsModal.Visible then rebuildStats(d) end
+end)
+
+-- ===== Hook bottom-bar Stats button (added when MainHUD adds stats button)
+local function hookStatsButton()
+    local botBar = hud:FindFirstChild("BottomBar")
+    if not botBar then return end
+    -- Create stats button if not exists
+    if botBar:FindFirstChild("StatsButton") then return end
+    local statsBtn = Instance.new("TextButton")
+    statsBtn.Name = "StatsButton"
+    statsBtn.Size = UDim2.new(0, 70, 0, 44)
+    statsBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+    statsBtn.TextColor3 = Color3.new(1,1,1)
+    statsBtn.Font = Enum.Font.GothamBlack
+    statsBtn.TextScaled = true
+    statsBtn.Text = "STATS"
+    statsBtn.LayoutOrder = 5
+    Instance.new("UICorner", statsBtn).CornerRadius = UDim.new(0, 12)
+    statsBtn.Parent = botBar
+    statsBtn.MouseButton1Click:Connect(function()
+        statsModal.Visible = not statsModal.Visible
+        if statsModal.Visible and cachedData then rebuildStats(cachedData) end
+    end)
+end
+hookStatsButton()
+hud.ChildAdded:Connect(function() task.wait(0.5); hookStatsButton() end)
+
+return true
+
+]]
+end
+
+-- StarterPlayer/StarterPlayerScripts/SurvivalUI.client.lua
+do
+    local s = getOrMake(game.StarterPlayer:WaitForChild('StarterPlayerScripts'), 'LocalScript', 'SurvivalUI')
+    s.Source = [[
+-- SurvivalUI.client.lua
+-- Hunger + thirst bars on HUD. Listens to SurvivalUpdate events.
+-- Place in: StarterPlayer > StarterPlayerScripts > SurvivalUI (LocalScript)
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+
+local player = Players.LocalPlayer
+local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
+if not hud then return end
+
+local function makeBar(name, color, posY)
+    local container = Instance.new("Frame")
+    container.Name = name .. "BarContainer"
+    container.Size = UDim2.new(0, 220, 0, 22)
+    container.Position = UDim2.new(0, 12, 0, posY)
+    container.BackgroundTransparency = 1
+    container.Parent = hud
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0, 60, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = name
+    lbl.TextColor3 = color
+    lbl.Font = Enum.Font.GothamBlack
+    lbl.TextScaled = true
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextStrokeTransparency = 0
+    lbl.Parent = container
+
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(0, 150, 0.7, 0)
+    bg.Position = UDim2.new(0, 65, 0.15, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(40, 20, 60)
+    bg.BorderSizePixel = 0
+    bg.Parent = container
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(1, 0)
+
+    local fill = Instance.new("Frame")
+    fill.Name = "Fill"
+    fill.Size = UDim2.new(1, 0, 1, 0)
+    fill.BackgroundColor3 = color
+    fill.BorderSizePixel = 0
+    fill.Parent = bg
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+    return fill
+end
+
+local hungerFill = makeBar("HUNGER", Color3.fromRGB(255, 150, 60), 90)
+local thirstFill = makeBar("THIRST", Color3.fromRGB(60, 180, 255), 116)
+
+Remotes.SurvivalUpdate.OnClientEvent:Connect(function(hunger, thirst)
+    TweenService:Create(hungerFill, TweenInfo.new(0.4), {Size = UDim2.new(math.clamp(hunger/100,0,1), 0, 1, 0)}):Play()
+    TweenService:Create(thirstFill, TweenInfo.new(0.4), {Size = UDim2.new(math.clamp(thirst/100,0,1), 0, 1, 0)}):Play()
+end)
+
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(d)
+    TweenService:Create(hungerFill, TweenInfo.new(0.4), {Size = UDim2.new(math.clamp((d.hunger or 100)/100,0,1), 0, 1, 0)}):Play()
+    TweenService:Create(thirstFill, TweenInfo.new(0.4), {Size = UDim2.new(math.clamp((d.thirst or 100)/100,0,1), 0, 1, 0)}):Play()
+end)
+
+return true
+
+]]
+end
+
+-- StarterPlayer/StarterPlayerScripts/EmoteWheel.client.lua
+do
+    local s = getOrMake(game.StarterPlayer:WaitForChild('StarterPlayerScripts'), 'LocalScript', 'EmoteWheel')
+    s.Source = [[
+-- EmoteWheel.client.lua
+-- B key opens emote wheel. Click an emote to play.
+-- Place in: StarterPlayer > StarterPlayerScripts > EmoteWheel (LocalScript)
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local player = Players.LocalPlayer
+local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
+if not hud then return end
+
+local wheel = Instance.new("Frame")
+wheel.Name = "EmoteWheel"
+wheel.Size = UDim2.new(0, 360, 0, 360)
+wheel.AnchorPoint = Vector2.new(0.5, 0.5)
+wheel.Position = UDim2.new(0.5, 0, 0.5, 0)
+wheel.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+wheel.BackgroundTransparency = 0.2
+wheel.BorderSizePixel = 0
+wheel.Visible = false
+wheel.Parent = hud
+Instance.new("UICorner", wheel).CornerRadius = UDim.new(1, 0)
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 3
+stroke.Color = Color3.fromRGB(150, 50, 200)
+stroke.Parent = wheel
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Position = UDim2.new(0, 0, 0, 10)
+title.BackgroundTransparency = 1
+title.Text = "EMOTES"
+title.TextColor3 = Color3.fromRGB(150, 50, 200)
+title.Font = Enum.Font.GothamBlack
+title.TextScaled = true
+title.Parent = wheel
+
+local center = Vector2.new(180, 180)
+for i, emoteName in ipairs(GameConfig.EMOTES) do
+    local angle = (i - 1) * (2 * math.pi / #GameConfig.EMOTES) - math.pi / 2
+    local r = 130
+    local x = center.X + math.cos(angle) * r - 35
+    local y = center.Y + math.sin(angle) * r - 25
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 70, 0, 50)
+    btn.Position = UDim2.new(0, x, 0, y)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 30, 90)
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamBlack
+    btn.Text = emoteName
+    btn.TextScaled = true
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    btn.Parent = wheel
+    btn.MouseButton1Click:Connect(function()
+        Remotes.RequestEmote:FireServer(emoteName)
+        wheel.Visible = false
+    end)
+end
+
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.B then
+        wheel.Visible = not wheel.Visible
+    elseif input.KeyCode == Enum.KeyCode.Escape and wheel.Visible then
+        wheel.Visible = false
+    end
+end)
+
+-- Listen to other players' emotes -> show floating tag above their head
+Remotes.EmoteBroadcast.OnClientEvent:Connect(function(userId, emoteName)
+    local target = Players:GetPlayerByUserId(userId)
+    if not target or not target.Character then return end
+    local head = target.Character:FindFirstChild("Head")
+    if not head then return end
+    local b = Instance.new("BillboardGui")
+    b.Size = UDim2.new(0, 100, 0, 36)
+    b.StudsOffset = Vector3.new(0, 3, 0)
+    b.AlwaysOnTop = true
+    b.Parent = head
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+    lbl.BackgroundTransparency = 0.3
+    lbl.Text = "*" .. emoteName .. "*"
+    lbl.TextColor3 = Color3.fromRGB(255, 200, 0)
+    lbl.Font = Enum.Font.GothamBlack
+    lbl.TextScaled = true
+    Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 8)
+    lbl.Parent = b
+    task.delay(2, function() b:Destroy() end)
+end)
+
+return true
+
+]]
+end
+
+-- StarterPlayer/StarterPlayerScripts/DailyRewardUI.client.lua
+do
+    local s = getOrMake(game.StarterPlayer:WaitForChild('StarterPlayerScripts'), 'LocalScript', 'DailyRewardUI')
+    s.Source = [[
+-- DailyRewardUI.client.lua
+-- Shows daily reward popup when DailyAvailable fires.
+-- Place in: StarterPlayer > StarterPlayerScripts > DailyRewardUI (LocalScript)
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+
+local player = Players.LocalPlayer
+local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
+if not hud then return end
+
+local modal = Instance.new("Frame")
+modal.Name = "DailyRewardModal"
+modal.Size = UDim2.new(0, 380, 0, 280)
+modal.AnchorPoint = Vector2.new(0.5, 0.5)
+modal.Position = UDim2.new(0.5, 0, 0.5, 0)
+modal.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+modal.BorderSizePixel = 0
+modal.Visible = false
+modal.ZIndex = 100
+Instance.new("UICorner", modal).CornerRadius = UDim.new(0, 16)
+local s = Instance.new("UIStroke") s.Thickness = 3 s.Color = Color3.fromRGB(255, 200, 0) s.Parent = modal
+modal.Parent = hud
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -20, 0, 50)
+title.Position = UDim2.new(0, 10, 0, 10)
+title.BackgroundTransparency = 1
+title.Text = "DAILY REWARD"
+title.TextColor3 = Color3.fromRGB(255, 200, 0)
+title.Font = Enum.Font.GothamBlack
+title.TextScaled = true
+title.Parent = modal
+
+local streakLbl = Instance.new("TextLabel")
+streakLbl.Size = UDim2.new(1, -20, 0, 30)
+streakLbl.Position = UDim2.new(0, 10, 0, 60)
+streakLbl.BackgroundTransparency = 1
+streakLbl.TextColor3 = Color3.fromRGB(220, 220, 220)
+streakLbl.Font = Enum.Font.Gotham
+streakLbl.TextScaled = true
+streakLbl.Parent = modal
+
+local rewardLbl = Instance.new("TextLabel")
+rewardLbl.Size = UDim2.new(1, -20, 0, 80)
+rewardLbl.Position = UDim2.new(0, 10, 0, 95)
+rewardLbl.BackgroundTransparency = 1
+rewardLbl.TextColor3 = Color3.fromRGB(0, 255, 100)
+rewardLbl.Font = Enum.Font.GothamBlack
+rewardLbl.TextScaled = true
+rewardLbl.Parent = modal
+
+local claimBtn = Instance.new("TextButton")
+claimBtn.Size = UDim2.new(0, 240, 0, 60)
+claimBtn.AnchorPoint = Vector2.new(0.5, 1)
+claimBtn.Position = UDim2.new(0.5, 0, 1, -16)
+claimBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+claimBtn.TextColor3 = Color3.new(0,0,0)
+claimBtn.Font = Enum.Font.GothamBlack
+claimBtn.TextScaled = true
+claimBtn.Text = "CLAIM"
+Instance.new("UICorner", claimBtn).CornerRadius = UDim.new(0, 12)
+claimBtn.Parent = modal
+
+Remotes.DailyAvailable.OnClientEvent:Connect(function(streak, reward)
+    streakLbl.Text = "Day " .. streak .. " of 7 streak"
+    rewardLbl.Text = reward.msg
+    modal.Visible = true
+end)
+
+claimBtn.MouseButton1Click:Connect(function()
+    local ok = Remotes.RequestClaimDaily:InvokeServer()
+    if ok then modal.Visible = false end
+end)
+
+return true
+
+]]
+end
+
+-- StarterPlayer/StarterPlayerScripts/WeatherClient.client.lua
+do
+    local s = getOrMake(game.StarterPlayer:WaitForChild('StarterPlayerScripts'), 'LocalScript', 'WeatherClient')
+    s.Source = [[
+-- WeatherClient.client.lua
+-- Reacts to weather changes: spawns rain/fog/red mist particles, shows banner.
+-- Place in: StarterPlayer > StarterPlayerScripts > WeatherClient (LocalScript)
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+
+local player = Players.LocalPlayer
+local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
+if not hud then return end
+
+local banner = Instance.new("TextLabel")
+banner.Size = UDim2.new(0, 300, 0, 50)
+banner.AnchorPoint = Vector2.new(0.5, 0)
+banner.Position = UDim2.new(0.5, 0, 0, 90)
+banner.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+banner.BackgroundTransparency = 0.2
+banner.TextColor3 = Color3.fromRGB(255, 200, 0)
+banner.Font = Enum.Font.GothamBlack
+banner.TextScaled = true
+banner.Visible = false
+banner.Text = ""
+Instance.new("UICorner", banner).CornerRadius = UDim.new(0, 12)
+banner.Parent = hud
+
+local activeFX = nil
+
+local function clearFX()
+    if activeFX then activeFX:Destroy(); activeFX = nil end
+end
+
+local function rainFX()
+    local model = Instance.new("Model")
+    model.Name = "RainFX"
+    model.Parent = Workspace
+    -- Rain emitter attached to camera
+    local p = Instance.new("Part")
+    p.Anchored = true
+    p.CanCollide = false
+    p.Transparency = 1
+    p.Size = Vector3.new(60, 1, 60)
+    p.Parent = model
+    local cam = Workspace.CurrentCamera
+    -- Track camera
+    local conn
+    conn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not p.Parent then conn:Disconnect() return end
+        p.CFrame = CFrame.new(cam.CFrame.Position + Vector3.new(0, 30, 0))
+    end)
+    local emitter = Instance.new("ParticleEmitter")
+    emitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+    emitter.Color = ColorSequence.new(Color3.fromRGB(150, 180, 220))
+    emitter.Lifetime = NumberRange.new(0.6, 0.9)
+    emitter.Rate = 200
+    emitter.Speed = NumberRange.new(40, 60)
+    emitter.SpreadAngle = Vector2.new(5, 5)
+    emitter.Size = NumberSequence.new(0.3, 0.1)
+    emitter.Acceleration = Vector3.new(0, -50, 0)
+    emitter.Parent = p
+    return model
+end
+
+local function fogFX()
+    -- Lighting handles fog mostly; just intensify with a screen overlay
+    local frame = Instance.new("Frame")
+    frame.Name = "FogOverlay"
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
+    frame.BackgroundTransparency = 0.85
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 0
+    frame.Parent = hud
+    return frame
+end
+
+local function redMistFX()
+    local model = Instance.new("Model")
+    model.Name = "RedMistFX"
+    model.Parent = Workspace
+    -- Screen tint
+    local frame = Instance.new("Frame")
+    frame.Name = "RedMistOverlay"
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    frame.BackgroundTransparency = 0.92
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 0
+    frame.Parent = hud
+    return model
+end
+
+Remotes.WeatherChanged.OnClientEvent:Connect(function(weather)
+    clearFX()
+    banner.Text = weather:upper()
+    banner.TextColor3 = ({
+        Sunny = Color3.fromRGB(255, 220, 80),
+        Rainy = Color3.fromRGB(120, 180, 255),
+        Foggy = Color3.fromRGB(220, 220, 220),
+        RedMist = Color3.fromRGB(255, 50, 50),
+    })[weather] or Color3.fromRGB(255, 200, 0)
+    banner.Visible = true
+    task.delay(4, function() banner.Visible = false end)
+
+    if weather == "Rainy" then activeFX = rainFX()
+    elseif weather == "Foggy" then activeFX = fogFX()
+    elseif weather == "RedMist" then activeFX = redMistFX() end
+end)
+
+Remotes.EventBroadcast.OnClientEvent:Connect(function(message)
+    banner.Text = message
+    banner.Visible = true
+    task.delay(5, function() banner.Visible = false end)
+end)
+
+return true
+
+]]
+end
+
+print('[KittyRaiser] Loader done. Press F5 to play.')

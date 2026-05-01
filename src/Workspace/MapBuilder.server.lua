@@ -224,6 +224,67 @@ local function buildLeaderboardPillar(parent)
     pillar.Parent = parent
 end
 
+local function buildFoodSources(parent)
+    -- Taco stand (food) + water puddle (drink)
+    local taco = part({
+        Name = "TacoStand",
+        Size = Vector3.new(6, 4, 4),
+        Position = Vector3.new(40, 2, -40),
+        Color = Color3.fromRGB(255, 200, 80),
+        Material = Enum.Material.Plastic,
+        Parent = parent,
+    })
+    taco:SetAttribute("FoodSource", true)
+    local tacoSign = Instance.new("BillboardGui")
+    tacoSign.Size = UDim2.new(0, 100, 0, 30)
+    tacoSign.StudsOffset = Vector3.new(0, 4, 0)
+    tacoSign.Parent = taco
+    local tacoLbl = Instance.new("TextLabel")
+    tacoLbl.Size = UDim2.new(1, 0, 1, 0)
+    tacoLbl.BackgroundTransparency = 1
+    tacoLbl.Text = "🌮 FOOD"
+    tacoLbl.TextColor3 = Color3.fromRGB(255, 200, 80)
+    tacoLbl.TextStrokeTransparency = 0
+    tacoLbl.Font = Enum.Font.GothamBlack
+    tacoLbl.TextScaled = true
+    tacoLbl.Parent = tacoSign
+
+    local puddle = part({
+        Name = "WaterPuddle",
+        Size = Vector3.new(8, 0.4, 8),
+        Position = Vector3.new(-40, 0.2, 40),
+        Color = Color3.fromRGB(60, 180, 255),
+        Material = Enum.Material.Glass,
+        Transparency = 0.3,
+        Parent = parent,
+    })
+    puddle:SetAttribute("WaterSource", true)
+    local pSign = Instance.new("BillboardGui")
+    pSign.Size = UDim2.new(0, 100, 0, 30)
+    pSign.StudsOffset = Vector3.new(0, 4, 0)
+    pSign.Parent = puddle
+    local pLbl = Instance.new("TextLabel")
+    pLbl.Size = UDim2.new(1, 0, 1, 0)
+    pLbl.BackgroundTransparency = 1
+    pLbl.Text = "💧 WATER"
+    pLbl.TextColor3 = Color3.fromRGB(60, 180, 255)
+    pLbl.TextStrokeTransparency = 0
+    pLbl.Font = Enum.Font.GothamBlack
+    pLbl.TextScaled = true
+    pLbl.Parent = pSign
+
+    -- Garbage can
+    local garbage = part({
+        Name = "GarbageCan",
+        Size = Vector3.new(3, 5, 3),
+        Position = Vector3.new(20, 2.5, 60),
+        Color = Color3.fromRGB(80, 80, 80),
+        Material = Enum.Material.Metal,
+        Parent = parent,
+    })
+    garbage:SetAttribute("FoodSource", true)
+end
+
 local function buildSpawnLocation(parent)
     local sl = Instance.new("SpawnLocation")
     sl.Name = "MainSpawn"
@@ -287,6 +348,7 @@ local function build()
     buildRebirthStatue(mapModel)
     buildLeaderboardPillar(mapModel)
     buildNeonSigns(mapModel)
+    buildFoodSources(mapModel)
     buildSpawnLocation(mapModel)
 
     print("[MapBuilder] Cat Alley built.")
