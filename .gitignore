@@ -1,0 +1,8 @@
+.DS_Store
+*.rbxlx.lock
+*.rbxl.lock
+*.bak
+.vscode/
+.idea/
+node_modules/
+sumneko-roblox-cache/

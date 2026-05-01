@@ -1,0 +1,94 @@
+{
+  "name": "KittyRaiser",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Modules": {
+        "$className": "Folder",
+        "GameConfig": {
+          "$path": "src/ReplicatedStorage/Modules/GameConfig.lua"
+        },
+        "PrankConfig": {
+          "$path": "src/ReplicatedStorage/Modules/PrankConfig.lua"
+        },
+        "CosmeticConfig": {
+          "$path": "src/ReplicatedStorage/Modules/CosmeticConfig.lua"
+        },
+        "RemoteEvents": {
+          "$path": "src/ReplicatedStorage/Modules/RemoteEvents.lua"
+        }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "AnalyticsHandler": {
+        "$path": "src/ServerScriptService/AnalyticsHandler.server.lua"
+      },
+      "AntiCheat": {
+        "$path": "src/ServerScriptService/AntiCheat.server.lua"
+      },
+      "DataHandler": {
+        "$path": "src/ServerScriptService/DataHandler.server.lua"
+      },
+      "SummonSystem": {
+        "$path": "src/ServerScriptService/SummonSystem.server.lua"
+      },
+      "PrankSystem": {
+        "$path": "src/ServerScriptService/PrankSystem.server.lua"
+      },
+      "MonetizationHandler": {
+        "$path": "src/ServerScriptService/MonetizationHandler.server.lua"
+      },
+      "RebirthHandler": {
+        "$path": "src/ServerScriptService/RebirthHandler.server.lua"
+      },
+      "CosmeticHandler": {
+        "$path": "src/ServerScriptService/CosmeticHandler.server.lua"
+      },
+      "LeaderboardHandler": {
+        "$path": "src/ServerScriptService/LeaderboardHandler.server.lua"
+      },
+      "MapBuilder": {
+        "$path": "src/Workspace/MapBuilder.server.lua"
+      }
+    },
+    "StarterGui": {
+      "$className": "StarterGui",
+      "HUDBuilder": {
+        "$path": "src/StarterGui/HUDBuilder.client.lua"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "HUDController": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/HUDController.client.lua"
+        },
+        "InputHandler": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/InputHandler.client.lua"
+        },
+        "EffectsController": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/EffectsController.client.lua"
+        },
+        "TutorialController": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/TutorialController.client.lua"
+        }
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "Gravity": 196.2
+      }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "Technology": "Future",
+        "Ambient": [0.15, 0.08, 0.2]
+      }
+    }
+  }
+}
