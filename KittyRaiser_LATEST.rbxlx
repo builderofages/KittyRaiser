@@ -1360,6 +1360,115 @@ end
     </Item>
     <Item class="Script" referent="15">
       <Properties>
+        <string name="Name">CatLifelike</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- CatLifelike.server.lua — Grok's micro-animations: ear twitch, blink, breathing, tail dynamics
+-- Place in: ServerScriptService > CatLifelike (Script). Auto-runs.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local function setupCat(char)
+  local hum = char:FindFirstChildOfClass("Humanoid")
+  if not hum then return end
+
+  -- Find body parts by name
+  local body = char:FindFirstChild("Torso")
+  local head = char:FindFirstChild("Head")
+  local ears = {}
+  for _, c in ipairs(char:GetChildren()) do
+    if c:IsA("BasePart") and c.Name == "Ear" then
+      table.insert(ears, {part = c, origCFrame = c.CFrame})
+    end
+  end
+  local pupils = {}
+  for _, c in ipairs(char:GetChildren()) do
+    if c:IsA("BasePart") and c.Name == "Pupil" then
+      table.insert(pupils, {part = c, origSize = c.Size})
+    end
+  end
+  local tailSegs = {}
+  for i = 1, 5 do
+    local seg = char:FindFirstChild("TailSeg" .. i)
+    if seg then table.insert(tailSegs, {part = seg, origCFrame = seg.CFrame, idx = i}) end
+  end
+
+  -- Idle micro-animation: ear twitch every 8-15 sec
+  task.spawn(function()
+    while char.Parent do
+      task.wait(math.random(8, 15))
+      for _, e in ipairs(ears) do
+        TweenService:Create(e.part, TweenInfo.new(0.08, Enum.EasingStyle.Quad), {
+          CFrame = e.origCFrame * CFrame.Angles(math.rad(math.random(-12, 12)), 0, 0)
+        }):Play()
+        task.wait(0.1)
+        TweenService:Create(e.part, TweenInfo.new(0.15), {CFrame = e.origCFrame}):Play()
+      end
+    end
+  end)
+
+  -- Blink every 4-7 sec
+  task.spawn(function()
+    while char.Parent do
+      task.wait(math.random(4, 7))
+      for _, p in ipairs(pupils) do
+        local origSize = p.origSize
+        TweenService:Create(p.part, TweenInfo.new(0.08), {Size = Vector3.new(origSize.X, 0.05, origSize.Z)}):Play()
+        task.wait(0.12)
+        TweenService:Create(p.part, TweenInfo.new(0.1), {Size = origSize}):Play()
+      end
+    end
+  end)
+
+  -- Breathing torso scale (subtle)
+  if body then
+    task.spawn(function()
+      local origSize = body.Size
+      while char.Parent do
+        TweenService:Create(body, TweenInfo.new(2.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+          Size = origSize + Vector3.new(0.05, 0.05, 0)
+        }):Play()
+        task.wait(2.5)
+      end
+    end)
+  end
+
+  -- Tail dynamic whip — respond to character velocity
+  if #tailSegs > 0 then
+    local hrp = char.PrimaryPart
+    task.spawn(function()
+      while char.Parent and hrp do
+        local v = hrp.AssemblyLinearVelocity
+        local speed = Vector3.new(v.X, 0, v.Z).Magnitude
+        for _, seg in ipairs(tailSegs) do
+          local sway = math.sin(os.clock() * 4 + seg.idx * 0.5) * (0.1 + speed * 0.005) * seg.idx
+          pcall(function()
+            seg.part.CFrame = seg.origCFrame * CFrame.Angles(0, sway, 0)
+          end)
+        end
+        task.wait(0.05)
+      end
+    end)
+  end
+
+  print("[CatLifelike] applied to " .. (char.Name or "?"))
+end
+
+local function setup(player)
+  if player.Character then setupCat(player.Character) end
+  player.CharacterAdded:Connect(function(char) task.wait(0.5); setupCat(char) end)
+end
+
+Players.PlayerAdded:Connect(setup)
+for _, plr in ipairs(Players:GetPlayers()) do setup(plr) end
+
+print("[CatLifelike] ready — ear twitch, blink, breathing, tail dynamics")
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="16">
+      <Properties>
         <string name="Name">CityRebuild</string>
         <token name="RunContext">0</token>
         <string name="Source"><![CDATA[-- CityRebuild.server.lua  v4 — Grok-tuned cinematic lighting + Toolbox city kit insertion
@@ -1570,7 +1679,7 @@ print("[CityRebuild v4] DONE — city + lighting + plaza + particle pool ready")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="16">
+    <Item class="Script" referent="17">
       <Properties>
         <string name="Name">CosmeticHandler</string>
         <token name="RunContext">0</token>
@@ -1681,7 +1790,7 @@ return CosmeticHandler
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="17">
+    <Item class="Script" referent="18">
       <Properties>
         <string name="Name">DailyRewardSystem</string>
         <token name="RunContext">0</token>
@@ -1755,7 +1864,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="18">
+    <Item class="Script" referent="19">
       <Properties>
         <string name="Name">DataHandler</string>
         <token name="RunContext">0</token>
@@ -1968,7 +2077,7 @@ return DataHandler
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="19">
+    <Item class="Script" referent="20">
       <Properties>
         <string name="Name">DiagnosticDump</string>
         <token name="RunContext">0</token>
@@ -2078,7 +2187,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="20">
+    <Item class="Script" referent="21">
       <Properties>
         <string name="Name">EmoteSystem</string>
         <token name="RunContext">0</token>
@@ -2117,7 +2226,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="21">
+    <Item class="Script" referent="22">
       <Properties>
         <string name="Name">LeaderboardHandler</string>
         <token name="RunContext">0</token>
@@ -2167,7 +2276,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="22">
+    <Item class="Script" referent="23">
       <Properties>
         <string name="Name">MeshLoader</string>
         <token name="RunContext">0</token>
@@ -2236,7 +2345,7 @@ print(("[MeshLoader] %d/%d meshes loaded and cached"):format(loaded, #NAMES))
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="23">
+    <Item class="Script" referent="24">
       <Properties>
         <string name="Name">MonetizationHandler</string>
         <token name="RunContext">0</token>
@@ -2386,7 +2495,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="24">
+    <Item class="Script" referent="25">
       <Properties>
         <string name="Name">PerfOptimize</string>
         <token name="RunContext">0</token>
@@ -2426,7 +2535,7 @@ print("[PerfOptimize] StreamingEnabled, Box collision, mobile tuned")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="25">
+    <Item class="Script" referent="26">
       <Properties>
         <string name="Name">PerkSystem</string>
         <token name="RunContext">0</token>
@@ -2566,7 +2675,7 @@ return PerkSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="26">
+    <Item class="Script" referent="27">
       <Properties>
         <string name="Name">PrankSystem</string>
         <token name="RunContext">0</token>
@@ -2721,7 +2830,7 @@ return PrankSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="27">
+    <Item class="Script" referent="28">
       <Properties>
         <string name="Name">RagdollOnPrank</string>
         <token name="RunContext">0</token>
@@ -2843,7 +2952,7 @@ print("[RagdollOnPrank] ready - NPCs ragdoll + drop coins on prank")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="28">
+    <Item class="Script" referent="29">
       <Properties>
         <string name="Name">RebirthHandler</string>
         <token name="RunContext">0</token>
@@ -2892,7 +3001,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="29">
+    <Item class="Script" referent="30">
       <Properties>
         <string name="Name">RemotesBootstrap</string>
         <token name="RunContext">0</token>
@@ -2956,7 +3065,7 @@ print("[RemotesBootstrap] created " .. #EVENTS .. " RemoteEvents + " .. #FUNCTIO
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="30">
+    <Item class="Script" referent="31">
       <Properties>
         <string name="Name">SafetyGuard</string>
         <token name="RunContext">0</token>
@@ -3036,7 +3145,7 @@ print("[SafetyGuard] watching for DataHandler / AntiCheat globals")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="31">
+    <Item class="Script" referent="32">
       <Properties>
         <string name="Name">SpawnEnforcer</string>
         <token name="RunContext">0</token>
@@ -3247,7 +3356,50 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="32">
+    <Item class="Script" referent="33">
+      <Properties>
+        <string name="Name">StrayLighting</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- StrayLighting.server.lua — Grok's exact Stray cyberpunk noir tuning
+-- Place in: ServerScriptService > StrayLighting (Script). Auto-runs.
+
+local Lighting = game:GetService("Lighting")
+
+Lighting.Technology = Enum.Technology.Future
+Lighting.Brightness = 2.8
+Lighting.Ambient = Color3.fromRGB(40, 20, 80)
+Lighting.OutdoorAmbient = Color3.fromRGB(70, 40, 110)
+Lighting.EnvironmentDiffuseScale = 0.8
+Lighting.EnvironmentSpecularScale = 1.2
+Lighting.ClockTime = 19.5
+Lighting.GeographicLatitude = 41.5
+Lighting.GlobalShadows = true
+
+local function ensure(cls, props)
+  local fx = Lighting:FindFirstChildOfClass(cls)
+  if not fx then fx = Instance.new(cls); fx.Parent = Lighting end
+  for k, v in pairs(props) do pcall(function() fx[k] = v end) end
+  return fx
+end
+
+ensure("BloomEffect",          {Intensity = 3.2, Size = 24, Threshold = 1.4})
+ensure("ColorCorrectionEffect",{Saturation = 0.35, Brightness = 0.08, Contrast = 0.15, TintColor = Color3.fromRGB(255, 240, 230)})
+ensure("DepthOfFieldEffect",   {FocusDistance = 60, InFocusRadius = 25, FarIntensity = 0.08, NearIntensity = 0.02})
+ensure("SunRaysEffect",        {Intensity = 0.25, Spread = 0.8})
+ensure("BlurEffect",           {Size = 0})  -- 0 by default; ramp up for cinematics
+
+local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+if not atm then atm = Instance.new("Atmosphere", Lighting) end
+atm.Density = 0.45; atm.Offset = 0.25
+atm.Color = Color3.fromRGB(80, 30, 140)
+atm.Decay = Color3.fromRGB(50, 15, 90)
+atm.Glare = 0.55; atm.Haze = 2.0
+
+print("[StrayLighting] Grok's cyberpunk noir tuning applied")
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="34">
       <Properties>
         <string name="Name">SummonSystem</string>
         <token name="RunContext">0</token>
@@ -3448,7 +3600,7 @@ return SummonSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="33">
+    <Item class="Script" referent="35">
       <Properties>
         <string name="Name">SurvivalSystem</string>
         <token name="RunContext">0</token>
@@ -3555,7 +3707,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="34">
+    <Item class="Script" referent="36">
       <Properties>
         <string name="Name">WalkAnim</string>
         <token name="RunContext">0</token>
@@ -3641,7 +3793,7 @@ print("[WalkAnim] cat walk/idle animations + tail wag ready")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="35">
+    <Item class="Script" referent="37">
       <Properties>
         <string name="Name">WeatherSystem</string>
         <token name="RunContext">0</token>
@@ -3725,11 +3877,11 @@ return true
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterGui" referent="36">
+  <Item class="StarterGui" referent="38">
     <Properties>
       <string name="Name">StarterGui</string>
     </Properties>
-    <Item class="LocalScript" referent="37">
+    <Item class="LocalScript" referent="39">
       <Properties>
         <string name="Name">HUDBuilder</string>
         <string name="Source"><![CDATA[-- HUDBuilder.client.lua
@@ -4094,15 +4246,15 @@ return screenGui
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="38">
+  <Item class="StarterPlayer" referent="40">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="39">
+    <Item class="StarterPlayerScripts" referent="41">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="40">
+      <Item class="LocalScript" referent="42">
         <Properties>
           <string name="Name">CombatFeel</string>
           <string name="Source"><![CDATA[-- CombatFeel.client.lua  — Grok-tuned hit-stop, screen flash, FOV pulse, damage numbers
@@ -4294,7 +4446,7 @@ print("[CombatFeel] hit-stop, flash, combo, damage numbers, sounds wired")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="41">
+      <Item class="LocalScript" referent="43">
         <Properties>
           <string name="Name">DailyRewardPopup</string>
           <string name="Source"><![CDATA[-- DailyRewardPopup.client.lua
@@ -4477,7 +4629,7 @@ print("[DailyRewardPopup] showed daily reward streak " .. streak .. ", day " .. 
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="42">
+      <Item class="LocalScript" referent="44">
         <Properties>
           <string name="Name">DailyRewardUI</string>
           <string name="Source"><![CDATA[-- DailyRewardUI.client.lua
@@ -4560,7 +4712,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="43">
+      <Item class="LocalScript" referent="45">
         <Properties>
           <string name="Name">EffectsController</string>
           <string name="Source"><![CDATA[-- EffectsController.client.lua
@@ -4732,7 +4884,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="44">
+      <Item class="LocalScript" referent="46">
         <Properties>
           <string name="Name">EmoteWheel</string>
           <string name="Source"><![CDATA[-- EmoteWheel.client.lua
@@ -4834,7 +4986,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="45">
+      <Item class="LocalScript" referent="47">
         <Properties>
           <string name="Name">HUDController</string>
           <string name="Source"><![CDATA[-- HUDController.client.lua
@@ -5130,7 +5282,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="46">
+      <Item class="LocalScript" referent="48">
         <Properties>
           <string name="Name">HUDPolish</string>
           <string name="Source"><![CDATA[-- HUDPolish.client.lua — adds UIGradient + UIStroke to all HUD frames per Grok's spec
@@ -5175,7 +5327,7 @@ print("[HUDPolish] applied UIGradient + UIStroke per Grok recommendation")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="47">
+      <Item class="LocalScript" referent="49">
         <Properties>
           <string name="Name">InputHandler</string>
           <string name="Source"><![CDATA[-- InputHandler.client.lua
@@ -5309,7 +5461,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="48">
+      <Item class="LocalScript" referent="50">
         <Properties>
           <string name="Name">KillFeed</string>
           <string name="Source"><![CDATA[-- KillFeed.client.lua — top-right scrolling feed of recent prank events
@@ -5418,7 +5570,7 @@ print("[KillFeed] right-side prank/level feed ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="49">
+      <Item class="LocalScript" referent="51">
         <Properties>
           <string name="Name">Minimap</string>
           <string name="Source"><![CDATA[-- Minimap.client.lua  — top-right minimap with player dot + nearby NPC dots
@@ -5542,7 +5694,220 @@ print("[Minimap] top-right minimap rendering player + NPC dots")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="50">
+      <Item class="LocalScript" referent="52">
+        <Properties>
+          <string name="Name">OnboardingFlow</string>
+          <string name="Source"><![CDATA[-- OnboardingFlow.client.lua — Grok's #1 priority: 15-sec guided first-prank tutorial with massive payoff
+-- Place in: StarterPlayer > StarterPlayerScripts > OnboardingFlow (LocalScript)
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Debris = game:GetService("Debris")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Skip if already onboarded
+if player:GetAttribute("OnboardingDone") then return end
+
+-- Wait for spawn
+task.wait(4)
+local hud = playerGui:WaitForChild("MainHUD", 30)
+if not hud then return end
+
+local PALETTE = {
+  bgDark    = Color3.fromRGB(26, 20, 40),
+  neonPink  = Color3.fromRGB(192, 38, 211),
+  cyan      = Color3.fromRGB(34, 211, 238),
+  gold      = Color3.fromRGB(250, 204, 21),
+  green     = Color3.fromRGB(34, 197, 94),
+  white     = Color3.fromRGB(245, 240, 250),
+}
+
+local overlay = Instance.new("ScreenGui")
+overlay.Name = "OnboardingOverlay"
+overlay.IgnoreGuiInset = true
+overlay.ResetOnSpawn = false
+overlay.DisplayOrder = 90
+overlay.Parent = playerGui
+
+local function showStep(text, anchorRect)
+  local box = Instance.new("Frame")
+  box.Size = UDim2.new(0, 380, 0, 110)
+  box.BackgroundColor3 = PALETTE.bgDark
+  box.BorderSizePixel = 0
+  box.Parent = overlay
+  Instance.new("UICorner", box).CornerRadius = UDim.new(0, 14)
+  local stroke = Instance.new("UIStroke", box)
+  stroke.Thickness = 3; stroke.Color = PALETTE.neonPink
+  local grad = Instance.new("UIGradient", box)
+  grad.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(48, 30, 90)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 14, 32)),
+  }
+  grad.Rotation = 90
+
+  local label = Instance.new("TextLabel", box)
+  label.Size = UDim2.new(1, -24, 1, -24)
+  label.Position = UDim2.fromOffset(12, 12)
+  label.BackgroundTransparency = 1
+  label.Text = text
+  label.Font = Enum.Font.GothamBold
+  label.TextScaled = true
+  label.TextColor3 = PALETTE.white
+  label.TextXAlignment = Enum.TextXAlignment.Center
+
+  if anchorRect then
+    box.Position = UDim2.fromOffset(anchorRect.X + anchorRect.Width/2 - 190, anchorRect.Y - 130)
+  else
+    box.Position = UDim2.new(0.5, -190, 0.4, 0)
+  end
+
+  -- Pulse
+  task.spawn(function()
+    while box.Parent do
+      TweenService:Create(box, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Size = UDim2.new(0, 400, 0, 116)}):Play()
+      task.wait(1)
+    end
+  end)
+  return box
+end
+
+local function findHudButton(textPattern)
+  for _, d in ipairs(hud:GetDescendants()) do
+    if d:IsA("TextButton") and d.Text and d.Text:find(textPattern) then return d end
+  end
+  for _, d in ipairs(hud:GetDescendants()) do
+    if d:IsA("ImageButton") and d.Name:find(textPattern) then return d end
+  end
+  return nil
+end
+
+local function spotlight(targetGui)
+  if not targetGui then return nil end
+  local r = targetGui.AbsolutePosition
+  local s = targetGui.AbsoluteSize
+  local ring = Instance.new("Frame")
+  ring.Size = UDim2.fromOffset(s.X + 30, s.Y + 30)
+  ring.Position = UDim2.fromOffset(r.X - 15, r.Y - 15)
+  ring.BackgroundTransparency = 1
+  ring.Parent = overlay
+  local stroke = Instance.new("UIStroke", ring)
+  stroke.Thickness = 4
+  stroke.Color = PALETTE.gold
+  task.spawn(function()
+    while ring.Parent do
+      TweenService:Create(ring, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Size = UDim2.fromOffset(s.X + 50, s.Y + 50), Position = UDim2.fromOffset(r.X - 25, r.Y - 25)}):Play()
+      task.wait(1)
+    end
+  end)
+  return ring
+end
+
+local function massivePayoff()
+  -- Big "+500 CHAOS!" with confetti
+  local burst = Instance.new("Frame")
+  burst.Size = UDim2.fromScale(1, 1)
+  burst.BackgroundColor3 = PALETTE.gold
+  burst.BackgroundTransparency = 0.7
+  burst.BorderSizePixel = 0
+  burst.Parent = overlay
+  TweenService:Create(burst, TweenInfo.new(0.8), {BackgroundTransparency = 1}):Play()
+
+  local big = Instance.new("TextLabel", overlay)
+  big.Size = UDim2.new(0, 800, 0, 200)
+  big.Position = UDim2.new(0.5, -400, 0.4, 0)
+  big.BackgroundTransparency = 1
+  big.Text = "+500 CHAOS\n🎉 LEVEL 2! 🎉"
+  big.Font = Enum.Font.GothamBlack
+  big.TextScaled = true
+  big.TextColor3 = PALETTE.gold
+  big.TextStrokeTransparency = 0
+  big.TextStrokeColor3 = Color3.new(0, 0, 0)
+  big.Rotation = -8
+
+  TweenService:Create(big, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Rotation = 0, Size = UDim2.new(0, 900, 0, 240)}):Play()
+
+  -- Confetti particles (frame dots)
+  for i = 1, 60 do
+    local dot = Instance.new("Frame", overlay)
+    dot.Size = UDim2.fromOffset(8, 8)
+    dot.Position = UDim2.new(math.random(), 0, 0, -10)
+    dot.BackgroundColor3 = ({PALETTE.gold, PALETTE.neonPink, PALETTE.cyan, PALETTE.green})[math.random(1, 4)]
+    dot.BorderSizePixel = 0
+    Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+    task.spawn(function()
+      TweenService:Create(dot, TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        Position = UDim2.new(dot.Position.X.Scale, 0, 1.1, 0),
+        Rotation = math.random(-360, 360),
+      }):Play()
+      task.wait(2.2)
+      dot:Destroy()
+    end)
+  end
+
+  task.delay(3, function()
+    TweenService:Create(big, TweenInfo.new(0.6), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+    task.wait(0.8)
+    big:Destroy(); burst:Destroy()
+  end)
+end
+
+----------------------------------------------------------------
+-- Step 1: Welcome + spotlight on SUMMON HUMAN button
+----------------------------------------------------------------
+local welcome = showStep("Welcome to Chaos City!\nSpawn your first VICTIM →")
+local summonBtn = findHudButton("SUMMON") or findHudButton("Summon")
+local ring1
+if summonBtn then
+  ring1 = spotlight(summonBtn)
+  -- Wait for click
+  local conn
+  conn = summonBtn.MouseButton1Click:Connect(function()
+    if conn then conn:Disconnect() end
+    welcome:Destroy()
+    if ring1 then ring1:Destroy() end
+    -- Step 2 after delay
+    task.wait(1.5)
+    local step2 = showStep("👇 NOW PRANK them!\nClick a glowing prank →")
+    -- Find prank column
+    local prankBtn
+    local col = hud:FindFirstChild("PrankColumn", true)
+    if col then prankBtn = col:FindFirstChildWhichIsA("TextButton", true) end
+    local ring2
+    if prankBtn then
+      ring2 = spotlight(prankBtn)
+      local conn2
+      conn2 = prankBtn.MouseButton1Click:Connect(function()
+        if conn2 then conn2:Disconnect() end
+        step2:Destroy()
+        if ring2 then ring2:Destroy() end
+        -- Step 3: massive payoff
+        task.wait(0.6)
+        massivePayoff()
+        player:SetAttribute("OnboardingDone", true)
+        task.wait(4)
+        overlay:Destroy()
+      end)
+    end
+  end)
+else
+  -- Fallback: just show generic message and end
+  task.wait(8)
+  welcome:Destroy()
+  if ring1 then ring1:Destroy() end
+  player:SetAttribute("OnboardingDone", true)
+  overlay:Destroy()
+end
+
+print("[OnboardingFlow] cinematic 2-step + massive payoff active")
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="LocalScript" referent="53">
         <Properties>
           <string name="Name">PerkUI</string>
           <string name="Source"><![CDATA[-- PerkUI.client.lua
@@ -5776,7 +6141,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="51">
+      <Item class="LocalScript" referent="54">
         <Properties>
           <string name="Name">PreSpawnLobby</string>
           <string name="Source"><![CDATA[-- PreSpawnLobby v3 — Grok's fix: use direct ReplicatedStorage:WaitForChild for RemoteEvent
@@ -6131,7 +6496,7 @@ print("[PreSpawnLobby v3 grokfix] ready, requestSpawn = " .. tostring(requestSpa
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="52">
+      <Item class="LocalScript" referent="55">
         <Properties>
           <string name="Name">SurvivalUI</string>
           <string name="Source"><![CDATA[-- SurvivalUI.client.lua
@@ -6202,7 +6567,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="53">
+      <Item class="LocalScript" referent="56">
         <Properties>
           <string name="Name">TutorialController</string>
           <string name="Source"><![CDATA[-- TutorialController.client.lua
@@ -6276,7 +6641,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="54">
+      <Item class="LocalScript" referent="57">
         <Properties>
           <string name="Name">TutorialFlow</string>
           <string name="Source"><![CDATA[-- TutorialFlow.client.lua — Grok #1 retention fix: clear "what do I do?" in first 10s
@@ -6409,7 +6774,7 @@ print("[TutorialFlow] tutorial active for new player")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="55">
+      <Item class="LocalScript" referent="58">
         <Properties>
           <string name="Name">WeatherClient</string>
           <string name="Source"><![CDATA[-- WeatherClient.client.lua
@@ -6535,7 +6900,7 @@ return true
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="56">
+  <Item class="Workspace" referent="59">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>

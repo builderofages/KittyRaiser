@@ -105,6 +105,12 @@
       },
       "RemotesBootstrap": {
         "$path": "src/ServerScriptService/RemotesBootstrap.server.lua"
+      },
+      "StrayLighting": {
+        "$path": "src/ServerScriptService/StrayLighting.server.lua"
+      },
+      "CatLifelike": {
+        "$path": "src/ServerScriptService/CatLifelike.server.lua"
       }
     },
     "StarterGui": {
@@ -164,6 +170,9 @@
         },
         "KillFeed": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/KillFeed.client.lua"
+        },
+        "OnboardingFlow": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/OnboardingFlow.client.lua"
         }
       }
     },
