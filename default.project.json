@@ -78,6 +78,9 @@
       },
       "CatCharacterBuilder": {
         "$path": "src/ServerScriptService/CatCharacterBuilder.server.lua"
+      },
+      "MeshLoader": {
+        "$path": "src/ServerScriptService/MeshLoader.server.lua"
       }
     },
     "StarterGui": {
