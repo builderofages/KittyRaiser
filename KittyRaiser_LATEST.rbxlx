@@ -1285,11 +1285,11 @@ end
 local function spawnCat(player)
   local fc = player:GetAttribute("FurColor")
   local color
-  if fc and type(fc) == "table" then
-    color = Color3.fromRGB(fc[1] or 220, fc[2] or 130, fc[3] or 50)
+  if typeof(fc) == "Color3" then
+    color = fc
   else
     color = FUR_COLORS[math.random(1, #FUR_COLORS)]
-    player:SetAttribute("FurColor", {math.floor(color.R*255), math.floor(color.G*255), math.floor(color.B*255)})
+    player:SetAttribute("FurColor", color)  -- Color3 (table not allowed)
   end
 
   local sp = Workspace:FindFirstChild("MainSpawn") or Workspace:FindFirstChildOfClass("SpawnLocation")
@@ -1336,7 +1336,8 @@ local function setup(player)
   -- Wait a sec for Toolbox load to complete on first spawn
   task.spawn(function()
     task.wait(2.5)
-    spawnCat(player)
+    local ok, err = pcall(spawnCat, player)
+    if not ok then warn("[CatCharacterBuilder] spawnCat error: "..tostring(err)) end
   end)
   player.CharacterRemoving:Connect(function()
     task.wait(2)
@@ -1348,6 +1349,26 @@ Players.PlayerAdded:Connect(setup)
 for _, plr in ipairs(Players:GetPlayers()) do setup(plr) end
 
 print("[CatCharacterBuilder v4] CharacterAutoLoads OFF, Toolbox cat rig pending load")
+
+-- Listen to RequestSpawnCustomization from PreSpawnLobby
+local Remotes = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+if Remotes.RequestSpawnCustomization then
+  Remotes.RequestSpawnCustomization.OnServerEvent:Connect(function(player, data)
+    if data and type(data) == "table" then
+      if data.furColor and type(data.furColor) == "table" then
+        local r, g, b = data.furColor[1] or 220, data.furColor[2] or 130, data.furColor[3] or 50
+        player:SetAttribute("FurColor", Color3.fromRGB(r, g, b))
+        player:SetAttribute("SkinName", tostring(data.skinName or ""))
+      end
+    end
+    -- Force respawn with new color
+    if player.Character then player.Character:Destroy() end
+    task.wait(0.3)
+    spawnCat(player)
+  end)
+  print("[CatCharacterBuilder] listening to RequestSpawnCustomization")
+end
+
 ]]></string>
       </Properties>
     </Item>
