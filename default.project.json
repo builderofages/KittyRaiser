@@ -81,6 +81,12 @@
       },
       "MeshLoader": {
         "$path": "src/ServerScriptService/MeshLoader.server.lua"
+      },
+      "AmbientCrowd": {
+        "$path": "src/ServerScriptService/AmbientCrowd.server.lua"
+      },
+      "RagdollOnPrank": {
+        "$path": "src/ServerScriptService/RagdollOnPrank.server.lua"
       }
     },
     "StarterGui": {
