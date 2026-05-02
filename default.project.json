@@ -78,6 +78,9 @@
       },
       "CityRebuild": {
         "$path": "src/ServerScriptService/CityRebuild.server.lua"
+      },
+      "CatCharacterBuilder": {
+        "$path": "src/ServerScriptService/CatCharacterBuilder.server.lua"
       }
     },
     "StarterGui": {
