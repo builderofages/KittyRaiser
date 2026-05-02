@@ -1,80 +1,66 @@
--- RemoteEvents.lua
--- Single source of truth for all RemoteEvents and RemoteFunctions.
+-- RemoteEvents.lua — single source of truth for all RemoteEvents and RemoteFunctions
 -- Place in: ReplicatedStorage > Modules > RemoteEvents (ModuleScript)
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Remotes = {}
 
 local DEFINITIONS = {
-    -- Client -> Server
-    RequestSummonHuman = "Event",
-    RequestPrank = "Event",
-    RequestRebirth = "Function",
-    RequestEquipSkin = "Function",
-    RequestPurchaseSkinChaos = "Function",
-    RequestPurchaseSkinHellTokens = "Function",
-    RequestUseDevProduct = "Event",
-    RequestEquipPerk = "Function",
-    RequestResetPerks = "Function",
-    RequestAllocStat = "Function",
-    RequestEatFood = "Event",
-    RequestDrinkWater = "Event",
-    RequestEmote = "Event",
-    RequestClaimDaily = "Function",
-    RequestSpawnCustomization = "Event",  -- pre-spawn cat color/skin
-    RequestAdminCommand = "Function",     -- admin only
-
-    -- Server -> Client
-    UpdatePlayerData = "Event",
-    PrankRegistered = "Event",
-    PrankFailed = "Event",
-    LevelUp = "Event",
-    PerkSlotEarned = "Event",  -- present picker
-    RebirthCompleted = "Event",
-    NotifyClient = "Event",
-    LeaderboardUpdated = "Event",
-    TutorialStep = "Event",
-    WeatherChanged = "Event",  -- ("Sunny" | "Rainy" | "Foggy" | "RedMist")
-    EventBroadcast = "Event",  -- server-wide event (eg "RedMistHour" with payload)
-    EmoteBroadcast = "Event",  -- announce other player emote
-    SurvivalUpdate = "Event",  -- (hunger, thirst)
-    DailyAvailable = "Event",  -- (day#, reward)
+  -- Client -> Server
+  RequestSummonHuman = "Event",
+  RequestPrank = "Event",
+  RequestRebirth = "Function",
+  RequestEquipSkin = "Function",
+  RequestPurchaseSkinChaos = "Function",
+  RequestPurchaseSkinHellTokens = "Function",
+  RequestUseDevProduct = "Event",
+  RequestEquipPerk = "Function",
+  RequestResetPerks = "Function",
+  RequestAllocStat = "Function",
+  RequestEatFood = "Event",
+  RequestDrinkWater = "Event",
+  RequestEmote = "Event",
+  RequestClaimDaily = "Function",
+  RequestSpawnCustomization = "Event",
+  RequestAdminCommand = "Function",
+  -- Server -> Client
+  UpdatePlayerData = "Event",
+  PrankRegistered = "Event",
+  PrankFailed = "Event",
+  LevelUp = "Event",
+  PerkSlotEarned = "Event",
+  RebirthCompleted = "Event",
+  NotifyClient = "Event",
+  LeaderboardUpdated = "Event",
+  TutorialStep = "Event",
+  WeatherChanged = "Event",
+  EventBroadcast = "Event",
+  SurvivalUpdate = "Event",
+  ForceSpawn = "Event",  -- NEW: force server to spawn cat
 }
 
-local FOLDER_NAME = "KittyRaiserRemotes"
-
-local function getOrCreateFolder()
-    local folder = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
-    if not folder and RunService:IsServer() then
-        folder = Instance.new("Folder")
-        folder.Name = FOLDER_NAME
-        folder.Parent = ReplicatedStorage
-    elseif not folder then
-        folder = ReplicatedStorage:WaitForChild(FOLDER_NAME, 10)
-    end
-    return folder
-end
-
-local folder = getOrCreateFolder()
-
-local function getOrCreate(name, kind)
-    local existing = folder:FindFirstChild(name)
-    if existing then return existing end
-    if RunService:IsServer() then
-        local className = kind == "Event" and "RemoteEvent" or "RemoteFunction"
-        local r = Instance.new(className)
-        r.Name = name
-        r.Parent = folder
-        return r
-    else
-        return folder:WaitForChild(name, 10)
-    end
+-- Find or create folder under ReplicatedStorage
+local folder = ReplicatedStorage:FindFirstChild("RemoteEventsFolder")
+if not folder then
+  folder = Instance.new("Folder")
+  folder.Name = "RemoteEventsFolder"
+  folder.Parent = ReplicatedStorage
 end
 
 for name, kind in pairs(DEFINITIONS) do
-    Remotes[name] = getOrCreate(name, kind)
+  local existing = folder:FindFirstChild(name)
+  if not existing then
+    local className = (kind == "Function") and "RemoteFunction" or "RemoteEvent"
+    if RunService:IsServer() then
+      existing = Instance.new(className)
+      existing.Name = name
+      existing.Parent = folder
+    else
+      -- Client waits for server to create
+      existing = folder:WaitForChild(name, 10)
+    end
+  end
+  Remotes[name] = existing
 end
 
 return Remotes

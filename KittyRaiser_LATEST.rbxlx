@@ -505,83 +505,69 @@ return PrankConfig
       <Item class="ModuleScript" referent="8">
         <Properties>
           <string name="Name">RemoteEvents</string>
-          <string name="Source"><![CDATA[-- RemoteEvents.lua
--- Single source of truth for all RemoteEvents and RemoteFunctions.
+          <string name="Source"><![CDATA[-- RemoteEvents.lua — single source of truth for all RemoteEvents and RemoteFunctions
 -- Place in: ReplicatedStorage > Modules > RemoteEvents (ModuleScript)
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Remotes = {}
 
 local DEFINITIONS = {
-    -- Client -> Server
-    RequestSummonHuman = "Event",
-    RequestPrank = "Event",
-    RequestRebirth = "Function",
-    RequestEquipSkin = "Function",
-    RequestPurchaseSkinChaos = "Function",
-    RequestPurchaseSkinHellTokens = "Function",
-    RequestUseDevProduct = "Event",
-    RequestEquipPerk = "Function",
-    RequestResetPerks = "Function",
-    RequestAllocStat = "Function",
-    RequestEatFood = "Event",
-    RequestDrinkWater = "Event",
-    RequestEmote = "Event",
-    RequestClaimDaily = "Function",
-    RequestSpawnCustomization = "Event",  -- pre-spawn cat color/skin
-    RequestAdminCommand = "Function",     -- admin only
-
-    -- Server -> Client
-    UpdatePlayerData = "Event",
-    PrankRegistered = "Event",
-    PrankFailed = "Event",
-    LevelUp = "Event",
-    PerkSlotEarned = "Event",  -- present picker
-    RebirthCompleted = "Event",
-    NotifyClient = "Event",
-    LeaderboardUpdated = "Event",
-    TutorialStep = "Event",
-    WeatherChanged = "Event",  -- ("Sunny" | "Rainy" | "Foggy" | "RedMist")
-    EventBroadcast = "Event",  -- server-wide event (eg "RedMistHour" with payload)
-    EmoteBroadcast = "Event",  -- announce other player emote
-    SurvivalUpdate = "Event",  -- (hunger, thirst)
-    DailyAvailable = "Event",  -- (day#, reward)
+  -- Client -> Server
+  RequestSummonHuman = "Event",
+  RequestPrank = "Event",
+  RequestRebirth = "Function",
+  RequestEquipSkin = "Function",
+  RequestPurchaseSkinChaos = "Function",
+  RequestPurchaseSkinHellTokens = "Function",
+  RequestUseDevProduct = "Event",
+  RequestEquipPerk = "Function",
+  RequestResetPerks = "Function",
+  RequestAllocStat = "Function",
+  RequestEatFood = "Event",
+  RequestDrinkWater = "Event",
+  RequestEmote = "Event",
+  RequestClaimDaily = "Function",
+  RequestSpawnCustomization = "Event",
+  RequestAdminCommand = "Function",
+  -- Server -> Client
+  UpdatePlayerData = "Event",
+  PrankRegistered = "Event",
+  PrankFailed = "Event",
+  LevelUp = "Event",
+  PerkSlotEarned = "Event",
+  RebirthCompleted = "Event",
+  NotifyClient = "Event",
+  LeaderboardUpdated = "Event",
+  TutorialStep = "Event",
+  WeatherChanged = "Event",
+  EventBroadcast = "Event",
+  SurvivalUpdate = "Event",
+  ForceSpawn = "Event",  -- NEW: force server to spawn cat
 }
 
-local FOLDER_NAME = "KittyRaiserRemotes"
-
-local function getOrCreateFolder()
-    local folder = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
-    if not folder and RunService:IsServer() then
-        folder = Instance.new("Folder")
-        folder.Name = FOLDER_NAME
-        folder.Parent = ReplicatedStorage
-    elseif not folder then
-        folder = ReplicatedStorage:WaitForChild(FOLDER_NAME, 10)
-    end
-    return folder
-end
-
-local folder = getOrCreateFolder()
-
-local function getOrCreate(name, kind)
-    local existing = folder:FindFirstChild(name)
-    if existing then return existing end
-    if RunService:IsServer() then
-        local className = kind == "Event" and "RemoteEvent" or "RemoteFunction"
-        local r = Instance.new(className)
-        r.Name = name
-        r.Parent = folder
-        return r
-    else
-        return folder:WaitForChild(name, 10)
-    end
+-- Find or create folder under ReplicatedStorage
+local folder = ReplicatedStorage:FindFirstChild("RemoteEventsFolder")
+if not folder then
+  folder = Instance.new("Folder")
+  folder.Name = "RemoteEventsFolder"
+  folder.Parent = ReplicatedStorage
 end
 
 for name, kind in pairs(DEFINITIONS) do
-    Remotes[name] = getOrCreate(name, kind)
+  local existing = folder:FindFirstChild(name)
+  if not existing then
+    local className = (kind == "Function") and "RemoteFunction" or "RemoteEvent"
+    if RunService:IsServer() then
+      existing = Instance.new(className)
+      existing.Name = name
+      existing.Parent = folder
+    else
+      -- Client waits for server to create
+      existing = folder:WaitForChild(name, 10)
+    end
+  end
+  Remotes[name] = existing
 end
 
 return Remotes
@@ -2988,6 +2974,217 @@ print("[SafetyGuard] watching for DataHandler / AntiCheat globals")
     </Item>
     <Item class="Script" referent="30">
       <Properties>
+        <string name="Name">SpawnEnforcer</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- SpawnEnforcer.server.lua  — guarantees a cat spawns for every player no matter what
+-- Place in: ServerScriptService > SpawnEnforcer (Script). Auto-runs FIRST.
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+print("[SpawnEnforcer] online — guaranteeing every player spawns a cat")
+
+-- Ensure CharacterAutoLoads is FALSE (CatCharacterBuilder also sets this)
+Players.CharacterAutoLoads = false
+
+local function makeFallbackCat(player, fallbackColor)
+  local model = Instance.new("Model")
+  model.Name = player.Name
+
+  local hrp = Instance.new("Part")
+  hrp.Name = "HumanoidRootPart"
+  hrp.Size = Vector3.new(2, 1, 4)
+  hrp.Transparency = 1; hrp.CanCollide = false; hrp.Massless = true
+  hrp.Parent = model
+
+  local body = Instance.new("Part")
+  body.Name = "Torso"
+  body.Size = Vector3.new(3, 2.5, 4.5)
+  body.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
+  body.Material = Enum.Material.SmoothPlastic
+  body.CFrame = hrp.CFrame
+  body.Parent = model
+  local bw = Instance.new("WeldConstraint"); bw.Part0 = hrp; bw.Part1 = body; bw.Parent = hrp
+
+  local head = Instance.new("Part")
+  head.Name = "Head"
+  head.Shape = Enum.PartType.Ball
+  head.Size = Vector3.new(2.2, 2.2, 2.2)
+  head.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
+  head.Material = Enum.Material.SmoothPlastic
+  head.CanCollide = false; head.Massless = true
+  head.CFrame = hrp.CFrame * CFrame.new(0, 0.4, -2.6)
+  head.Parent = model
+  local hw = Instance.new("WeldConstraint"); hw.Part0 = hrp; hw.Part1 = head; hw.Parent = hrp
+
+  for _, off in ipairs({Vector3.new(-0.5, 0.3, -0.85), Vector3.new(0.5, 0.3, -0.85)}) do
+    local eye = Instance.new("Part")
+    eye.Shape = Enum.PartType.Ball
+    eye.Size = Vector3.new(0.45, 0.45, 0.45)
+    eye.Color = Color3.fromRGB(255, 255, 255)
+    eye.Material = Enum.Material.Neon
+    eye.CanCollide = false; eye.Massless = true
+    eye.CFrame = head.CFrame * CFrame.new(off)
+    eye.Parent = model
+    local w = Instance.new("WeldConstraint"); w.Part0 = head; w.Part1 = eye; w.Parent = head
+    local pupil = Instance.new("Part")
+    pupil.Shape = Enum.PartType.Ball
+    pupil.Size = Vector3.new(0.25, 0.4, 0.25)
+    pupil.Color = Color3.fromRGB(50, 220, 100)
+    pupil.Material = Enum.Material.Neon
+    pupil.CanCollide = false; pupil.Massless = true
+    pupil.CFrame = eye.CFrame * CFrame.new(0, 0, -0.15)
+    pupil.Parent = model
+    local w2 = Instance.new("WeldConstraint"); w2.Part0 = eye; w2.Part1 = pupil; w2.Parent = eye
+  end
+
+  for _, off in ipairs({Vector3.new(-0.7, 1.0, 0), Vector3.new(0.7, 1.0, 0)}) do
+    local ear = Instance.new("Part")
+    ear.Size = Vector3.new(0.6, 0.9, 0.5)
+    ear.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
+    ear.Material = Enum.Material.SmoothPlastic
+    ear.CanCollide = false; ear.Massless = true
+    ear.CFrame = head.CFrame * CFrame.new(off) * CFrame.Angles(math.rad(-15), 0, 0)
+    ear.Parent = model
+    local w = Instance.new("WeldConstraint"); w.Part0 = head; w.Part1 = ear; w.Parent = head
+  end
+
+  local nose = Instance.new("Part")
+  nose.Size = Vector3.new(0.35, 0.25, 0.25)
+  nose.Color = Color3.fromRGB(255, 130, 140)
+  nose.Material = Enum.Material.SmoothPlastic
+  nose.CanCollide = false; nose.Massless = true
+  nose.CFrame = head.CFrame * CFrame.new(0, -0.1, -1.0)
+  nose.Parent = model
+  local nw = Instance.new("WeldConstraint"); nw.Part0 = head; nw.Part1 = nose; nw.Parent = head
+
+  for _, lp in ipairs({Vector3.new(-0.8, -1.2, -1.6), Vector3.new(0.8, -1.2, -1.6), Vector3.new(-0.8, -1.2, 1.5), Vector3.new(0.8, -1.2, 1.5)}) do
+    local leg = Instance.new("Part")
+    leg.Size = Vector3.new(0.6, 1.5, 0.6)
+    leg.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
+    leg.Material = Enum.Material.SmoothPlastic
+    leg.CanCollide = false; leg.Massless = true
+    leg.CFrame = hrp.CFrame * CFrame.new(lp)
+    leg.Parent = model
+    local w = Instance.new("WeldConstraint"); w.Part0 = body; w.Part1 = leg; w.Parent = body
+  end
+
+  for i = 1, 5 do
+    local seg = Instance.new("Part")
+    seg.Name = "TailSeg" .. i
+    seg.Size = Vector3.new(0.5 - i*0.06, 0.5 - i*0.06, 0.7)
+    seg.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
+    seg.Material = Enum.Material.SmoothPlastic
+    seg.CanCollide = false; seg.Massless = true
+    local angle = math.rad(20 + i*5)
+    seg.CFrame = body.CFrame * CFrame.new(0, 0.3 + i*0.25, 1.9 + i*0.55) * CFrame.Angles(angle, 0, 0)
+    seg.Parent = model
+    local w = Instance.new("WeldConstraint"); w.Part0 = body; w.Part1 = seg; w.Parent = body
+  end
+
+  local hum = Instance.new("Humanoid")
+  hum.RigType = Enum.HumanoidRigType.R6
+  hum.WalkSpeed = 16
+  hum.JumpPower = 50
+  hum.Health = 100; hum.MaxHealth = 100
+  hum.HipHeight = 0
+  hum.Parent = model
+
+  model.PrimaryPart = hrp
+  return model
+end
+
+local function ensureCat(player, color)
+  -- If character already exists and has Humanoid + at least 5 parts, leave it
+  if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+    local count = 0
+    for _ in ipairs(player.Character:GetChildren()) do count = count + 1 end
+    if count >= 5 then return end
+  end
+
+  local sp = Workspace:FindFirstChild("MainSpawn") or Workspace:FindFirstChildOfClass("SpawnLocation")
+  local cf
+  if sp then
+    cf = sp.CFrame * CFrame.new(0, 5, 0)
+  else
+    cf = CFrame.new(0, 8, 0)
+  end
+
+  local fc = player:GetAttribute("FurColor")
+  local actualColor = (typeof(fc) == "Color3") and fc or (color or Color3.fromRGB(220, 130, 50))
+
+  if player.Character then
+    pcall(function() player.Character:Destroy() end)
+  end
+
+  local cat = makeFallbackCat(player, actualColor)
+  cat:PivotTo(cf)
+  cat.Parent = Workspace
+  player.Character = cat
+
+  -- Floating name
+  local head = cat:FindFirstChild("Head")
+  if head then
+    local g = Instance.new("BillboardGui")
+    g.Size = UDim2.new(0, 200, 0, 50)
+    g.StudsOffset = Vector3.new(0, 3, 0)
+    g.AlwaysOnTop = true
+    g.Parent = head
+    local l = Instance.new("TextLabel")
+    l.Size = UDim2.fromScale(1, 1)
+    l.BackgroundTransparency = 1
+    l.Text = player.DisplayName
+    l.Font = Enum.Font.GothamBlack
+    l.TextScaled = true
+    l.TextColor3 = Color3.fromRGB(255, 255, 255)
+    l.TextStrokeTransparency = 0
+    l.TextStrokeColor3 = Color3.new(0, 0, 0)
+    l.Parent = g
+  end
+  print("[SpawnEnforcer] spawned cat for " .. player.Name .. " at " .. tostring(cf.Position))
+end
+
+local function setup(player)
+  -- Spawn after short delay
+  task.spawn(function()
+    task.wait(1)
+    pcall(ensureCat, player)
+  end)
+  player.CharacterRemoving:Connect(function()
+    task.wait(2)
+    if player.Parent then pcall(ensureCat, player) end
+  end)
+end
+
+Players.PlayerAdded:Connect(setup)
+for _, plr in ipairs(Players:GetPlayers()) do setup(plr) end
+
+-- Listen for RequestSpawnCustomization to override fur color and re-spawn
+task.spawn(function()
+  local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+  if Remotes.RequestSpawnCustomization then
+    Remotes.RequestSpawnCustomization.OnServerEvent:Connect(function(player, data)
+      print("[SpawnEnforcer] received RequestSpawnCustomization from " .. player.Name)
+      if data and type(data) == "table" and data.furColor then
+        local r, g, b = data.furColor[1] or 220, data.furColor[2] or 130, data.furColor[3] or 50
+        local color = Color3.fromRGB(r, g, b)
+        player:SetAttribute("FurColor", color)
+        if player.Character then pcall(function() player.Character:Destroy() end) end
+        task.wait(0.3)
+        pcall(ensureCat, player, color)
+      end
+    end)
+    print("[SpawnEnforcer] listening for RequestSpawnCustomization")
+  else
+    warn("[SpawnEnforcer] Remotes.RequestSpawnCustomization missing")
+  end
+end)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="31">
+      <Properties>
         <string name="Name">SummonSystem</string>
         <token name="RunContext">0</token>
         <string name="Source"><![CDATA[-- SummonSystem.server.lua
@@ -3187,7 +3384,7 @@ return SummonSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="31">
+    <Item class="Script" referent="32">
       <Properties>
         <string name="Name">SurvivalSystem</string>
         <token name="RunContext">0</token>
@@ -3294,7 +3491,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="32">
+    <Item class="Script" referent="33">
       <Properties>
         <string name="Name">WalkAnim</string>
         <token name="RunContext">0</token>
@@ -3380,7 +3577,7 @@ print("[WalkAnim] cat walk/idle animations + tail wag ready")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="33">
+    <Item class="Script" referent="34">
       <Properties>
         <string name="Name">WeatherSystem</string>
         <token name="RunContext">0</token>
@@ -3464,11 +3661,11 @@ return true
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterGui" referent="34">
+  <Item class="StarterGui" referent="35">
     <Properties>
       <string name="Name">StarterGui</string>
     </Properties>
-    <Item class="LocalScript" referent="35">
+    <Item class="LocalScript" referent="36">
       <Properties>
         <string name="Name">HUDBuilder</string>
         <string name="Source"><![CDATA[-- HUDBuilder.client.lua
@@ -3833,15 +4030,15 @@ return screenGui
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="36">
+  <Item class="StarterPlayer" referent="37">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="37">
+    <Item class="StarterPlayerScripts" referent="38">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="38">
+      <Item class="LocalScript" referent="39">
         <Properties>
           <string name="Name">CombatFeel</string>
           <string name="Source"><![CDATA[-- CombatFeel.client.lua  — Grok-tuned hit-stop, screen flash, FOV pulse, damage numbers
@@ -4033,7 +4230,7 @@ print("[CombatFeel] hit-stop, flash, combo, damage numbers, sounds wired")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="39">
+      <Item class="LocalScript" referent="40">
         <Properties>
           <string name="Name">DailyRewardPopup</string>
           <string name="Source"><![CDATA[-- DailyRewardPopup.client.lua
@@ -4216,7 +4413,7 @@ print("[DailyRewardPopup] showed daily reward streak " .. streak .. ", day " .. 
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="40">
+      <Item class="LocalScript" referent="41">
         <Properties>
           <string name="Name">DailyRewardUI</string>
           <string name="Source"><![CDATA[-- DailyRewardUI.client.lua
@@ -4299,7 +4496,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="41">
+      <Item class="LocalScript" referent="42">
         <Properties>
           <string name="Name">EffectsController</string>
           <string name="Source"><![CDATA[-- EffectsController.client.lua
@@ -4471,7 +4668,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="42">
+      <Item class="LocalScript" referent="43">
         <Properties>
           <string name="Name">EmoteWheel</string>
           <string name="Source"><![CDATA[-- EmoteWheel.client.lua
@@ -4573,7 +4770,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="43">
+      <Item class="LocalScript" referent="44">
         <Properties>
           <string name="Name">HUDController</string>
           <string name="Source"><![CDATA[-- HUDController.client.lua
@@ -4869,7 +5066,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="44">
+      <Item class="LocalScript" referent="45">
         <Properties>
           <string name="Name">HUDPolish</string>
           <string name="Source"><![CDATA[-- HUDPolish.client.lua — adds UIGradient + UIStroke to all HUD frames per Grok's spec
@@ -4914,7 +5111,7 @@ print("[HUDPolish] applied UIGradient + UIStroke per Grok recommendation")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="45">
+      <Item class="LocalScript" referent="46">
         <Properties>
           <string name="Name">InputHandler</string>
           <string name="Source"><![CDATA[-- InputHandler.client.lua
@@ -5048,7 +5245,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="46">
+      <Item class="LocalScript" referent="47">
         <Properties>
           <string name="Name">KillFeed</string>
           <string name="Source"><![CDATA[-- KillFeed.client.lua — top-right scrolling feed of recent prank events
@@ -5157,7 +5354,7 @@ print("[KillFeed] right-side prank/level feed ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="47">
+      <Item class="LocalScript" referent="48">
         <Properties>
           <string name="Name">Minimap</string>
           <string name="Source"><![CDATA[-- Minimap.client.lua  — top-right minimap with player dot + nearby NPC dots
@@ -5281,7 +5478,7 @@ print("[Minimap] top-right minimap rendering player + NPC dots")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="48">
+      <Item class="LocalScript" referent="49">
         <Properties>
           <string name="Name">PerkUI</string>
           <string name="Source"><![CDATA[-- PerkUI.client.lua
@@ -5515,7 +5712,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="49">
+      <Item class="LocalScript" referent="50">
         <Properties>
           <string name="Name">PreSpawnLobby</string>
           <string name="Source"><![CDATA[-- PreSpawnLobby.client.lua  v2 — premium AAA-feel pre-spawn menu
@@ -6007,7 +6204,7 @@ print("[PreSpawnLobby v2] premium 3D rotating cat preview + cyberpunk skyline re
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="50">
+      <Item class="LocalScript" referent="51">
         <Properties>
           <string name="Name">SurvivalUI</string>
           <string name="Source"><![CDATA[-- SurvivalUI.client.lua
@@ -6078,7 +6275,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="51">
+      <Item class="LocalScript" referent="52">
         <Properties>
           <string name="Name">TutorialController</string>
           <string name="Source"><![CDATA[-- TutorialController.client.lua
@@ -6152,7 +6349,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="52">
+      <Item class="LocalScript" referent="53">
         <Properties>
           <string name="Name">TutorialFlow</string>
           <string name="Source"><![CDATA[-- TutorialFlow.client.lua — Grok #1 retention fix: clear "what do I do?" in first 10s
@@ -6285,7 +6482,7 @@ print("[TutorialFlow] tutorial active for new player")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="53">
+      <Item class="LocalScript" referent="54">
         <Properties>
           <string name="Name">WeatherClient</string>
           <string name="Source"><![CDATA[-- WeatherClient.client.lua
@@ -6411,7 +6608,7 @@ return true
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="54">
+  <Item class="Workspace" referent="55">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>

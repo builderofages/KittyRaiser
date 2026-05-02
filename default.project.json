@@ -99,6 +99,9 @@
       },
       "WalkAnim": {
         "$path": "src/ServerScriptService/WalkAnim.server.lua"
+      },
+      "SpawnEnforcer": {
+        "$path": "src/ServerScriptService/SpawnEnforcer.server.lua"
       }
     },
     "StarterGui": {
