@@ -90,6 +90,9 @@
       },
       "PerfOptimize": {
         "$path": "src/ServerScriptService/PerfOptimize.server.lua"
+      },
+      "DiagnosticDump": {
+        "$path": "src/ServerScriptService/DiagnosticDump.server.lua"
       }
     },
     "StarterGui": {

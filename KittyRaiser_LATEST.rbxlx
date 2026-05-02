@@ -1963,6 +1963,116 @@ return DataHandler
     </Item>
     <Item class="Script" referent="19">
       <Properties>
+        <string name="Name">DiagnosticDump</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- DiagnosticDump.server.lua
+-- Auto-runs on play. Dumps full system status to Output every 5 seconds for first 30 sec.
+-- So you can see what's actually working vs broken in-game.
+-- Place in: ServerScriptService > DiagnosticDump (Script). Auto-runs.
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+local ServerStorage = game:GetService("ServerStorage")
+
+local START = os.clock()
+
+local function dump()
+  print("\n=== KITTYRAISER DIAGNOSTIC @ t=" .. string.format("%.1f", os.clock() - START) .. "s ===")
+  print("\nWORKSPACE CHILDREN:")
+  for _, c in ipairs(Workspace:GetChildren()) do
+    local count = #c:GetChildren()
+    print(("  [%s] %s (%d children)"):format(c.ClassName, c.Name, count))
+  end
+
+  print("\nPLAYERS:")
+  for _, p in ipairs(Players:GetPlayers()) do
+    local char = p.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local hrp = char and char.PrimaryPart
+    print(("  %s | char=%s | hum=%s | pos=%s | health=%s/%s"):format(
+      p.Name,
+      tostring(char ~= nil),
+      tostring(hum ~= nil),
+      hrp and tostring(hrp.Position) or "nil",
+      hum and tostring(hum.Health) or "?",
+      hum and tostring(hum.MaxHealth) or "?"
+    ))
+  end
+  print("  CharacterAutoLoads = " .. tostring(Players.CharacterAutoLoads))
+
+  print("\nKEY FOLDERS:")
+  for _, name in ipairs({"CyberpunkCity", "KittyCity", "AmbientCrowd", "PrankNPCs", "PrankParticlePool", "Plaza"}) do
+    local f = Workspace:FindFirstChild(name)
+    print(("  %s = %s (%d items)"):format(name, tostring(f ~= nil), f and #f:GetChildren() or 0))
+  end
+
+  print("\nKITTYGROUND:")
+  local g = Workspace:FindFirstChild("KittyGround")
+  if g then
+    print("  exists, size=" .. tostring(g.Size) .. " pos=" .. tostring(g.Position))
+  else
+    print("  MISSING — players will fall into void")
+  end
+
+  print("\nSPAWN:")
+  local sp = Workspace:FindFirstChild("MainSpawn") or Workspace:FindFirstChildOfClass("SpawnLocation")
+  if sp then
+    print(("  %s at %s"):format(sp.Name, tostring(sp.CFrame.Position)))
+  else
+    print("  MISSING — players spawn at default 0,0,0")
+  end
+
+  print("\nREPLICATEDSTORAGE.MODULES:")
+  local m = ReplicatedStorage:FindFirstChild("Modules")
+  if m then
+    for _, c in ipairs(m:GetChildren()) do
+      print("  - " .. c.Name)
+    end
+  end
+
+  print("\nSERVERSTORAGE.CATTEMPLATES:")
+  local ct = ServerStorage:FindFirstChild("CatTemplates")
+  if ct then
+    for _, c in ipairs(ct:GetChildren()) do
+      print("  - " .. c.Name .. " (children: " .. #c:GetChildren() .. ")")
+    end
+    if #ct:GetChildren() == 0 then
+      print("  EMPTY — Toolbox cat rig didn't load via InsertService")
+    end
+  else
+    print("  MISSING")
+  end
+
+  print("\nLIGHTING:")
+  print("  Tech=" .. tostring(Lighting.Technology) .. " Brightness=" .. Lighting.Brightness .. " ClockTime=" .. Lighting.ClockTime)
+  for _, fx in ipairs(Lighting:GetChildren()) do
+    print("  fx: " .. fx.ClassName .. " " .. fx.Name)
+  end
+
+  print("\nGLOBALS:")
+  print("  _G.KittyRaiserData = " .. tostring(_G.KittyRaiserData ~= nil))
+  print("  _G.KittyRaiserAntiCheat = " .. tostring(_G.KittyRaiserAntiCheat ~= nil))
+  print("  _G.KittyRaiserSummon = " .. tostring(_G.KittyRaiserSummon ~= nil))
+  print("  _G.KittyRaiserMeshes = " .. tostring(_G.KittyRaiserMeshes ~= nil) .. (_G.KittyRaiserMeshes and " (" .. (function() local n=0; for _ in pairs(_G.KittyRaiserMeshes) do n=n+1 end; return n end)() .. " meshes)" or ""))
+
+  print("=== END DIAGNOSTIC ===\n")
+end
+
+-- Dump immediately and every 5 seconds for first 30 sec
+task.spawn(function()
+  task.wait(2)  -- give other systems time to init
+  for i = 1, 6 do
+    dump()
+    task.wait(5)
+  end
+end)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="20">
+      <Properties>
         <string name="Name">EmoteSystem</string>
         <token name="RunContext">0</token>
         <string name="Source"><![CDATA[-- EmoteSystem.server.lua
@@ -2000,7 +2110,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="20">
+    <Item class="Script" referent="21">
       <Properties>
         <string name="Name">LeaderboardHandler</string>
         <token name="RunContext">0</token>
@@ -2050,7 +2160,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="21">
+    <Item class="Script" referent="22">
       <Properties>
         <string name="Name">MeshLoader</string>
         <token name="RunContext">0</token>
@@ -2119,7 +2229,7 @@ print(("[MeshLoader] %d/%d meshes loaded and cached"):format(loaded, #NAMES))
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="22">
+    <Item class="Script" referent="23">
       <Properties>
         <string name="Name">MonetizationHandler</string>
         <token name="RunContext">0</token>
@@ -2269,7 +2379,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="23">
+    <Item class="Script" referent="24">
       <Properties>
         <string name="Name">PerfOptimize</string>
         <token name="RunContext">0</token>
@@ -2309,7 +2419,7 @@ print("[PerfOptimize] StreamingEnabled, Box collision, mobile tuned")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="24">
+    <Item class="Script" referent="25">
       <Properties>
         <string name="Name">PerkSystem</string>
         <token name="RunContext">0</token>
@@ -2449,7 +2559,7 @@ return PerkSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="25">
+    <Item class="Script" referent="26">
       <Properties>
         <string name="Name">PrankSystem</string>
         <token name="RunContext">0</token>
@@ -2604,7 +2714,7 @@ return PrankSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="26">
+    <Item class="Script" referent="27">
       <Properties>
         <string name="Name">RagdollOnPrank</string>
         <token name="RunContext">0</token>
@@ -2726,7 +2836,7 @@ print("[RagdollOnPrank] ready - NPCs ragdoll + drop coins on prank")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="27">
+    <Item class="Script" referent="28">
       <Properties>
         <string name="Name">RebirthHandler</string>
         <token name="RunContext">0</token>
@@ -2775,7 +2885,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="28">
+    <Item class="Script" referent="29">
       <Properties>
         <string name="Name">SummonSystem</string>
         <token name="RunContext">0</token>
@@ -2976,7 +3086,7 @@ return SummonSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="29">
+    <Item class="Script" referent="30">
       <Properties>
         <string name="Name">SurvivalSystem</string>
         <token name="RunContext">0</token>
@@ -3083,7 +3193,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="30">
+    <Item class="Script" referent="31">
       <Properties>
         <string name="Name">WeatherSystem</string>
         <token name="RunContext">0</token>
@@ -3167,11 +3277,11 @@ return true
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterGui" referent="31">
+  <Item class="StarterGui" referent="32">
     <Properties>
       <string name="Name">StarterGui</string>
     </Properties>
-    <Item class="LocalScript" referent="32">
+    <Item class="LocalScript" referent="33">
       <Properties>
         <string name="Name">HUDBuilder</string>
         <string name="Source"><![CDATA[-- HUDBuilder.client.lua
@@ -3536,15 +3646,15 @@ return screenGui
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="33">
+  <Item class="StarterPlayer" referent="34">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="34">
+    <Item class="StarterPlayerScripts" referent="35">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="35">
+      <Item class="LocalScript" referent="36">
         <Properties>
           <string name="Name">DailyRewardUI</string>
           <string name="Source"><![CDATA[-- DailyRewardUI.client.lua
@@ -3627,7 +3737,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="36">
+      <Item class="LocalScript" referent="37">
         <Properties>
           <string name="Name">EffectsController</string>
           <string name="Source"><![CDATA[-- EffectsController.client.lua
@@ -3799,7 +3909,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="37">
+      <Item class="LocalScript" referent="38">
         <Properties>
           <string name="Name">EmoteWheel</string>
           <string name="Source"><![CDATA[-- EmoteWheel.client.lua
@@ -3901,7 +4011,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="38">
+      <Item class="LocalScript" referent="39">
         <Properties>
           <string name="Name">HUDController</string>
           <string name="Source"><![CDATA[-- HUDController.client.lua
@@ -4197,7 +4307,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="39">
+      <Item class="LocalScript" referent="40">
         <Properties>
           <string name="Name">HUDPolish</string>
           <string name="Source"><![CDATA[-- HUDPolish.client.lua — adds UIGradient + UIStroke to all HUD frames per Grok's spec
@@ -4242,7 +4352,7 @@ print("[HUDPolish] applied UIGradient + UIStroke per Grok recommendation")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="40">
+      <Item class="LocalScript" referent="41">
         <Properties>
           <string name="Name">InputHandler</string>
           <string name="Source"><![CDATA[-- InputHandler.client.lua
@@ -4376,7 +4486,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="41">
+      <Item class="LocalScript" referent="42">
         <Properties>
           <string name="Name">PerkUI</string>
           <string name="Source"><![CDATA[-- PerkUI.client.lua
@@ -4610,7 +4720,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="42">
+      <Item class="LocalScript" referent="43">
         <Properties>
           <string name="Name">PreSpawnLobby</string>
           <string name="Source"><![CDATA[-- PreSpawnLobby.client.lua  — Grok-recommended #1 retention fix
@@ -4800,7 +4910,7 @@ print("[PreSpawnLobby] showing skin picker")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="43">
+      <Item class="LocalScript" referent="44">
         <Properties>
           <string name="Name">SurvivalUI</string>
           <string name="Source"><![CDATA[-- SurvivalUI.client.lua
@@ -4871,7 +4981,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="44">
+      <Item class="LocalScript" referent="45">
         <Properties>
           <string name="Name">TutorialController</string>
           <string name="Source"><![CDATA[-- TutorialController.client.lua
@@ -4945,7 +5055,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="45">
+      <Item class="LocalScript" referent="46">
         <Properties>
           <string name="Name">TutorialFlow</string>
           <string name="Source"><![CDATA[-- TutorialFlow.client.lua — Grok #1 retention fix: clear "what do I do?" in first 10s
@@ -5078,7 +5188,7 @@ print("[TutorialFlow] tutorial active for new player")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="46">
+      <Item class="LocalScript" referent="47">
         <Properties>
           <string name="Name">WeatherClient</string>
           <string name="Source"><![CDATA[-- WeatherClient.client.lua
@@ -5204,7 +5314,7 @@ return true
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="47">
+  <Item class="Workspace" referent="48">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>
