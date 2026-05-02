@@ -3843,6 +3843,198 @@ return screenGui
       </Properties>
       <Item class="LocalScript" referent="38">
         <Properties>
+          <string name="Name">CombatFeel</string>
+          <string name="Source"><![CDATA[-- CombatFeel.client.lua  — Grok-tuned hit-stop, screen flash, FOV pulse, damage numbers
+-- Listens to PrankRegistered events and plays satisfying feedback.
+-- Place in: StarterPlayer > StarterPlayerScripts > CombatFeel (LocalScript)
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local AssetIds = require(ReplicatedStorage.Modules:WaitForChild("AssetIds"))
+local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local camera = Workspace.CurrentCamera
+
+-- Combo tracking
+local combo = 0
+local lastComboTime = 0
+local COMBO_TIMEOUT = 3  -- sec
+
+local comboGui = Instance.new("ScreenGui")
+comboGui.Name = "ComboGui"
+comboGui.IgnoreGuiInset = false
+comboGui.ResetOnSpawn = false
+comboGui.Parent = playerGui
+
+local comboLabel = Instance.new("TextLabel")
+comboLabel.Size = UDim2.new(0, 320, 0, 80)
+comboLabel.Position = UDim2.new(0.5, -160, 0.18, 0)
+comboLabel.BackgroundTransparency = 1
+comboLabel.Text = ""
+comboLabel.Font = Enum.Font.GothamBlack
+comboLabel.TextScaled = true
+comboLabel.TextColor3 = Color3.fromRGB(255, 220, 50)
+comboLabel.TextStrokeTransparency = 0
+comboLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+comboLabel.Visible = false
+comboLabel.Parent = comboGui
+
+-- Screen flash overlay
+local flashGui = Instance.new("ScreenGui")
+flashGui.Name = "ScreenFlash"
+flashGui.IgnoreGuiInset = true
+flashGui.ResetOnSpawn = false
+flashGui.DisplayOrder = 60
+flashGui.Parent = playerGui
+local flash = Instance.new("Frame")
+flash.Size = UDim2.fromScale(1, 1)
+flash.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+flash.BackgroundTransparency = 1
+flash.BorderSizePixel = 0
+flash.Parent = flashGui
+
+local function comboColorFor(c)
+  if c >= 20 then return Color3.fromRGB(255, 100, 255) end  -- rainbow-ish
+  if c >= 10 then return Color3.fromRGB(255, 80, 80) end    -- red
+  if c >= 5  then return Color3.fromRGB(255, 165, 0) end    -- orange
+  return Color3.fromRGB(255, 220, 50)                       -- yellow
+end
+
+local function bumpCombo()
+  local now = os.clock()
+  if (now - lastComboTime) < COMBO_TIMEOUT then
+    combo = combo + 1
+  else
+    combo = 1
+  end
+  lastComboTime = now
+  if combo >= 2 then
+    comboLabel.Text = "x" .. combo .. " COMBO"
+    comboLabel.TextColor3 = comboColorFor(combo)
+    comboLabel.Visible = true
+    -- Pulse
+    comboLabel.Size = UDim2.new(0, 320, 0, 80)
+    TweenService:Create(comboLabel, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 360, 0, 90)}):Play()
+    task.delay(0.3, function()
+      TweenService:Create(comboLabel, TweenInfo.new(0.15), {Size = UDim2.new(0, 320, 0, 80)}):Play()
+    end)
+    -- Auto fade
+    task.delay(COMBO_TIMEOUT, function()
+      if (os.clock() - lastComboTime) >= COMBO_TIMEOUT then
+        TweenService:Create(comboLabel, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+        task.wait(0.5)
+        comboLabel.Visible = false
+        comboLabel.TextTransparency = 0
+        combo = 0
+      end
+    end)
+  end
+end
+
+local function hitStop(durationMS)
+  local origFov = camera.FieldOfView
+  TweenService:Create(camera, TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = origFov + 8}):Play()
+  task.wait(durationMS / 1000)
+  TweenService:Create(camera, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = origFov}):Play()
+end
+
+local function screenFlash(color, intensity)
+  flash.BackgroundColor3 = color
+  flash.BackgroundTransparency = 1 - intensity
+  TweenService:Create(flash, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+end
+
+local function spawnDamageNumber(worldCFrame, amount)
+  local part = Instance.new("Part")
+  part.Anchored = true; part.CanCollide = false; part.Transparency = 1
+  part.Size = Vector3.new(1, 1, 1)
+  part.CFrame = worldCFrame + Vector3.new(math.random()*4-2, 4, math.random()*4-2)
+  part.Parent = Workspace
+  local g = Instance.new("BillboardGui")
+  g.Size = UDim2.new(0, 200, 0, 80)
+  g.AlwaysOnTop = true
+  g.Parent = part
+  local l = Instance.new("TextLabel")
+  l.Size = UDim2.fromScale(1, 1)
+  l.BackgroundTransparency = 1
+  l.Text = "+" .. amount
+  l.Font = Enum.Font.GothamBlack
+  l.TextScaled = true
+  l.TextColor3 = comboColorFor(combo)
+  l.TextStrokeTransparency = 0
+  l.TextStrokeColor3 = Color3.new(0, 0, 0)
+  l.Parent = g
+  task.spawn(function()
+    for i = 1, 30 do
+      part.CFrame = part.CFrame + Vector3.new(0, 0.18, 0)
+      l.TextTransparency = i/30
+      l.TextStrokeTransparency = i/30 * 0.7
+      task.wait(0.04)
+    end
+    part:Destroy()
+  end)
+end
+
+local function playPrankSound(prankName)
+  local soundIdMap = {
+    CatScratch  = AssetIds.cat_scratch,
+    Pie         = AssetIds.pie_splat,
+    Hairball    = AssetIds.fish_slap,
+    Anvil       = AssetIds.anvil_clang,
+    FartCloud   = AssetIds.tp_unroll,
+    LaserEyes   = AssetIds.flight_whoosh,
+    Whip        = AssetIds.cat_scratch,
+    Purrgatory  = AssetIds.purrgatory,
+  }
+  local id = soundIdMap[prankName]
+  if id and id ~= "rbxassetid://0" then
+    local s = Instance.new("Sound")
+    s.SoundId = id
+    s.Volume = 1.0
+    s.Parent = SoundService
+    s:Play()
+    Debris:AddItem(s, 4)
+  end
+end
+
+if Remotes.PrankRegistered then
+  Remotes.PrankRegistered.OnClientEvent:Connect(function(prankName, targetModel, chaos, fxPayload)
+    local prank = PrankConfig.Pranks[prankName]
+    bumpCombo()
+    if prank and prank.screenShake and prank.screenShake > 0 then
+      task.spawn(hitStop, 80)
+    end
+    -- Screen flash color per prank
+    local flashColor = Color3.fromRGB(255, 255, 200)
+    if prankName == "Anvil" then flashColor = Color3.fromRGB(255, 200, 100)
+    elseif prankName == "Pie" then flashColor = Color3.fromRGB(255, 240, 200)
+    elseif prankName == "LaserEyes" then flashColor = Color3.fromRGB(255, 80, 80)
+    elseif prankName == "Purrgatory" then flashColor = Color3.fromRGB(180, 80, 220)
+    end
+    screenFlash(flashColor, 0.35)
+    -- Damage number
+    if targetModel and targetModel.PrimaryPart and chaos and chaos > 0 then
+      spawnDamageNumber(targetModel.PrimaryPart.CFrame, chaos)
+    end
+    -- Sound
+    playPrankSound(prankName)
+  end)
+end
+
+print("[CombatFeel] hit-stop, flash, combo, damage numbers, sounds wired")
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="LocalScript" referent="39">
+        <Properties>
           <string name="Name">DailyRewardPopup</string>
           <string name="Source"><![CDATA[-- DailyRewardPopup.client.lua
 -- Grok #3 retention killer fix: show daily streak + today's reward immediately on spawn
@@ -4024,7 +4216,7 @@ print("[DailyRewardPopup] showed daily reward streak " .. streak .. ", day " .. 
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="39">
+      <Item class="LocalScript" referent="40">
         <Properties>
           <string name="Name">DailyRewardUI</string>
           <string name="Source"><![CDATA[-- DailyRewardUI.client.lua
@@ -4107,7 +4299,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="40">
+      <Item class="LocalScript" referent="41">
         <Properties>
           <string name="Name">EffectsController</string>
           <string name="Source"><![CDATA[-- EffectsController.client.lua
@@ -4279,7 +4471,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="41">
+      <Item class="LocalScript" referent="42">
         <Properties>
           <string name="Name">EmoteWheel</string>
           <string name="Source"><![CDATA[-- EmoteWheel.client.lua
@@ -4381,7 +4573,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="42">
+      <Item class="LocalScript" referent="43">
         <Properties>
           <string name="Name">HUDController</string>
           <string name="Source"><![CDATA[-- HUDController.client.lua
@@ -4677,7 +4869,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="43">
+      <Item class="LocalScript" referent="44">
         <Properties>
           <string name="Name">HUDPolish</string>
           <string name="Source"><![CDATA[-- HUDPolish.client.lua — adds UIGradient + UIStroke to all HUD frames per Grok's spec
@@ -4722,7 +4914,7 @@ print("[HUDPolish] applied UIGradient + UIStroke per Grok recommendation")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="44">
+      <Item class="LocalScript" referent="45">
         <Properties>
           <string name="Name">InputHandler</string>
           <string name="Source"><![CDATA[-- InputHandler.client.lua
@@ -4856,7 +5048,116 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="45">
+      <Item class="LocalScript" referent="46">
+        <Properties>
+          <string name="Name">KillFeed</string>
+          <string name="Source"><![CDATA[-- KillFeed.client.lua — top-right scrolling feed of recent prank events
+-- Place in: StarterPlayer > StarterPlayerScripts > KillFeed (LocalScript)
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local feed = Instance.new("ScreenGui")
+feed.Name = "KillFeed"
+feed.IgnoreGuiInset = false
+feed.ResetOnSpawn = false
+feed.Parent = playerGui
+
+local container = Instance.new("Frame")
+container.Size = UDim2.new(0, 320, 0, 220)
+container.Position = UDim2.new(1, -340, 0, 300)
+container.BackgroundTransparency = 1
+container.Parent = feed
+local layout = Instance.new("UIListLayout", container)
+layout.FillDirection = Enum.FillDirection.Vertical
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+layout.Padding = UDim.new(0, 4)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local entries = {}
+local nextOrder = 0
+
+local function addEntry(text, color)
+  nextOrder = nextOrder - 1
+  local row = Instance.new("Frame")
+  row.Size = UDim2.new(0, 320, 0, 30)
+  row.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+  row.BackgroundTransparency = 0.4
+  row.BorderSizePixel = 0
+  row.LayoutOrder = nextOrder
+  row.Parent = container
+  Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+  local bar = Instance.new("Frame", row)
+  bar.Size = UDim2.new(0, 4, 1, 0)
+  bar.BackgroundColor3 = color or Color3.fromRGB(255, 100, 200)
+  bar.BorderSizePixel = 0
+  Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 4)
+  local label = Instance.new("TextLabel", row)
+  label.Size = UDim2.new(1, -16, 1, 0)
+  label.Position = UDim2.new(0, 12, 0, 0)
+  label.BackgroundTransparency = 1
+  label.Text = text
+  label.Font = Enum.Font.GothamBold
+  label.TextScaled = true
+  label.TextColor3 = Color3.fromRGB(255, 255, 255)
+  label.TextStrokeTransparency = 0
+  label.TextStrokeColor3 = Color3.new(0, 0, 0)
+  label.TextXAlignment = Enum.TextXAlignment.Left
+  -- Slide in
+  row.Position = UDim2.new(0, 350, 0, row.Position.Y.Offset)
+  TweenService:Create(row, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+  table.insert(entries, row)
+  -- Limit 6 entries
+  while #entries > 6 do
+    local old = table.remove(entries, 1)
+    if old then old:Destroy() end
+  end
+  -- Auto fade after 8s
+  task.delay(8, function()
+    if not row.Parent then return end
+    TweenService:Create(row, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+    TweenService:Create(label, TweenInfo.new(0.5), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+    task.wait(0.6)
+    row:Destroy()
+    for i, r in ipairs(entries) do
+      if r == row then table.remove(entries, i); break end
+    end
+  end)
+end
+
+if Remotes.PrankRegistered then
+  Remotes.PrankRegistered.OnClientEvent:Connect(function(prankName, targetModel, chaos, fxPayload)
+    if not chaos or chaos <= 0 then return end  -- only show for prankers, not nearby viewers
+    local color = Color3.fromRGB(255, 100, 200)
+    if prankName == "Anvil" then color = Color3.fromRGB(255, 180, 80)
+    elseif prankName == "LaserEyes" then color = Color3.fromRGB(255, 80, 80)
+    elseif prankName == "Purrgatory" then color = Color3.fromRGB(180, 80, 220)
+    end
+    addEntry(player.DisplayName .. " " .. prankName .. " ✦ +" .. chaos, color)
+  end)
+end
+
+if Remotes.LevelUp then
+  Remotes.LevelUp.OnClientEvent:Connect(function(newLevel, unlocked)
+    addEntry("⭐ LEVEL UP! → " .. newLevel, Color3.fromRGB(50, 220, 100))
+    if unlocked then
+      for _, name in ipairs(unlocked) do
+        addEntry("🔓 NEW PRANK: " .. name, Color3.fromRGB(255, 215, 0))
+      end
+    end
+  end)
+end
+
+print("[KillFeed] right-side prank/level feed ready")
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="LocalScript" referent="47">
         <Properties>
           <string name="Name">Minimap</string>
           <string name="Source"><![CDATA[-- Minimap.client.lua  — top-right minimap with player dot + nearby NPC dots
@@ -4980,7 +5281,7 @@ print("[Minimap] top-right minimap rendering player + NPC dots")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="46">
+      <Item class="LocalScript" referent="48">
         <Properties>
           <string name="Name">PerkUI</string>
           <string name="Source"><![CDATA[-- PerkUI.client.lua
@@ -5214,7 +5515,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="47">
+      <Item class="LocalScript" referent="49">
         <Properties>
           <string name="Name">PreSpawnLobby</string>
           <string name="Source"><![CDATA[-- PreSpawnLobby.client.lua  v2 — premium AAA-feel pre-spawn menu
@@ -5706,7 +6007,7 @@ print("[PreSpawnLobby v2] premium 3D rotating cat preview + cyberpunk skyline re
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="48">
+      <Item class="LocalScript" referent="50">
         <Properties>
           <string name="Name">SurvivalUI</string>
           <string name="Source"><![CDATA[-- SurvivalUI.client.lua
@@ -5777,7 +6078,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="49">
+      <Item class="LocalScript" referent="51">
         <Properties>
           <string name="Name">TutorialController</string>
           <string name="Source"><![CDATA[-- TutorialController.client.lua
@@ -5851,7 +6152,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="50">
+      <Item class="LocalScript" referent="52">
         <Properties>
           <string name="Name">TutorialFlow</string>
           <string name="Source"><![CDATA[-- TutorialFlow.client.lua — Grok #1 retention fix: clear "what do I do?" in first 10s
@@ -5984,7 +6285,7 @@ print("[TutorialFlow] tutorial active for new player")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="51">
+      <Item class="LocalScript" referent="53">
         <Properties>
           <string name="Name">WeatherClient</string>
           <string name="Source"><![CDATA[-- WeatherClient.client.lua
@@ -6110,7 +6411,7 @@ return true
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="52">
+  <Item class="Workspace" referent="54">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>

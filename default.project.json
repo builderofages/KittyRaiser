@@ -152,6 +152,12 @@
         },
         "Minimap": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/Minimap.client.lua"
+        },
+        "CombatFeel": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/CombatFeel.client.lua"
+        },
+        "KillFeed": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/KillFeed.client.lua"
         }
       }
     },
