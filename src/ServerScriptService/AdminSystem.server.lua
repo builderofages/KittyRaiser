@@ -10,9 +10,7 @@ local function waitFor(g) while not _G[g] do task.wait() end return _G[g] end
 local DataHandler = waitFor("KittyRaiserData")
 
 -- TODO: replace with real admin UserIds (yours + trusted staff)
-local ADMIN_USERIDS = {
-    -- 12345678,
-}
+local ADMIN_USERIDS = {10878595931}  -- Katoxbt (trainyouragent@gmail.com)
 
 local function isAdmin(player)
     return table.find(ADMIN_USERIDS, player.UserId) ~= nil or player:GetAttribute("AdminOverride") == true

@@ -73,9 +73,6 @@
       "AdminSystem": {
         "$path": "src/ServerScriptService/AdminSystem.server.lua"
       },
-      "MapBuilder": {
-        "$path": "src/Workspace/MapBuilder.server.lua"
-      },
       "CityRebuild": {
         "$path": "src/ServerScriptService/CityRebuild.server.lua"
       },
