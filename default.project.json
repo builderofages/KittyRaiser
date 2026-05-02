@@ -93,6 +93,12 @@
       },
       "DiagnosticDump": {
         "$path": "src/ServerScriptService/DiagnosticDump.server.lua"
+      },
+      "SafetyGuard": {
+        "$path": "src/ServerScriptService/SafetyGuard.server.lua"
+      },
+      "WalkAnim": {
+        "$path": "src/ServerScriptService/WalkAnim.server.lua"
       }
     },
     "StarterGui": {
@@ -140,6 +146,12 @@
         },
         "TutorialFlow": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/TutorialFlow.client.lua"
+        },
+        "DailyRewardPopup": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/DailyRewardPopup.client.lua"
+        },
+        "Minimap": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/Minimap.client.lua"
         }
       }
     },
