@@ -102,6 +102,9 @@
       },
       "SpawnEnforcer": {
         "$path": "src/ServerScriptService/SpawnEnforcer.server.lua"
+      },
+      "RemotesBootstrap": {
+        "$path": "src/ServerScriptService/RemotesBootstrap.server.lua"
       }
     },
     "StarterGui": {

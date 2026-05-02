@@ -184,9 +184,9 @@ for _, plr in ipairs(Players:GetPlayers()) do setup(plr) end
 
 -- Listen for RequestSpawnCustomization to override fur color and re-spawn
 task.spawn(function()
-  local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
-  if Remotes.RequestSpawnCustomization then
-    Remotes.RequestSpawnCustomization.OnServerEvent:Connect(function(player, data)
+  local requestSpawn = ReplicatedStorage:WaitForChild("RequestSpawnCustomization", 10)
+  if requestSpawn then
+    requestSpawn.OnServerEvent:Connect(function(player, data)
       print("[SpawnEnforcer] received RequestSpawnCustomization from " .. player.Name)
       if data and type(data) == "table" and data.furColor then
         local r, g, b = data.furColor[1] or 220, data.furColor[2] or 130, data.furColor[3] or 50
