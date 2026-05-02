@@ -1,12 +1,17 @@
--- CatCharacterBuilder.server.lua  v2 - uses real MeshPart from cached Blender meshes
+-- CatCharacterBuilder.server.lua  v3 - actually works
+-- KEY FIX: set Players.CharacterAutoLoads = false at script load (before any join)
+-- so Roblox doesn't auto-spawn default character before our cat builder runs.
 -- Place in: ServerScriptService > CatCharacterBuilder. Auto-runs.
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace         = game:GetService("Workspace")
 
+-- DISABLE auto character spawn IMMEDIATELY at script load
+Players.CharacterAutoLoads = false
+
 local AssetIds = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("AssetIds"))
 
--- Wait for MeshLoader to populate the global cache
+-- Wait for MeshLoader cache (with timeout fallback to primitives)
 local function getMeshes()
     local timeout = 0
     while not _G.KittyRaiserMeshes do
@@ -15,23 +20,24 @@ local function getMeshes()
     end
     return _G.KittyRaiserMeshes or {}
 end
-local MESHES = getMeshes()
 
 local FUR_COLORS = {
-    Color3.fromRGB(220, 130, 50),  -- orange tabby
-    Color3.fromRGB(80, 60, 50),    -- brown
-    Color3.fromRGB(40, 40, 40),    -- black
-    Color3.fromRGB(220, 220, 215), -- white
-    Color3.fromRGB(140, 130, 120), -- grey tabby
-    Color3.fromRGB(255, 200, 180), -- cream
+    Color3.fromRGB(220, 130, 50),
+    Color3.fromRGB(80, 60, 50),
+    Color3.fromRGB(40, 40, 40),
+    Color3.fromRGB(220, 220, 215),
+    Color3.fromRGB(140, 130, 120),
+    Color3.fromRGB(255, 200, 180),
 }
+
+local MESHES  -- populated lazily after first cat spawn (allows MeshLoader to finish)
 
 local function setColor(part, color)
     if part:IsA("MeshPart") then
         part.Color = color
         part.Material = Enum.Material.SmoothPlastic
         if AssetIds.has("fur_orange") then
-            part.TextureID = AssetIds.fur_orange
+            pcall(function() part.TextureID = AssetIds.fur_orange end)
         end
     elseif part:IsA("BasePart") then
         part.Color = color
@@ -39,8 +45,8 @@ local function setColor(part, color)
     end
 end
 
-local function makePartFromMesh(meshKey, fallbackSize, color, name)
-    local entry = MESHES[meshKey]
+local function makePart(meshKey, fallbackSize, color, name)
+    local entry = MESHES and MESHES[meshKey]
     local p
     if entry and entry.meshTemplate then
         p = entry.meshTemplate:Clone()
@@ -49,7 +55,6 @@ local function makePartFromMesh(meshKey, fallbackSize, color, name)
         p.Massless = true
         if fallbackSize then p.Size = fallbackSize end
     else
-        -- Fallback to primitive Part
         p = Instance.new("Part")
         p.Anchored = false
         p.CanCollide = false
@@ -66,31 +71,27 @@ local function makeCatCharacter(player, color)
     local model = Instance.new("Model")
     model.Name = player.Name
 
-    -- HumanoidRootPart (invisible drives physics)
     local hrp = Instance.new("Part")
     hrp.Name = "HumanoidRootPart"
     hrp.Size = Vector3.new(2, 1, 4)
     hrp.Transparency = 1
     hrp.CanCollide = false
     hrp.Massless = true
-    hrp.Anchored = false
     hrp.TopSurface = Enum.SurfaceType.Smooth
     hrp.BottomSurface = Enum.SurfaceType.Smooth
     hrp.Parent = model
 
-    -- BODY
-    local body = makePartFromMesh("mesh_cat_body", Vector3.new(3, 2.5, 4.5), color, "Torso")
+    local body = makePart("mesh_cat_body", Vector3.new(3, 2.5, 4.5), color, "Torso")
     body.CanCollide = true
     body.CFrame = hrp.CFrame
     body.Parent = model
 
-    -- HEAD
-    local head = makePartFromMesh("mesh_cat_head", Vector3.new(2.2, 2.2, 2.2), color, "Head")
+    local head = makePart("mesh_cat_head", Vector3.new(2.2, 2.2, 2.2), color, "Head")
     head.CanCollide = false
     head.CFrame = hrp.CFrame * CFrame.new(0, 0.4, -2.6)
     head.Parent = model
 
-    -- EYES (white sclera + green pupil)
+    -- Eyes
     for _, off in ipairs({Vector3.new(-0.5, 0.3, -0.85), Vector3.new(0.5, 0.3, -0.85)}) do
         local eye = Instance.new("Part")
         eye.Name = "Eye"
@@ -102,9 +103,7 @@ local function makeCatCharacter(player, color)
         eye.CFrame = head.CFrame * CFrame.new(off)
         eye.Parent = model
         local w = Instance.new("WeldConstraint"); w.Part0 = head; w.Part1 = eye; w.Parent = head
-
         local pupil = Instance.new("Part")
-        pupil.Name = "Pupil"
         pupil.Shape = Enum.PartType.Ball
         pupil.Size = Vector3.new(0.25, 0.4, 0.25)
         pupil.Color = Color3.fromRGB(50, 200, 100)
@@ -115,17 +114,16 @@ local function makeCatCharacter(player, color)
         local w2 = Instance.new("WeldConstraint"); w2.Part0 = eye; w2.Part1 = pupil; w2.Parent = eye
     end
 
-    -- EARS
+    -- Ears
     for _, off in ipairs({Vector3.new(-0.7, 1.0, 0), Vector3.new(0.7, 1.0, 0)}) do
-        local ear = makePartFromMesh("mesh_cat_ear", Vector3.new(0.6, 0.9, 0.5), color, "Ear")
+        local ear = makePart("mesh_cat_ear", Vector3.new(0.6, 0.9, 0.5), color, "Ear")
         ear.CFrame = head.CFrame * CFrame.new(off) * CFrame.Angles(math.rad(-15), 0, 0)
         ear.Parent = model
         local w = Instance.new("WeldConstraint"); w.Part0 = head; w.Part1 = ear; w.Parent = head
     end
 
-    -- NOSE
+    -- Nose
     local nose = Instance.new("Part")
-    nose.Name = "Nose"
     nose.Size = Vector3.new(0.35, 0.25, 0.25)
     nose.Color = Color3.fromRGB(255, 130, 140)
     nose.Material = Enum.Material.SmoothPlastic
@@ -134,32 +132,30 @@ local function makeCatCharacter(player, color)
     nose.Parent = model
     local nw = Instance.new("WeldConstraint"); nw.Part0 = head; nw.Part1 = nose; nw.Parent = head
 
-    -- 4 LEGS
-    local legPositions = {
-        {name="LegFrontLeft",  off=Vector3.new(-0.8, -1.2, -1.6)},
-        {name="LegFrontRight", off=Vector3.new( 0.8, -1.2, -1.6)},
-        {name="LegBackLeft",   off=Vector3.new(-0.8, -1.2,  1.5)},
-        {name="LegBackRight",  off=Vector3.new( 0.8, -1.2,  1.5)},
-    }
-    for _, lp in ipairs(legPositions) do
-        local leg = makePartFromMesh("mesh_cat_leg", Vector3.new(0.6, 1.5, 0.6), color, lp.name)
+    -- 4 legs
+    for _, lp in ipairs({
+        {name="LegFL", off=Vector3.new(-0.8, -1.2, -1.6)},
+        {name="LegFR", off=Vector3.new( 0.8, -1.2, -1.6)},
+        {name="LegBL", off=Vector3.new(-0.8, -1.2,  1.5)},
+        {name="LegBR", off=Vector3.new( 0.8, -1.2,  1.5)},
+    }) do
+        local leg = makePart("mesh_cat_leg", Vector3.new(0.6, 1.5, 0.6), color, lp.name)
         leg.CFrame = hrp.CFrame * CFrame.new(lp.off)
         leg.Parent = model
         local w = Instance.new("WeldConstraint"); w.Part0 = body; w.Part1 = leg; w.Parent = body
     end
 
-    -- TAIL (5 segments curving up)
+    -- Tail
     local tailParent = body
     for i = 1, 5 do
         local seg
         if i == 1 then
-            seg = makePartFromMesh("mesh_cat_tail", Vector3.new(0.5, 0.5, 0.8), color, "TailSeg"..i)
+            seg = makePart("mesh_cat_tail", Vector3.new(0.5, 0.5, 0.8), color, "TailSeg"..i)
         else
             seg = Instance.new("Part")
             seg.Size = Vector3.new(0.5 - i*0.06, 0.5 - i*0.06, 0.7)
             seg.Color = color
             seg.Material = Enum.Material.SmoothPlastic
-            seg.Name = "TailSeg"..i
             seg.CanCollide = false; seg.Massless = true
         end
         local angle = math.rad(20 + i*5)
@@ -168,11 +164,9 @@ local function makeCatCharacter(player, color)
         local w = Instance.new("WeldConstraint"); w.Part0 = tailParent; w.Part1 = seg; w.Parent = tailParent
     end
 
-    -- weld head + body to HRP
     local hw = Instance.new("WeldConstraint"); hw.Part0 = hrp; hw.Part1 = head; hw.Parent = hrp
     local bw = Instance.new("WeldConstraint"); bw.Part0 = hrp; bw.Part1 = body; bw.Parent = hrp
 
-    -- Humanoid
     local hum = Instance.new("Humanoid")
     hum.RigType = Enum.HumanoidRigType.R6
     hum.WalkSpeed = 16
@@ -188,23 +182,30 @@ local function makeCatCharacter(player, color)
 end
 
 local function spawnCat(player)
+    -- lazy load mesh cache once
+    if not MESHES then MESHES = getMeshes() end
+
     local fc = player:GetAttribute("FurColor")
     local color
     if fc and type(fc) == "table" then
         color = Color3.fromRGB(fc[1] or 220, fc[2] or 130, fc[3] or 50)
     else
         color = FUR_COLORS[math.random(1, #FUR_COLORS)]
+        player:SetAttribute("FurColor", {math.floor(color.R*255), math.floor(color.G*255), math.floor(color.B*255)})
     end
 
     local sp = Workspace:FindFirstChild("MainSpawn") or Workspace:FindFirstChildOfClass("SpawnLocation")
     local cf = sp and (sp.CFrame * CFrame.new(0, 5, 0)) or CFrame.new(0, 8, 0)
+
+    -- Destroy any existing character first
+    if player.Character then player.Character:Destroy() end
 
     local cat = makeCatCharacter(player, color)
     cat:PivotTo(cf)
     cat.Parent = Workspace
     player.Character = cat
 
-    -- Floating name
+    -- Floating name above head
     local head = cat:FindFirstChild("Head")
     if head then
         local g = Instance.new("BillboardGui")
@@ -223,15 +224,27 @@ local function spawnCat(player)
         l.TextStrokeColor3 = Color3.new(0, 0, 0)
         l.Parent = g
     end
+
+    return cat
 end
 
-local function setup(plr)
-    plr.CharacterAutoLoads = false
-    task.spawn(function() task.wait(0.3); spawnCat(plr) end)
-    plr.CharacterRemoving:Connect(function() task.wait(2); if plr.Parent then spawnCat(plr) end end)
+local function setup(player)
+    -- Defer to after Players cache + give MeshLoader time on first player
+    task.spawn(function()
+        task.wait(1.0)
+        spawnCat(player)
+    end)
+
+    player.CharacterRemoving:Connect(function()
+        task.wait(2)
+        if player.Parent then spawnCat(player) end
+    end)
 end
 
 Players.PlayerAdded:Connect(setup)
-for _, plr in ipairs(Players:GetPlayers()) do setup(plr) end
+-- Handle players already in (Studio play test)
+for _, plr in ipairs(Players:GetPlayers()) do
+    setup(plr)
+end
 
-print("[CatCharacterBuilder v2] ready (mesh-based)")
+print("[CatCharacterBuilder v3] CharacterAutoLoads OFF, manual cat spawn ready")
