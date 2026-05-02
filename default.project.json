@@ -125,6 +125,9 @@
         },
         "WeatherClient": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/WeatherClient.client.lua"
+        },
+        "HUDPolish": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/HUDPolish.client.lua"
         }
       }
     },
