@@ -3,22 +3,39 @@
 -- Place in: ServerScriptService > WeatherSystem (Script)
 
 local Lighting = game:GetService("Lighting")
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
 local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
-
-local function waitFor(g) while not _G[g] do task.wait() end return _G[g] end
-local DataHandler = waitFor("KittyRaiserData")
 
 local CurrentWeather = "Sunny"
 local CurrentMultBonus = 1.0
 
+-- Build a deterministic pickWeather that always sums to 1.0 by normalizing
+-- weights on first call. Eliminates the "fall through to fallback" bias.
+local _normalized
+local function normalizedWeights()
+    if _normalized then return _normalized end
+    local sum = 0
+    for _, w in pairs(GameConfig.WEATHER_WEIGHTS) do sum = sum + w end
+    if sum <= 0 then
+        warn("[WeatherSystem] WEATHER_WEIGHTS sum non-positive; defaulting to Sunny")
+        _normalized = {Sunny = 1.0}
+        return _normalized
+    end
+    _normalized = {}
+    for k, w in pairs(GameConfig.WEATHER_WEIGHTS) do
+        _normalized[k] = w / sum
+    end
+    return _normalized
+end
+
 local function pickWeather()
+    local w = normalizedWeights()
     local roll = math.random()
     local cum = 0
-    for k, w in pairs(GameConfig.WEATHER_WEIGHTS) do
-        cum = cum + w
+    for k, p in pairs(w) do
+        cum = cum + p
         if roll <= cum then return k end
     end
     return "Sunny"
@@ -48,18 +65,18 @@ local function applyVisuals(weather)
     end
 end
 
-function _G.KittyRaiserGetWeatherMult()
-    return CurrentMultBonus
-end
+function _G.KittyRaiserGetWeatherMult() return CurrentMultBonus end
 
 local function setWeather(weather)
     CurrentWeather = weather
     CurrentMultBonus = (weather == "RedMist") and GameConfig.RED_MIST_CHAOS_MULT or 1.0
     applyVisuals(weather)
-    Remotes.WeatherChanged:FireAllClients(weather)
+    -- Send the multiplier with the broadcast so clients can't lie about it.
+    Remotes.WeatherChanged:FireAllClients(weather, CurrentMultBonus)
     Remotes.EventBroadcast:FireAllClients(
-        weather == "RedMist" and "RED MIST! 2x Chaos for "..GameConfig.RED_MIST_DURATION_MIN.." min!"
-        or weather:upper(),
+        weather == "RedMist"
+            and ("RED MIST! 2x Chaos for " .. GameConfig.RED_MIST_DURATION_MIN .. " min!")
+            or weather:upper(),
         weather
     )
 end

@@ -52,14 +52,16 @@ end
 local hungerFill = makeBar("HUNGER", Color3.fromRGB(255, 150, 60), 90)
 local thirstFill = makeBar("THIRST", Color3.fromRGB(60, 180, 255), 116)
 
-Remotes.SurvivalUpdate.OnClientEvent:Connect(function(hunger, thirst)
-    TweenService:Create(hungerFill, TweenInfo.new(0.4), {Size = UDim2.new(math.clamp(hunger/100,0,1), 0, 1, 0)}):Play()
-    TweenService:Create(thirstFill, TweenInfo.new(0.4), {Size = UDim2.new(math.clamp(thirst/100,0,1), 0, 1, 0)}):Play()
-end)
+local function setBars(hunger, thirst)
+    local hPct = math.clamp((hunger or 100) / 100, 0, 1)
+    local tPct = math.clamp((thirst or 100) / 100, 0, 1)
+    TweenService:Create(hungerFill, TweenInfo.new(0.4), {Size = UDim2.new(hPct, 0, 1, 0)}):Play()
+    TweenService:Create(thirstFill, TweenInfo.new(0.4), {Size = UDim2.new(tPct, 0, 1, 0)}):Play()
+end
 
+Remotes.SurvivalUpdate.OnClientEvent:Connect(setBars)
 Remotes.UpdatePlayerData.OnClientEvent:Connect(function(d)
-    TweenService:Create(hungerFill, TweenInfo.new(0.4), {Size = UDim2.new(math.clamp((d.hunger or 100)/100,0,1), 0, 1, 0)}):Play()
-    TweenService:Create(thirstFill, TweenInfo.new(0.4), {Size = UDim2.new(math.clamp((d.thirst or 100)/100,0,1), 0, 1, 0)}):Play()
+    setBars(d.hunger, d.thirst)
 end)
 
 return true

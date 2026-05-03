@@ -23,6 +23,9 @@
         },
         "AssetIds": {
           "$path": "src/ReplicatedStorage/Modules/AssetIds.lua"
+        },
+        "SharedUtil": {
+          "$path": "src/ReplicatedStorage/Modules/SharedUtil.lua"
         }
       }
     },
@@ -144,20 +147,11 @@
         "EmoteWheel": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/EmoteWheel.client.lua"
         },
-        "DailyRewardUI": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/DailyRewardUI.client.lua"
-        },
         "WeatherClient": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/WeatherClient.client.lua"
         },
-        "HUDPolish": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/HUDPolish.client.lua"
-        },
         "PreSpawnLobby": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/PreSpawnLobby.client.lua"
-        },
-        "TutorialFlow": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/TutorialFlow.client.lua"
         },
         "DailyRewardPopup": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/DailyRewardPopup.client.lua"
@@ -170,28 +164,14 @@
         },
         "KillFeed": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/KillFeed.client.lua"
-        },
-        "OnboardingFlow": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/OnboardingFlow.client.lua"
         }
       }
     },
     "Workspace": {
-      "$className": "Workspace",
-      "$properties": {
-        "Gravity": 196.2
-      }
+      "$className": "Workspace"
     },
     "Lighting": {
-      "$className": "Lighting",
-      "$properties": {
-        "Technology": "Future",
-        "Ambient": [
-          0.15,
-          0.08,
-          0.2
-        ]
-      }
+      "$className": "Lighting"
     }
   }
 }

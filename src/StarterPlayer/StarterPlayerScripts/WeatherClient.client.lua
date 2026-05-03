@@ -4,12 +4,13 @@
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
 
 local player = Players.LocalPlayer
-local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
+local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 60)
 if not hud then return end
 
 local banner = Instance.new("TextLabel")
@@ -26,28 +27,33 @@ banner.Text = ""
 Instance.new("UICorner", banner).CornerRadius = UDim.new(0, 12)
 banner.Parent = hud
 
-local activeFX = nil
+local activeFX, activeConn
 
 local function clearFX()
-    if activeFX then activeFX:Destroy(); activeFX = nil end
+    if activeConn then
+        pcall(function() activeConn:Disconnect() end)
+        activeConn = nil
+    end
+    if activeFX then
+        pcall(function() activeFX:Destroy() end)
+        activeFX = nil
+    end
 end
 
 local function rainFX()
     local model = Instance.new("Model")
     model.Name = "RainFX"
     model.Parent = Workspace
-    -- Rain emitter attached to camera
     local p = Instance.new("Part")
-    p.Anchored = true
-    p.CanCollide = false
-    p.Transparency = 1
+    p.Anchored = true; p.CanCollide = false; p.Transparency = 1
     p.Size = Vector3.new(60, 1, 60)
     p.Parent = model
     local cam = Workspace.CurrentCamera
-    -- Track camera
-    local conn
-    conn = game:GetService("RunService").Heartbeat:Connect(function()
-        if not p.Parent then conn:Disconnect() return end
+    activeConn = RunService.Heartbeat:Connect(function()
+        if not p.Parent or not cam then
+            if activeConn then activeConn:Disconnect(); activeConn = nil end
+            return
+        end
         p.CFrame = CFrame.new(cam.CFrame.Position + Vector3.new(0, 30, 0))
     end)
     local emitter = Instance.new("ParticleEmitter")
@@ -64,7 +70,6 @@ local function rainFX()
 end
 
 local function fogFX()
-    -- Lighting handles fog mostly; just intensify with a screen overlay
     local frame = Instance.new("Frame")
     frame.Name = "FogOverlay"
     frame.Size = UDim2.new(1, 0, 1, 0)
@@ -77,10 +82,6 @@ local function fogFX()
 end
 
 local function redMistFX()
-    local model = Instance.new("Model")
-    model.Name = "RedMistFX"
-    model.Parent = Workspace
-    -- Screen tint
     local frame = Instance.new("Frame")
     frame.Name = "RedMistOverlay"
     frame.Size = UDim2.new(1, 0, 1, 0)
@@ -89,12 +90,13 @@ local function redMistFX()
     frame.BorderSizePixel = 0
     frame.ZIndex = 0
     frame.Parent = hud
-    return model
+    return frame
 end
 
-Remotes.WeatherChanged.OnClientEvent:Connect(function(weather)
+Remotes.WeatherChanged.OnClientEvent:Connect(function(weather, multBonus)
     clearFX()
-    banner.Text = weather:upper()
+    banner.Text = string.format("%s%s", weather:upper(),
+        (multBonus and multBonus > 1) and (" (x" .. multBonus .. ")") or "")
     banner.TextColor3 = ({
         Sunny = Color3.fromRGB(255, 220, 80),
         Rainy = Color3.fromRGB(120, 180, 255),
@@ -102,7 +104,7 @@ Remotes.WeatherChanged.OnClientEvent:Connect(function(weather)
         RedMist = Color3.fromRGB(255, 50, 50),
     })[weather] or Color3.fromRGB(255, 200, 0)
     banner.Visible = true
-    task.delay(4, function() banner.Visible = false end)
+    task.delay(4, function() if banner then banner.Visible = false end end)
 
     if weather == "Rainy" then activeFX = rainFX()
     elseif weather == "Foggy" then activeFX = fogFX()
@@ -112,7 +114,7 @@ end)
 Remotes.EventBroadcast.OnClientEvent:Connect(function(message)
     banner.Text = message
     banner.Visible = true
-    task.delay(5, function() banner.Visible = false end)
+    task.delay(5, function() if banner then banner.Visible = false end end)
 end)
 
 return true

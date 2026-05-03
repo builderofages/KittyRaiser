@@ -44,9 +44,10 @@ for i, emoteName in ipairs(GameConfig.EMOTES) do
     local r = 130
     local x = center.X + math.cos(angle) * r - 35
     local y = center.Y + math.sin(angle) * r - 25
+    -- Mobile-friendly tap target: 80x60 (above 48 min, near 56 Material).
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 70, 0, 50)
-    btn.Position = UDim2.new(0, x, 0, y)
+    btn.Size = UDim2.new(0, 80, 0, 60)
+    btn.Position = UDim2.new(0, x - 5, 0, y - 5)
     btn.BackgroundColor3 = Color3.fromRGB(60, 30, 90)
     btn.TextColor3 = Color3.new(1,1,1)
     btn.Font = Enum.Font.GothamBlack

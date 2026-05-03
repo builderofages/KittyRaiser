@@ -29,7 +29,7 @@ PerkConfig.Perks = {
 
     -- Slot 4 (L20)
     Whirlwind = {id = "Whirlwind", name = "Whirlwind", desc = "Tail Whip hits all in 8 studs", slot = 4, effect = {whipAOE = 8}},
-    Vampuss = {id = "Vampuss", name = "Vampuss", desc = "Restore 2 hunger per prank", slot = 4, effect = {prankHungerRestore = 2}},
+    Vampuss = {id = "Vampuss", name = "Vampuss", desc = "Restore 1 hunger per prank (does not stack with Chaos Feast)", slot = 4, effect = {prankHungerRestore = 1}},
     HellfireAura = {id = "HellfireAura", name = "Hellfire Aura", desc = "+1 chaos/sec while Red Mist active", slot = 4, effect = {redMistChaosPerSec = 1}},
     Bountybane = {id = "Bountybane", name = "Bountybane", desc = "+50% chaos during PvP", slot = 4, effect = {pvpChaosMult = 0.50}},
     GoldenScratch = {id = "GoldenScratch", name = "Golden Scratch", desc = "5% chance for 10x Cat Scratch", slot = 4, effect = {catScratchJackpot = 0.05}},
@@ -37,7 +37,7 @@ PerkConfig.Perks = {
     -- Slot 5 (L25 — same level rebirth unlocks)
     DemonForm = {id = "DemonForm", name = "Demon Form", desc = "Toggle: 2x speed, 2x chaos, drains hunger", slot = 5, effect = {demonForm = true}},
     HellHarvester = {id = "HellHarvester", name = "Hell Harvester", desc = "+1 Hell Token per 1000 chaos earned", slot = 5, effect = {hellTokenPerKChaos = 1}},
-    Purrgatory_Prime = {id = "Purrgatory_Prime", name = "Purrgatory Prime", desc = "Purrgatory unlocks 10 levels early", slot = 5, effect = {purrgatoryEarly = 10}},
+    Purrgatory_Prime = {id = "Purrgatory_Prime", name = "Purrgatory Prime", desc = "Purrgatory unlocks at level 25 (10 levels early)", slot = 5, effect = {purrgatoryEarly = 10}},
     SoulCollector = {id = "SoulCollector", name = "Soul Collector", desc = "Pranked NPCs drop Soul Shards (cosmetic currency)", slot = 5, effect = {soulShardDropChance = 0.20}},
     KingOfChaos = {id = "KingOfChaos", name = "King of Chaos", desc = "All pranks +25% chaos but cooldown +10%", slot = 5, effect = {chaosMult = 0.25, cooldownPenalty = 0.10}},
 }
@@ -53,5 +53,30 @@ PerkConfig.SlotOptions = {
 
 function PerkConfig.getPerk(id) return PerkConfig.Perks[id] end
 function PerkConfig.optionsForSlot(slot) return PerkConfig.SlotOptions[slot] or {} end
+
+-- Sum a numeric effect field across the player's currently equipped perks.
+-- Survival uses this for prankHungerRestore: if both ChaosFeast (slot 3) and
+-- Vampuss (slot 4) are picked, both contribute (5 + 1 = 6) but the new lower
+-- Vampuss value keeps survival from being trivially circumvented.
+function PerkConfig.sumEffect(equippedPerks, effectKey)
+    if not equippedPerks then return 0 end
+    local total = 0
+    for _, perkId in pairs(equippedPerks) do
+        local perk = PerkConfig.Perks[perkId]
+        if perk and perk.effect and perk.effect[effectKey] then
+            total = total + perk.effect[effectKey]
+        end
+    end
+    return total
+end
+
+function PerkConfig.hasEffect(equippedPerks, effectKey)
+    if not equippedPerks then return false end
+    for _, perkId in pairs(equippedPerks) do
+        local perk = PerkConfig.Perks[perkId]
+        if perk and perk.effect and perk.effect[effectKey] then return true end
+    end
+    return false
+end
 
 return PerkConfig

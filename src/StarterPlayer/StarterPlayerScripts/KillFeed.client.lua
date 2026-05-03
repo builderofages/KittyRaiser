@@ -16,8 +16,11 @@ feed.ResetOnSpawn = false
 feed.Parent = playerGui
 
 local container = Instance.new("Frame")
-container.Size = UDim2.new(0, 320, 0, 220)
-container.Position = UDim2.new(1, -340, 0, 300)
+container.Size = UDim2.new(0, 280, 0, 220)
+container.AnchorPoint = Vector2.new(1, 0)
+-- Anchor to right edge with mobile-safe padding; vertical pos sits below
+-- the top bar but above mid-screen.
+container.Position = UDim2.new(1, -16, 0, 200)
 container.BackgroundTransparency = 1
 container.Parent = feed
 local layout = Instance.new("UIListLayout", container)
@@ -32,7 +35,7 @@ local nextOrder = 0
 local function addEntry(text, color)
   nextOrder = nextOrder - 1
   local row = Instance.new("Frame")
-  row.Size = UDim2.new(0, 320, 0, 30)
+  row.Size = UDim2.new(1, 0, 0, 30)
   row.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
   row.BackgroundTransparency = 0.4
   row.BorderSizePixel = 0

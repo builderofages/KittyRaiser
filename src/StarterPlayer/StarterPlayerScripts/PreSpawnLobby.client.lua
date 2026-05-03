@@ -7,13 +7,14 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Get RemoteEvent the SAFE way
-local requestSpawn = ReplicatedStorage:WaitForChild("RequestSpawnCustomization", 10)
+local requestSpawn = Remotes.RequestSpawnCustomization
 if not requestSpawn then
-  warn("[PreSpawnLobby] RequestSpawnCustomization RemoteEvent missing after 10s")
+  warn("[PreSpawnLobby] RequestSpawnCustomization missing in Remotes module")
 end
 
 local FUR_OPTIONS = {
@@ -245,12 +246,16 @@ local function setSelected(i)
   nameLabel.Text = opt.name
   rarityBadge.Text = opt.rarity:upper()
   rarityBadge.BackgroundColor3 = RARITY_COLOR[opt.rarity] or RARITY_COLOR.common
-  for j, btn in ipairs(pickerRow:GetChildren()) do
+  -- Iterate Frames only (skipping the UIListLayout) and use a separate counter
+  -- so the selection ring lands on the correct card.
+  local cardIndex = 0
+  for _, btn in ipairs(pickerRow:GetChildren()) do
     if btn:IsA("Frame") then
+      cardIndex = cardIndex + 1
       local s = btn:FindFirstChildOfClass("UIStroke")
       if s then
-        s.Thickness = (j-1 == i) and 5 or 1
-        s.Color = (j-1 == i) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(80, 80, 100)
+        s.Thickness = (cardIndex == i) and 5 or 1
+        s.Color = (cardIndex == i) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(80, 80, 100)
       end
     end
   end
@@ -262,12 +267,11 @@ for i, opt in ipairs(FUR_OPTIONS) do
   card.BackgroundColor3 = opt.color
   card.BorderSizePixel = 0
   Instance.new("UICorner", card).CornerRadius = UDim.new(1, 0)
+  -- Single UIStroke per card; rarity is shown via card border color, selection
+  -- via thickness. (Two strokes used to double-stack visually.)
   local sStroke = Instance.new("UIStroke", card)
   sStroke.Thickness = (i == 1) and 5 or 1
-  sStroke.Color = (i == 1) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(80, 80, 100)
-  local rRing = Instance.new("UIStroke", card)
-  rRing.Thickness = 2; rRing.Color = RARITY_COLOR[opt.rarity] or RARITY_COLOR.common
-  rRing.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+  sStroke.Color = (i == 1) and Color3.fromRGB(255, 255, 255) or (RARITY_COLOR[opt.rarity] or RARITY_COLOR.common)
   if opt.rarity == "robux" then
     local robux = Instance.new("TextLabel", card)
     robux.Size = UDim2.new(0, 24, 0, 24); robux.Position = UDim2.new(1, -22, 0, -2)

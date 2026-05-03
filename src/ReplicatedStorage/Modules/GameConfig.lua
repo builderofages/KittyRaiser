@@ -62,6 +62,9 @@ GameConfig.EMOTES = {"Meow", "Hiss", "Dance", "Laugh", "Sit", "Wave"}
 GameConfig.MAX_PRANKS_PER_SECOND = 6
 GameConfig.MAX_DISTANCE_TELEPORT = 60
 GameConfig.SUSPICIOUS_FLAG_THRESHOLD = 3
+GameConfig.MAX_TELEPORT_SPEED_STUDS_PER_SEC = 35  -- realistic upper bound (run + jump assist)
+GameConfig.REMOTE_RATE_LIMIT_SEC = 0.4            -- per-player min interval for sensitive remotes
+GameConfig.MAX_NPCS_ON_SERVER = 80                -- global summon cap
 
 -- ===== SAVE =====
 GameConfig.DATASTORE_NAME = "KittyRaiserData_v1"
@@ -70,6 +73,8 @@ GameConfig.AUTOSAVE_INTERVAL = 60
 GameConfig.SCHEMA_VERSION = 2  -- bumped: added stats/survival/perks/hellTokens
 
 -- ===== MONETIZATION =====
+-- TODO: replace placeholders with real IDs from create.roblox.com.
+-- Validation runs at server boot (see validate() below) and warns for any 0 IDs.
 GameConfig.GAMEPASS_IDS = {
     DEMON_SKIN = 0,
     NEON_SKIN = 0,
@@ -91,6 +96,14 @@ GameConfig.DEVPRODUCT_IDS = {
 }
 
 GameConfig.VIP_CHAOS_MULTIPLIER = 2.0
+
+-- ===== REBIRTH COST =====
+GameConfig.REBIRTH_CHAOS_COST_BASE = 50000
+GameConfig.REBIRTH_CHAOS_COST_PER_REBIRTH = 25000
+function GameConfig.rebirthChaosCost(currentRebirths)
+    return GameConfig.REBIRTH_CHAOS_COST_BASE
+        + GameConfig.REBIRTH_CHAOS_COST_PER_REBIRTH * (currentRebirths or 0)
+end
 
 -- ===== HUD =====
 GameConfig.HUD_PRIMARY_COLOR = Color3.fromRGB(150, 50, 200)
@@ -115,6 +128,33 @@ end
 
 function GameConfig.perkSlotsAtLevel(level)
     return math.floor((level or 1) / GameConfig.PERK_GRANT_EVERY)
+end
+
+-- Validate IDs at boot. Server-only. Logs an actionable warning for unfilled placeholders
+-- so launches don't quietly silently break monetization.
+function GameConfig.validate()
+    local warnings = {}
+    for k, v in pairs(GameConfig.GAMEPASS_IDS) do
+        if not v or v == 0 then
+            table.insert(warnings, "GAMEPASS_IDS." .. k .. " is 0 (placeholder)")
+        end
+    end
+    for k, v in pairs(GameConfig.DEVPRODUCT_IDS) do
+        if not v or v == 0 then
+            table.insert(warnings, "DEVPRODUCT_IDS." .. k .. " is 0 (placeholder)")
+        end
+    end
+    if #warnings > 0 then
+        warn("[GameConfig] Monetization placeholders need real IDs from create.roblox.com:")
+        for _, w in ipairs(warnings) do warn("  - " .. w) end
+    end
+    -- Sanity: weather weights should sum to ~1.0
+    local sum = 0
+    for _, w in pairs(GameConfig.WEATHER_WEIGHTS) do sum = sum + w end
+    if math.abs(sum - 1.0) > 0.001 then
+        warn(("[GameConfig] WEATHER_WEIGHTS sum to %.3f, expected 1.0"):format(sum))
+    end
+    return #warnings
 end
 
 return GameConfig

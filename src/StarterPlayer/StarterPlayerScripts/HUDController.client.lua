@@ -9,13 +9,12 @@ local MarketplaceService = game:GetService("MarketplaceService")
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
 local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
-local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
 local CosmeticConfig = require(ReplicatedStorage.Modules.CosmeticConfig)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-local hud = playerGui:WaitForChild("MainHUD", 30)
-if not hud then warn("[HUDController] No HUD found"); return end
+local hud = playerGui:WaitForChild("MainHUD", 60)
+if not hud then warn("[HUDController] No HUD found after 60s"); return end
 
 local topBar = hud:WaitForChild("TopBar")
 local chaosLabel = topBar:WaitForChild("ChaosLabel")
@@ -23,17 +22,36 @@ local levelContainer = topBar:WaitForChild("LevelContainer")
 local levelLabel = levelContainer:WaitForChild("LevelLabel")
 local xpFill = levelContainer:WaitForChild("XPBarBG"):WaitForChild("XPBarFill")
 local rebirthLabel = topBar:WaitForChild("RebirthLabel")
-
 local prankCol = hud:WaitForChild("PrankColumn")
 
 local CurrentData = {}
-local CurrentLBData = {}
 
 local function formatNum(n)
+    n = n or 0
     if n >= 1e9 then return string.format("%.2fB", n/1e9) end
     if n >= 1e6 then return string.format("%.2fM", n/1e6) end
     if n >= 1e3 then return string.format("%.1fK", n/1e3) end
     return tostring(math.floor(n))
+end
+
+local function showToast(message, color)
+    local toast = hud:FindFirstChild("ToastFrame")
+    if not toast then return end
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 0.2
+    lbl.BackgroundColor3 = color or Color3.fromRGB(255, 100, 100)
+    lbl.TextColor3 = Color3.new(0,0,0)
+    lbl.TextScaled = true
+    lbl.Font = Enum.Font.GothamBlack
+    lbl.Text = message
+    Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 12)
+    lbl.Parent = toast
+    task.delay(2.0, function()
+        TweenService:Create(lbl, TweenInfo.new(0.5), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
+        task.wait(0.6)
+        if lbl.Parent then lbl:Destroy() end
+    end)
 end
 
 local function refresh()
@@ -41,12 +59,10 @@ local function refresh()
     chaosLabel.Text = "💚 " .. formatNum(CurrentData.chaosPoints or 0)
     levelLabel.Text = "Level " .. (CurrentData.level or 1)
     rebirthLabel.Text = "👑 " .. (CurrentData.rebirths or 0)
-    -- XP bar fill
     local lvl = CurrentData.level or 1
     local xpReq = GameConfig.xpRequired(lvl)
     local pct = math.clamp((CurrentData.xp or 0) / xpReq, 0, 1)
     TweenService:Create(xpFill, TweenInfo.new(0.3), {Size = UDim2.new(pct, 0, 1, 0)}):Play()
-    -- Prank locks
     for _, btn in ipairs(prankCol:GetChildren()) do
         if btn:IsA("TextButton") and btn:GetAttribute("PrankName") then
             local unlock = btn:GetAttribute("UnlockLevel")
@@ -58,84 +74,35 @@ local function refresh()
     end
 end
 
-Remotes.UpdatePlayerData.OnClientEvent:Connect(function(data)
-    CurrentData = data
-    refresh()
-end)
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(data) CurrentData = data; refresh() end)
 
-Remotes.LevelUp.OnClientEvent:Connect(function(newLevel, unlocked)
-    -- Toast
-    local toast = hud:FindFirstChild("ToastFrame")
-    if toast then
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.BackgroundTransparency = 0.2
-        label.BackgroundColor3 = GameConfig.HUD_ACCENT_COLOR
-        label.TextColor3 = Color3.new(0,0,0)
-        label.TextScaled = true
-        label.Font = Enum.Font.GothamBlack
-        label.Text = "LEVEL UP! " .. newLevel
-        Instance.new("UICorner", label).CornerRadius = UDim.new(0, 12)
-        label.Parent = toast
-        task.delay(2.5, function()
-            TweenService:Create(label, TweenInfo.new(0.5), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
-            task.wait(0.6)
-            label:Destroy()
-        end)
-    end
-    if unlocked and #unlocked > 0 then
-        for _, prankName in ipairs(unlocked) do
-            print("[HUDController] Unlocked prank:", prankName)
-        end
-    end
+Remotes.LevelUp.OnClientEvent:Connect(function(newLevel)
+    showToast("LEVEL UP! " .. newLevel, GameConfig.HUD_ACCENT_COLOR)
 end)
 
 Remotes.NotifyClient.OnClientEvent:Connect(function(message, severity)
-    local toast = hud:FindFirstChild("ToastFrame")
-    if not toast then return end
     local color = severity == "success" and GameConfig.HUD_ACCENT_COLOR or
                   severity == "warn" and Color3.fromRGB(255, 200, 0) or
                   Color3.fromRGB(255, 100, 100)
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, 0, 1, 0)
-    lbl.BackgroundTransparency = 0.2
-    lbl.BackgroundColor3 = color
-    lbl.TextColor3 = Color3.new(0,0,0)
-    lbl.TextScaled = true
-    lbl.Font = Enum.Font.GothamBlack
-    lbl.Text = message
-    Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 12)
-    lbl.Parent = toast
-    task.delay(2.0, function()
-        TweenService:Create(lbl, TweenInfo.new(0.5), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
-        task.wait(0.6)
-        lbl:Destroy()
-    end)
+    showToast(message, color)
 end)
 
+if Remotes.ErrorNotify then
+    Remotes.ErrorNotify.OnClientEvent:Connect(function(reason)
+        showToast("Error: " .. tostring(reason), Color3.fromRGB(255, 100, 100))
+    end)
+end
+
 Remotes.RebirthCompleted.OnClientEvent:Connect(function(newRebirths, newMult)
-    local toast = hud:FindFirstChild("ToastFrame")
-    if toast then
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, 0, 1, 0)
-        lbl.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
-        lbl.TextColor3 = Color3.new(0,0,0)
-        lbl.TextScaled = true
-        lbl.Font = Enum.Font.GothamBlack
-        lbl.Text = "REBIRTH! 👑 " .. newRebirths .. "  x" .. string.format("%.2f", newMult)
-        Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 12)
-        lbl.Parent = toast
-        task.delay(3, function() lbl:Destroy() end)
-    end
+    showToast("REBIRTH! 👑 " .. newRebirths .. "  x" .. string.format("%.2f", newMult),
+        Color3.fromRGB(255, 200, 0))
 end)
 
 Remotes.LeaderboardUpdated.OnClientEvent:Connect(function(top)
-    CurrentLBData = top
     local lbModal = hud:FindFirstChild("LeaderboardModal")
     if not lbModal then return end
     local list = lbModal:FindFirstChild("LBList")
     if not list then return end
-    -- Clear
     for _, c in ipairs(list:GetChildren()) do
         if c:IsA("TextLabel") then c:Destroy() end
     end
@@ -156,56 +123,24 @@ Remotes.LeaderboardUpdated.OnClientEvent:Connect(function(top)
     end
 end)
 
--- ===== Modal toggles =====
 local function toggle(modalName)
     local m = hud:FindFirstChild(modalName)
     if m then m.Visible = not m.Visible end
 end
 
-local botBar = hud:FindFirstChild("BottomBar")
-if botBar then
-    local shopBtn = botBar:FindFirstChild("ShopButton")
-    local invBtn = botBar:FindFirstChild("InventoryButton")
-    local rebirthBtn = botBar:FindFirstChild("RebirthButton")
-    local lbBtn = botBar:FindFirstChild("LeaderboardButton")
-
-    if shopBtn then shopBtn.MouseButton1Click:Connect(function() toggle("ShopModal"); buildShopList() end) end
-    if invBtn then invBtn.MouseButton1Click:Connect(function() toggle("ShopModal"); buildShopList(true) end) end
-    if rebirthBtn then
-        rebirthBtn.MouseButton1Click:Connect(function()
-            local ok, result = Remotes.RequestRebirth:InvokeServer()
-            if not ok then
-                Remotes.NotifyClient:FireClient -- not callable client-side; instead show toast directly
-            end
-        end)
-    end
-    if lbBtn then lbBtn.MouseButton1Click:Connect(function() toggle("LeaderboardModal") end) end
-end
-
--- Close buttons
-for _, m in ipairs({hud:FindFirstChild("ShopModal"), hud:FindFirstChild("LeaderboardModal")}) do
-    if m then
-        local close = m:FindFirstChild("CloseButton")
-        if close then close.MouseButton1Click:Connect(function() m.Visible = false end) end
-    end
-end
-
--- ===== Shop list builder =====
-function buildShopList(inventoryMode)
+-- Defined BEFORE button connections so the forward-reference bug is gone.
+local function buildShopList(inventoryMode)
     local modal = hud:FindFirstChild("ShopModal")
     if not modal then return end
     local list = modal:FindFirstChild("ShopList")
     if not list then return end
-    -- Clear
     for _, c in ipairs(list:GetChildren()) do
         if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end
     end
     for _, skinId in ipairs(CosmeticConfig.Order) do
         local skin = CosmeticConfig.Skins[skinId]
         local owned = CurrentData.ownedSkins and table.find(CurrentData.ownedSkins, skinId)
-        if inventoryMode and not owned then
-            -- inventory mode hides unowned
-        else
+        if not (inventoryMode and not owned) then
             local row = Instance.new("Frame")
             row.Size = UDim2.new(1, -16, 0, 70)
             row.BackgroundColor3 = Color3.fromRGB(40, 25, 60)
@@ -232,6 +167,7 @@ function buildShopList(inventoryMode)
             rarityLabel.TextColor3 = skin.rarity == "Legendary" and Color3.fromRGB(255, 200, 0)
                                     or skin.rarity == "Epic" and Color3.fromRGB(200, 50, 255)
                                     or skin.rarity == "Rare" and Color3.fromRGB(80, 150, 255)
+                                    or skin.rarity == "Mythic" and Color3.fromRGB(255, 80, 220)
                                     or Color3.fromRGB(180, 180, 180)
             rarityLabel.Font = Enum.Font.Gotham
             rarityLabel.TextScaled = true
@@ -265,25 +201,58 @@ function buildShopList(inventoryMode)
                     btn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
                     btn.MouseButton1Click:Connect(function()
                         local ok, err = Remotes.RequestPurchaseSkinChaos:InvokeServer(skinId)
-                        if not ok then
-                            print("Purchase failed:", err)
-                        end
+                        if not ok then showToast("Purchase failed: " .. tostring(err)) end
+                    end)
+                elseif skin.currency == "helltokens" then
+                    btn.Text = "🔥 " .. formatNum(skin.cost)
+                    btn.BackgroundColor3 = Color3.fromRGB(200, 80, 0)
+                    btn.MouseButton1Click:Connect(function()
+                        local ok, err = Remotes.RequestPurchaseSkinHellTokens:InvokeServer(skinId)
+                        if not ok then showToast("Purchase failed: " .. tostring(err)) end
                     end)
                 else
                     btn.Text = "ROBUX"
                     btn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
                     btn.MouseButton1Click:Connect(function()
-                        local gpKey = string.upper(skinId) .. "_SKIN"
+                        local gpKey = skin.gamepassKey or (string.upper(skinId) .. "_SKIN")
                         local gpId = GameConfig.GAMEPASS_IDS[gpKey]
                         if gpId and gpId ~= 0 then
                             MarketplaceService:PromptGamePassPurchase(player, gpId)
                         else
-                            print("Gamepass ID not configured for", skinId)
+                            showToast("Coming soon!", Color3.fromRGB(255, 200, 0))
                         end
                     end)
                 end
             end
         end
+    end
+end
+
+local botBar = hud:FindFirstChild("BottomBar")
+if botBar then
+    local shopBtn = botBar:FindFirstChild("ShopButton")
+    local invBtn = botBar:FindFirstChild("InventoryButton")
+    local rebirthBtn = botBar:FindFirstChild("RebirthButton")
+    local lbBtn = botBar:FindFirstChild("LeaderboardButton")
+
+    if shopBtn then shopBtn.MouseButton1Click:Connect(function() toggle("ShopModal"); buildShopList() end) end
+    if invBtn then invBtn.MouseButton1Click:Connect(function() toggle("ShopModal"); buildShopList(true) end) end
+    if rebirthBtn then
+        rebirthBtn.MouseButton1Click:Connect(function()
+            local ok, result = Remotes.RequestRebirth:InvokeServer()
+            if not ok then
+                local msg = "Cannot rebirth: " .. tostring(result)
+                showToast(msg, Color3.fromRGB(255, 100, 100))
+            end
+        end)
+    end
+    if lbBtn then lbBtn.MouseButton1Click:Connect(function() toggle("LeaderboardModal") end) end
+end
+
+for _, m in ipairs({hud:FindFirstChild("ShopModal"), hud:FindFirstChild("LeaderboardModal")}) do
+    if m then
+        local close = m:FindFirstChild("CloseButton")
+        if close then close.MouseButton1Click:Connect(function() m.Visible = false end) end
     end
 end
 

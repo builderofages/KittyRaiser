@@ -11,6 +11,7 @@ local EMOTE_COOLDOWN = 1.5
 local lastUse = {}
 
 Remotes.RequestEmote.OnServerEvent:Connect(function(player, emoteName)
+    if type(emoteName) ~= "string" or #emoteName > 32 then return end
     if not table.find(GameConfig.EMOTES, emoteName) then return end
     local now = os.clock()
     if lastUse[player.UserId] and (now - lastUse[player.UserId]) < EMOTE_COOLDOWN then return end
@@ -18,7 +19,6 @@ Remotes.RequestEmote.OnServerEvent:Connect(function(player, emoteName)
     local char = player.Character
     if not char or not char.PrimaryPart then return end
     local origin = char.PrimaryPart.Position
-    -- Broadcast to nearby players (within 80 studs) for FX
     for _, p in ipairs(Players:GetPlayers()) do
         local pchar = p.Character
         if pchar and pchar.PrimaryPart and (pchar.PrimaryPart.Position - origin).Magnitude < 80 then

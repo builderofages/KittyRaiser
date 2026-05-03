@@ -123,8 +123,25 @@ local function showPerkPicker(slot, options)
             Instance.new("UICorner", pickBtn).CornerRadius = UDim.new(0, 8)
             pickBtn.Parent = row
             pickBtn.MouseButton1Click:Connect(function()
-                local ok = Remotes.RequestEquipPerk:InvokeServer(slot, perkId)
-                if ok then perkModal.Visible = false end
+                pickBtn.Active = false
+                pickBtn.Text = "..."
+                task.spawn(function()
+                    local ok, err = Remotes.RequestEquipPerk:InvokeServer(slot, perkId)
+                    if ok then
+                        perkModal.Visible = false
+                    else
+                        pickBtn.Active = true
+                        pickBtn.Text = "PICK"
+                        warn("[PerkUI] equip failed:", err)
+                    end
+                end)
+                -- Re-enable after 5s if no response (server hung)
+                task.delay(5, function()
+                    if pickBtn.Text == "..." then
+                        pickBtn.Active = true
+                        pickBtn.Text = "PICK (retry)"
+                    end
+                end)
             end)
         end
     end

@@ -13,7 +13,7 @@ local SCALE = 0.18  -- world studs to pixels
 
 local mm = Instance.new("ScreenGui")
 mm.Name = "Minimap"
-mm.IgnoreGuiInset = false
+mm.IgnoreGuiInset = true  -- keep minimap in safe zone (avoid notch overlap)
 mm.ResetOnSpawn = false
 mm.Parent = playerGui
 

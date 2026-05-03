@@ -24,7 +24,16 @@ screenGui.Name = "MainHUD"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.DisplayOrder = 10  -- baseline; modals (50+) and popups (60+) sit above
 screenGui.Parent = playerGui
+
+local GuiService = game:GetService("GuiService")
+local topInset, bottomInset = (function()
+    local ok, t, b = pcall(function() return GuiService:GetGuiInset() end)
+    if ok and t then return t.Y, 0 end
+    return 0, 0
+end)()
+local function safeBottom(extra) return -(extra + math.max(0, bottomInset) + 30) end
 
 -- ===== Helpers =====
 local function makeFrame(props)
@@ -86,7 +95,7 @@ makeLabel({
     TextColor3 = GameConfig.HUD_ACCENT_COLOR,
     TextXAlignment = Enum.TextXAlignment.Left,
     Parent = topBar,
-}).Parent = topBar
+})
 
 local levelContainer = makeFrame({
     Name = "LevelContainer",
@@ -130,11 +139,12 @@ makeLabel({
 })
 
 -- ===== CENTER BOTTOM: SUMMON BUTTON =====
-local summonSize = IS_MOBILE and 180 or 140
+local summonSize = IS_MOBILE and 160 or 140  -- 160 keeps clearance on 360px-wide phones
 local summonBtn = makeButton({
     Name = "SummonButton",
+    AnchorPoint = Vector2.new(0.5, 1),
     Size = UDim2.new(0, summonSize, 0, summonSize),
-    Position = UDim2.new(0.5, -summonSize/2, 1, -(summonSize + 30)),
+    Position = UDim2.new(0.5, 0, 1, safeBottom(summonSize + 70)),  -- bottom-anchored, accounts for nav bar/home indicator
     BackgroundColor3 = GameConfig.HUD_DANGER_COLOR,
     Text = "SUMMON\nHUMAN",
     Parent = screenGui,

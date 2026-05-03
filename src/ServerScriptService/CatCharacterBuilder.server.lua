@@ -1,279 +1,114 @@
--- CatCharacterBuilder.server.lua  v4 — uses Grok's recommended Toolbox cat rig
--- Loads asset 5896683998 ("rigged cartoon cat R15") into ServerStorage.CatTemplates,
--- clones it for each player on spawn, applies fur color tint.
--- Falls back to primitive-built cat if asset load fails.
+-- CatCharacterBuilder.server.lua  v5 — post-spawn upgrade only.
+-- SpawnEnforcer is the canonical spawn path; this script asynchronously loads
+-- the Toolbox cat rig and, when ready, swaps each player's primitive cat for
+-- the better-looking rig (preserving fur color and position).
 -- Place in: ServerScriptService > CatCharacterBuilder. Auto-runs.
 
-local Players       = game:GetService("Players")
-local Workspace     = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local InsertService = game:GetService("InsertService")
 local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- CRITICAL: disable auto character spawn at script load (before any player joins)
-Players.CharacterAutoLoads = false
+local CAT_RIG_ID = 5896683998
 
-local AssetIds
-do
-  local mods = ReplicatedStorage:FindFirstChild("Modules")
-  local m = mods and mods:FindFirstChild("AssetIds")
-  if m then
-    local ok, mod = pcall(require, m)
-    if ok then AssetIds = mod end
-  end
-  if not AssetIds then
-    AssetIds = setmetatable({}, {__index = function() return "rbxassetid://0" end})
-    AssetIds.has = function() return false end
-  end
+local catTemplatesFolder = ServerStorage:FindFirstChild("CatTemplates")
+if not catTemplatesFolder then
+    catTemplatesFolder = Instance.new("Folder")
+    catTemplatesFolder.Name = "CatTemplates"
+    catTemplatesFolder.Parent = ServerStorage
 end
-
-local CAT_RIG_ID = 5896683998  -- Grok's recommended cartoon cat rig
-local FUR_COLORS = {
-  Color3.fromRGB(220, 130, 50),  -- orange tabby
-  Color3.fromRGB(80, 60, 50),    -- brown
-  Color3.fromRGB(40, 40, 40),    -- black
-  Color3.fromRGB(220, 220, 215), -- white
-  Color3.fromRGB(140, 130, 120), -- grey tabby
-  Color3.fromRGB(255, 200, 180), -- cream
-}
-
--- Load the cat template once into ServerStorage
-local catTemplatesFolder = ServerStorage:FindFirstChild("CatTemplates") or Instance.new("Folder", ServerStorage)
-catTemplatesFolder.Name = "CatTemplates"
 
 local CAT_TEMPLATE
 local templateLoaded = false
 
+-- Body parts whose color tracks fur. Eyes, pupils, nose, mouth, decals are
+-- explicitly skipped via the "NoTint" attribute or by name.
+local TINT_SKIP_NAMES = {
+    Pupil = true, Eye = true, Nose = true, Mouth = true,
+    Tongue = true, Whisker = true, Tooth = true,
+}
+
+local function tintToolboxCat(rig, color)
+    for _, p in ipairs(rig:GetDescendants()) do
+        if (p:IsA("BasePart") or p:IsA("MeshPart"))
+            and not TINT_SKIP_NAMES[p.Name]
+            and not p:GetAttribute("NoTint")
+        then
+            p.Color = color
+        end
+    end
+end
+
 local function tryLoadToolboxCat()
-  local ok, model = pcall(function() return InsertService:LoadAsset(CAT_RIG_ID) end)
-  if ok and model then
-    -- Find the actual rig model (could be wrapped)
+    local ok, model = pcall(function() return InsertService:LoadAsset(CAT_RIG_ID) end)
+    if not ok or not model then
+        warn("[CatCharacterBuilder] LoadAsset failed: " .. tostring(model))
+        return
+    end
     local rig
     for _, child in ipairs(model:GetDescendants()) do
-      if child:IsA("Model") and child:FindFirstChildOfClass("Humanoid") then
-        rig = child
-        break
-      end
+        if child:IsA("Model") and child:FindFirstChildOfClass("Humanoid") then
+            rig = child; break
+        end
     end
     if rig then
-      rig.Name = "ToolboxCatTemplate"
-      rig.Parent = catTemplatesFolder
-      CAT_TEMPLATE = rig
-      templateLoaded = true
-      print("[CatCharacterBuilder v4] Toolbox cat rig loaded successfully")
+        rig.Name = "ToolboxCatTemplate"
+        rig.Parent = catTemplatesFolder
+        CAT_TEMPLATE = rig
+        templateLoaded = true
+        print("[CatCharacterBuilder] Toolbox cat rig loaded")
     else
-      warn("[CatCharacterBuilder v4] no Humanoid model in asset " .. CAT_RIG_ID)
+        warn("[CatCharacterBuilder] no Humanoid model in asset " .. CAT_RIG_ID)
     end
     if model.Parent then model:Destroy() end
-  else
-    warn("[CatCharacterBuilder v4] LoadAsset failed: " .. tostring(model))
-  end
 end
 
 task.spawn(tryLoadToolboxCat)
 
--- Build a primitive cat fallback (welded Parts in cat shape)
-local function buildPrimitiveCat(color)
-  local model = Instance.new("Model")
+-- Replace a player's existing character with a tinted clone of the toolbox rig.
+local function upgradeCharacter(player)
+    if not (templateLoaded and CAT_TEMPLATE) then return end
+    if not player.Parent then return end
+    local oldChar = player.Character
+    if not oldChar then return end
+    if oldChar:GetAttribute("ToolboxCat") then return end  -- already upgraded
 
-  local hrp = Instance.new("Part")
-  hrp.Name = "HumanoidRootPart"
-  hrp.Size = Vector3.new(2, 1, 4)
-  hrp.Transparency = 1; hrp.CanCollide = false; hrp.Massless = true
-  hrp.Parent = model
+    local fc = player:GetAttribute("FurColor")
+    local color = (typeof(fc) == "Color3") and fc or Color3.fromRGB(220, 130, 50)
 
-  local body = Instance.new("Part")
-  body.Name = "Torso"
-  body.Size = Vector3.new(3, 2.5, 4.5)
-  body.Color = color
-  body.Material = Enum.Material.SmoothPlastic
-  body.CFrame = hrp.CFrame
-  body.Parent = model
-  if AssetIds.has("fur_orange") then
-    for _, face in ipairs({Enum.NormalId.Top, Enum.NormalId.Bottom, Enum.NormalId.Left, Enum.NormalId.Right, Enum.NormalId.Front, Enum.NormalId.Back}) do
-      local d = Instance.new("Decal", body)
-      d.Face = face; d.Texture = AssetIds.fur_orange
-    end
-  end
+    local pivot = oldChar:FindFirstChild("HumanoidRootPart")
+        and oldChar.HumanoidRootPart.CFrame
+        or CFrame.new(0, 8, 0)
 
-  local head = Instance.new("Part")
-  head.Name = "Head"
-  head.Shape = Enum.PartType.Ball
-  head.Size = Vector3.new(2.2, 2.2, 2.2)
-  head.Color = color
-  head.Material = Enum.Material.SmoothPlastic
-  head.CanCollide = false; head.Massless = true
-  head.CFrame = hrp.CFrame * CFrame.new(0, 0.4, -2.6)
-  head.Parent = model
-
-  for _, off in ipairs({Vector3.new(-0.5, 0.3, -0.85), Vector3.new(0.5, 0.3, -0.85)}) do
-    local eye = Instance.new("Part")
-    eye.Shape = Enum.PartType.Ball
-    eye.Size = Vector3.new(0.45, 0.45, 0.45)
-    eye.Color = Color3.fromRGB(255, 255, 255)
-    eye.Material = Enum.Material.Neon
-    eye.CanCollide = false; eye.Massless = true
-    eye.CFrame = head.CFrame * CFrame.new(off)
-    eye.Parent = model
-    local w = Instance.new("WeldConstraint"); w.Part0 = head; w.Part1 = eye; w.Parent = head
-    local pupil = Instance.new("Part")
-    pupil.Shape = Enum.PartType.Ball
-    pupil.Size = Vector3.new(0.25, 0.4, 0.25)
-    pupil.Color = Color3.fromRGB(50, 220, 100)
-    pupil.Material = Enum.Material.Neon
-    pupil.CanCollide = false; pupil.Massless = true
-    pupil.CFrame = eye.CFrame * CFrame.new(0, 0, -0.15)
-    pupil.Parent = model
-    local w2 = Instance.new("WeldConstraint"); w2.Part0 = eye; w2.Part1 = pupil; w2.Parent = eye
-  end
-
-  for _, off in ipairs({Vector3.new(-0.7, 1.0, 0), Vector3.new(0.7, 1.0, 0)}) do
-    local ear = Instance.new("Part")
-    ear.Size = Vector3.new(0.6, 0.9, 0.5)
-    ear.Color = color
-    ear.Material = Enum.Material.SmoothPlastic
-    ear.CanCollide = false; ear.Massless = true
-    ear.CFrame = head.CFrame * CFrame.new(off) * CFrame.Angles(math.rad(-15), 0, 0)
-    ear.Parent = model
-    local w = Instance.new("WeldConstraint"); w.Part0 = head; w.Part1 = ear; w.Parent = head
-  end
-
-  for _, lp in ipairs({
-    {off=Vector3.new(-0.8, -1.2, -1.6)},
-    {off=Vector3.new( 0.8, -1.2, -1.6)},
-    {off=Vector3.new(-0.8, -1.2,  1.5)},
-    {off=Vector3.new( 0.8, -1.2,  1.5)},
-  }) do
-    local leg = Instance.new("Part")
-    leg.Size = Vector3.new(0.6, 1.5, 0.6)
-    leg.Color = color
-    leg.Material = Enum.Material.SmoothPlastic
-    leg.CanCollide = false; leg.Massless = true
-    leg.CFrame = hrp.CFrame * CFrame.new(lp.off)
-    leg.Parent = model
-    local w = Instance.new("WeldConstraint"); w.Part0 = body; w.Part1 = leg; w.Parent = body
-  end
-
-  for i = 1, 5 do
-    local seg = Instance.new("Part")
-    seg.Size = Vector3.new(0.5 - i*0.06, 0.5 - i*0.06, 0.7)
-    seg.Color = color
-    seg.Material = Enum.Material.SmoothPlastic
-    seg.CanCollide = false; seg.Massless = true
-    local angle = math.rad(20 + i*5)
-    seg.CFrame = body.CFrame * CFrame.new(0, 0.3 + i*0.25, 1.9 + i*0.55) * CFrame.Angles(angle, 0, 0)
-    seg.Parent = model
-    local w = Instance.new("WeldConstraint"); w.Part0 = body; w.Part1 = seg; w.Parent = body
-  end
-
-  local hw = Instance.new("WeldConstraint"); hw.Part0 = hrp; hw.Part1 = head; hw.Parent = hrp
-  local bw = Instance.new("WeldConstraint"); bw.Part0 = hrp; bw.Part1 = body; bw.Parent = hrp
-
-  local hum = Instance.new("Humanoid")
-  hum.RigType = Enum.HumanoidRigType.R6
-  hum.WalkSpeed = 16; hum.JumpPower = 50
-  hum.Health = 100; hum.MaxHealth = 100
-  hum.HipHeight = 0
-  hum.Parent = model
-
-  model.PrimaryPart = hrp
-  return model
-end
-
-local function tintToolboxCat(rig, color)
-  for _, p in ipairs(rig:GetDescendants()) do
-    if p:IsA("BasePart") and p.Name ~= "Head" then
-      p.Color = color
-    elseif p:IsA("MeshPart") then
-      p.Color = color
-    end
-  end
-end
-
-local function spawnCat(player)
-  local fc = player:GetAttribute("FurColor")
-  local color
-  if typeof(fc) == "Color3" then
-    color = fc
-  else
-    color = FUR_COLORS[math.random(1, #FUR_COLORS)]
-    player:SetAttribute("FurColor", color)  -- Color3 (table not allowed)
-  end
-
-  local sp = Workspace:FindFirstChild("MainSpawn") or Workspace:FindFirstChildOfClass("SpawnLocation")
-  local cf = sp and (sp.CFrame * CFrame.new(0, 5, 0)) or CFrame.new(0, 8, 0)
-
-  if player.Character then player.Character:Destroy() end
-
-  local cat
-  if templateLoaded and CAT_TEMPLATE then
-    cat = CAT_TEMPLATE:Clone()
+    local cat = CAT_TEMPLATE:Clone()
     cat.Name = player.Name
+    cat:SetAttribute("ToolboxCat", true)
     tintToolboxCat(cat, color)
-    cat:PivotTo(cf)
-  else
-    cat = buildPrimitiveCat(color)
-    cat.Name = player.Name
-    cat:PivotTo(cf)
-  end
-  cat.Parent = Workspace
-  player.Character = cat
+    cat:PivotTo(pivot)
 
-  -- Floating name
-  local head = cat:FindFirstChild("Head")
-  if head and head:IsA("BasePart") then
-    local g = Instance.new("BillboardGui")
-    g.Size = UDim2.new(0, 200, 0, 50)
-    g.StudsOffset = Vector3.new(0, 3, 0)
-    g.AlwaysOnTop = true
-    g.Parent = head
-    local l = Instance.new("TextLabel")
-    l.Size = UDim2.fromScale(1, 1)
-    l.BackgroundTransparency = 1
-    l.Text = player.DisplayName
-    l.Font = Enum.Font.GothamBlack
-    l.TextScaled = true
-    l.TextColor3 = Color3.fromRGB(255, 255, 255)
-    l.TextStrokeTransparency = 0
-    l.TextStrokeColor3 = Color3.new(0, 0, 0)
-    l.Parent = g
-  end
-end
-
-local function setup(player)
-  -- Wait a sec for Toolbox load to complete on first spawn
-  task.spawn(function()
-    task.wait(2.5)
-    local ok, err = pcall(spawnCat, player)
-    if not ok then warn("[CatCharacterBuilder] spawnCat error: "..tostring(err)) end
-  end)
-  player.CharacterRemoving:Connect(function()
-    task.wait(2)
-    if player.Parent then spawnCat(player) end
-  end)
-end
-
-Players.PlayerAdded:Connect(setup)
-for _, plr in ipairs(Players:GetPlayers()) do setup(plr) end
-
-print("[CatCharacterBuilder v4] CharacterAutoLoads OFF, Toolbox cat rig pending load")
-
--- Listen to RequestSpawnCustomization from PreSpawnLobby
-local Remotes = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("RemoteEvents"))
-if Remotes.RequestSpawnCustomization then
-  Remotes.RequestSpawnCustomization.OnServerEvent:Connect(function(player, data)
-    if data and type(data) == "table" then
-      if data.furColor and type(data.furColor) == "table" then
-        local r, g, b = data.furColor[1] or 220, data.furColor[2] or 130, data.furColor[3] or 50
-        player:SetAttribute("FurColor", Color3.fromRGB(r, g, b))
-        player:SetAttribute("SkinName", tostring(data.skinName or ""))
-      end
+    -- Move floating name billboard if present
+    local oldName = oldChar:FindFirstChild("Head") and oldChar.Head:FindFirstChild("BillboardGui")
+    if oldName then
+        local newHead = cat:FindFirstChild("Head")
+        if newHead then oldName:Clone().Parent = newHead end
     end
-    -- Force respawn with new color
-    if player.Character then player.Character:Destroy() end
-    task.wait(0.3)
-    spawnCat(player)
-  end)
-  print("[CatCharacterBuilder] listening to RequestSpawnCustomization")
+
+    cat.Parent = Workspace
+    player.Character = cat
+    oldChar:Destroy()
 end
 
+-- Watch for new players + when template arrives later, upgrade existing
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(2)  -- let SpawnEnforcer finish its primitive cat
+        if templateLoaded then upgradeCharacter(player) end
+    end)
+end)
+
+task.spawn(function()
+    -- Once template is loaded, sweep existing players one time.
+    while not templateLoaded do task.wait(0.5) end
+    for _, p in ipairs(Players:GetPlayers()) do upgradeCharacter(p) end
+end)
