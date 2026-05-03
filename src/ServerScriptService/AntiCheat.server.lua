@@ -194,5 +194,42 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- Flag decay: clean play (~30 minutes without flags) reduces a single flag.
+-- Prevents permanent lockout from a single false-positive (e.g., one teleport
+-- detection from a lag spike). Suspended players still need admin /unsuspend
+-- because the in-memory `suspended` flag persists for the whole session.
+local FLAG_DECAY_INTERVAL = 1800  -- 30 minutes
+task.spawn(function()
+    while true do
+        task.wait(FLAG_DECAY_INTERVAL)
+        for userId, s in pairs(State) do
+            if s.flagCount > 0 and not s.suspended then
+                s.flagCount = math.max(0, s.flagCount - 1)
+                local handler = dh()
+                if handler then
+                    local player = Players:GetPlayerByUserId(userId)
+                    if player then
+                        handler.modify(player, function(d) d.flagCount = s.flagCount end)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Public unsuspend (admin tools / server console / appeal flow).
+function AntiCheat.unsuspend(player)
+    if not player then return end
+    local s = getState(player.UserId)
+    s.flagCount = 0
+    s.suspended = false
+    local handler = dh()
+    if handler then
+        handler.modify(player, function(d)
+            d.flagCount = 0; d.suspended = false
+        end)
+    end
+end
+
 _G.KittyRaiserAntiCheat = AntiCheat
 return AntiCheat

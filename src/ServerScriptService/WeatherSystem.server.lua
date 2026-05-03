@@ -68,6 +68,10 @@ end
 function _G.KittyRaiserGetWeatherMult() return CurrentMultBonus end
 
 local function setWeather(weather)
+    if not table.find(GameConfig.WEATHER_TYPES, weather) then
+        warn("[WeatherSystem] unknown weather '" .. tostring(weather) .. "'; defaulting to Sunny")
+        weather = "Sunny"
+    end
     CurrentWeather = weather
     CurrentMultBonus = (weather == "RedMist") and GameConfig.RED_MIST_CHAOS_MULT or 1.0
     applyVisuals(weather)

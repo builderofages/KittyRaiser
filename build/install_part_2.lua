@@ -41,6 +41,559 @@ local function W(parentPath, className, source)
     INSTALLED = INSTALLED + 1
 end
 
+-- ServerScriptService/SpawnEnforcer.server.lua
+W({'ServerScriptService','SpawnEnforcer'}, 'Script', [[
+-- SpawnEnforcer.server.lua  — guarantees a cat spawns for every player no matter what
+-- Place in: ServerScriptService > SpawnEnforcer (Script). Auto-runs FIRST.
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+
+print("[SpawnEnforcer] online — guaranteeing every player spawns a cat")
+
+-- Idempotent toggle. Multiple scripts must not flip-flop this.
+if Players.CharacterAutoLoads then
+    Players.CharacterAutoLoads = false
+end
+
+local SAFE_FALLBACK_CFRAME = CFrame.new(0, 20, 0)
+local function isUsableSpawn(cf)
+    if not cf then return false end
+    local p = cf.Position
+    if p.Magnitude > 10000 then return false end
+    if p.Y < -200 then return false end  -- below world = void
+    return p.X == p.X and p.Y == p.Y and p.Z == p.Z  -- NaN guard
+end
+
+local function makeFallbackCat(player, fallbackColor)
+    local model = Instance.new("Model")
+    model.Name = player.Name
+
+    local hrp = Instance.new("Part")
+    hrp.Name = "HumanoidRootPart"
+    hrp.Size = Vector3.new(2, 1, 4)
+    hrp.Transparency = 1; hrp.CanCollide = false; hrp.Massless = true
+    hrp.Parent = model
+
+    local body = Instance.new("Part")
+    body.Name = "Torso"
+    body.Size = Vector3.new(3, 2.5, 4.5)
+    body.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
+    body.Material = Enum.Material.SmoothPlastic
+    body.CFrame = hrp.CFrame
+    body.Parent = model
+    local bw = Instance.new("WeldConstraint"); bw.Part0 = hrp; bw.Part1 = body; bw.Parent = hrp
+
+    local head = Instance.new("Part")
+    head.Name = "Head"
+    head.Shape = Enum.PartType.Ball
+    head.Size = Vector3.new(2.2, 2.2, 2.2)
+    head.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
+    head.Material = Enum.Material.SmoothPlastic
+    head.CanCollide = false; head.Massless = true
+    head.CFrame = hrp.CFrame * CFrame.new(0, 0.4, -2.6)
+    head.Parent = model
+    local hw = Instance.new("WeldConstraint"); hw.Part0 = hrp; hw.Part1 = head; hw.Parent = hrp
+
+    for _, off in ipairs({Vector3.new(-0.5, 0.3, -0.85), Vector3.new(0.5, 0.3, -0.85)}) do
+        local eye = Instance.new("Part")
+        eye.Shape = Enum.PartType.Ball
+        eye.Size = Vector3.new(0.45, 0.45, 0.45)
+        eye.Color = Color3.fromRGB(255, 255, 255)
+        eye.Material = Enum.Material.Neon
+        eye.CanCollide = false; eye.Massless = true
+        eye:SetAttribute("NoTint", true)
+        eye.CFrame = head.CFrame * CFrame.new(off)
+        eye.Parent = model
+        local w = Instance.new("WeldConstraint"); w.Part0 = head; w.Part1 = eye; w.Parent = head
+        local pupil = Instance.new("Part")
+        pupil.Shape = Enum.PartType.Ball
+        pupil.Size = Vector3.new(0.25, 0.4, 0.25)
+        pupil.Color = Color3.fromRGB(50, 220, 100)
+        pupil.Material = Enum.Material.Neon
+        pupil.CanCollide = false; pupil.Massless = true
+        pupil:SetAttribute("NoTint", true)
+        pupil.CFrame = eye.CFrame * CFrame.new(0, 0, -0.15)
+        pupil.Parent = model
+        local w2 = Instance.new("WeldConstraint"); w2.Part0 = eye; w2.Part1 = pupil; w2.Parent = eye
+    end
+
+    for _, off in ipairs({Vector3.new(-0.7, 1.0, 0), Vector3.new(0.7, 1.0, 0)}) do
+        local ear = Instance.new("Part")
+        ear.Size = Vector3.new(0.6, 0.9, 0.5)
+        ear.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
+        ear.Material = Enum.Material.SmoothPlastic
+        ear.CanCollide = false; ear.Massless = true
+        ear.CFrame = head.CFrame * CFrame.new(off) * CFrame.Angles(math.rad(-15), 0, 0)
+        ear.Parent = model
+        local w = Instance.new("WeldConstraint"); w.Part0 = head; w.Part1 = ear; w.Parent = head
+    end
+
+    local nose = Instance.new("Part")
+    nose.Size = Vector3.new(0.35, 0.25, 0.25)
+    nose.Color = Color3.fromRGB(255, 130, 140)
+    nose.Material = Enum.Material.SmoothPlastic
+    nose.CanCollide = false; nose.Massless = true
+    nose:SetAttribute("NoTint", true)
+    nose.CFrame = head.CFrame * CFrame.new(0, -0.1, -1.0)
+    nose.Parent = model
+    local nw = Instance.new("WeldConstraint"); nw.Part0 = head; nw.Part1 = nose; nw.Parent = head
+
+    for _, lp in ipairs({Vector3.new(-0.8, -1.2, -1.6), Vector3.new(0.8, -1.2, -1.6),
+                         Vector3.new(-0.8, -1.2, 1.5), Vector3.new(0.8, -1.2, 1.5)}) do
+        local leg = Instance.new("Part")
+        leg.Size = Vector3.new(0.6, 1.5, 0.6)
+        leg.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
+        leg.Material = Enum.Material.SmoothPlastic
+        leg.CanCollide = false; leg.Massless = true
+        leg.CFrame = hrp.CFrame * CFrame.new(lp)
+        leg.Parent = model
+        local w = Instance.new("WeldConstraint"); w.Part0 = body; w.Part1 = leg; w.Parent = body
+    end
+
+    for i = 1, 5 do
+        local seg = Instance.new("Part")
+        seg.Name = "TailSeg" .. i
+        seg.Size = Vector3.new(0.5 - i*0.06, 0.5 - i*0.06, 0.7)
+        seg.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
+        seg.Material = Enum.Material.SmoothPlastic
+        seg.CanCollide = false; seg.Massless = true
+        local angle = math.rad(20 + i*5)
+        seg.CFrame = body.CFrame * CFrame.new(0, 0.3 + i*0.25, 1.9 + i*0.55) * CFrame.Angles(angle, 0, 0)
+        seg.Parent = model
+        local w = Instance.new("WeldConstraint"); w.Part0 = body; w.Part1 = seg; w.Parent = body
+    end
+
+    local hum = Instance.new("Humanoid")
+    hum.RigType = Enum.HumanoidRigType.R6
+    hum.WalkSpeed = 16
+    hum.JumpPower = 50
+    hum.Health = 100; hum.MaxHealth = 100
+    hum.HipHeight = 0
+    hum.Parent = model
+
+    model.PrimaryPart = hrp
+    return model
+end
+
+-- One-at-a-time spawn per player to prevent the duplicate-character bug.
+local spawnInProgress = {}
+
+local function ensureCat(player, color)
+    if spawnInProgress[player.UserId] then return end
+    spawnInProgress[player.UserId] = true
+
+    -- Skip if there's already a fully-built cat
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        local count = 0
+        for _ in ipairs(player.Character:GetChildren()) do count = count + 1 end
+        if count >= 5 then
+            spawnInProgress[player.UserId] = nil
+            return
+        end
+    end
+
+    local sp = Workspace:FindFirstChild("MainSpawn") or Workspace:FindFirstChildOfClass("SpawnLocation")
+    local cf = sp and (sp.CFrame * CFrame.new(0, 5, 0)) or SAFE_FALLBACK_CFRAME
+    if not isUsableSpawn(cf) then cf = SAFE_FALLBACK_CFRAME end
+
+    local fc = player:GetAttribute("FurColor")
+    local actualColor = (typeof(fc) == "Color3") and fc
+        or (color or Color3.fromRGB(220, 130, 50))
+
+    if player.Character then
+        local old = player.Character
+        player.Character = nil
+        old:Destroy()
+        task.wait(0.1)
+    end
+
+    if not player.Parent then
+        spawnInProgress[player.UserId] = nil
+        return
+    end
+
+    local cat = makeFallbackCat(player, actualColor)
+    cat:PivotTo(cf)
+    cat.Parent = Workspace
+    player.Character = cat
+
+    local head = cat:FindFirstChild("Head")
+    if head then
+        local g = Instance.new("BillboardGui")
+        g.Size = UDim2.new(0, 200, 0, 50)
+        g.StudsOffset = Vector3.new(0, 3, 0)
+        g.AlwaysOnTop = true
+        g.Parent = head
+        local l = Instance.new("TextLabel")
+        l.Size = UDim2.fromScale(1, 1)
+        l.BackgroundTransparency = 1
+        l.Text = string.sub(player.DisplayName or player.Name, 1, 30)
+        l.Font = Enum.Font.GothamBlack
+        l.TextScaled = true
+        l.TextSize = 24  -- floor when TextScaled can't shrink further
+        l.TextColor3 = Color3.fromRGB(255, 255, 255)
+        l.TextStrokeTransparency = 0
+        l.TextStrokeColor3 = Color3.new(0, 0, 0)
+        l.Parent = g
+    end
+
+    spawnInProgress[player.UserId] = nil
+    print("[SpawnEnforcer] spawned cat for " .. player.Name .. " at " .. tostring(cf.Position))
+end
+
+local function setup(player)
+    task.spawn(function()
+        task.wait(1)
+        if player.Parent then ensureCat(player) end
+    end)
+    player.CharacterRemoving:Connect(function()
+        task.wait(2)
+        if player.Parent then ensureCat(player) end
+    end)
+end
+
+Players.PlayerAdded:Connect(setup)
+Players.PlayerRemoving:Connect(function(p) spawnInProgress[p.UserId] = nil end)
+for _, plr in ipairs(Players:GetPlayers()) do setup(plr) end
+
+-- Spawn customization listener via the canonical Remotes module.
+if Remotes.RequestSpawnCustomization then
+    Remotes.RequestSpawnCustomization.OnServerEvent:Connect(function(player, data)
+        if type(data) ~= "table" or not data.furColor then return end
+        local fc = data.furColor
+        if type(fc) ~= "table" then return end
+        local r = math.clamp(tonumber(fc[1]) or 220, 0, 255)
+        local g = math.clamp(tonumber(fc[2]) or 130, 0, 255)
+        local b = math.clamp(tonumber(fc[3]) or 50, 0, 255)
+        local color = Color3.fromRGB(r, g, b)
+        player:SetAttribute("FurColor", color)
+        ensureCat(player, color)
+    end)
+    print("[SpawnEnforcer] listening for RequestSpawnCustomization")
+else
+    warn("[SpawnEnforcer] Remotes.RequestSpawnCustomization missing")
+end
+
+]])
+
+-- ServerScriptService/SpawnProtection.server.lua
+W({'ServerScriptService','SpawnProtection'}, 'Script', [[
+-- SpawnProtection.server.lua
+-- Gives a 5-second ForceField on every character spawn to prevent
+-- spawn-camping from stealing kills / pranks before the player gets bearings.
+
+local Players = game:GetService("Players")
+
+local PROTECT_SECONDS = 5
+
+local function protect(character)
+    -- A ForceField makes the humanoid invulnerable until removed.
+    local existing = character:FindFirstChildOfClass("ForceField")
+    if existing then existing:Destroy() end
+    local ff = Instance.new("ForceField")
+    ff.Name = "SpawnProtection"
+    ff.Visible = true
+    ff.Parent = character
+    task.delay(PROTECT_SECONDS, function()
+        if ff and ff.Parent then ff:Destroy() end
+    end)
+end
+
+local function attach(player)
+    if player.Character then protect(player.Character) end
+    player.CharacterAdded:Connect(protect)
+end
+
+Players.PlayerAdded:Connect(attach)
+for _, p in ipairs(Players:GetPlayers()) do attach(p) end
+
+print("[SpawnProtection] online — " .. PROTECT_SECONDS .. "s ForceField on respawn")
+
+]])
+
+-- ServerScriptService/StrayLighting.server.lua
+W({'ServerScriptService','StrayLighting'}, 'Script', [[
+-- StrayLighting.server.lua — canonical lighting script.
+-- This is the SINGLE source of truth for Lighting properties. Previously
+-- CityRebuild also set Lighting.Brightness/Ambient/Atmosphere etc. which
+-- created an order-dependent race; CityRebuild now only owns geometry.
+-- Place in: ServerScriptService > StrayLighting (Script).
+
+local Lighting = game:GetService("Lighting")
+
+Lighting.Technology = Enum.Technology.Future
+Lighting.Brightness = 3.0
+Lighting.Ambient = Color3.fromRGB(70, 35, 110)
+Lighting.OutdoorAmbient = Color3.fromRGB(95, 60, 145)
+Lighting.EnvironmentDiffuseScale = 0.7
+Lighting.EnvironmentSpecularScale = 0.9
+Lighting.ClockTime = 19.5
+Lighting.GeographicLatitude = 41.5
+Lighting.GlobalShadows = true
+
+local function ensure(cls, props)
+    local fx = Lighting:FindFirstChildOfClass(cls)
+    if not fx then fx = Instance.new(cls); fx.Parent = Lighting end
+    for k, v in pairs(props) do pcall(function() fx[k] = v end) end
+    return fx
+end
+
+ensure("BloomEffect",           {Intensity = 2.6, Size = 24, Threshold = 1.55})
+ensure("ColorCorrectionEffect", {Saturation = 0.30, Brightness = 0.04, Contrast = 0.16,
+                                 TintColor = Color3.fromRGB(255, 240, 230)})
+ensure("DepthOfFieldEffect",    {FocusDistance = 60, InFocusRadius = 25,
+                                 FarIntensity = 0.06, NearIntensity = 0.02})
+ensure("SunRaysEffect",         {Intensity = 0.22, Spread = 0.7})
+ensure("BlurEffect",            {Size = 0})
+
+local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+if not atm then atm = Instance.new("Atmosphere"); atm.Parent = Lighting end
+-- Density was 0.45 + an extra 0.28 from CityRebuild = opaque fog wall ~25 studs.
+-- 0.30 gives noir feel without choking visibility.
+atm.Density = 0.30; atm.Offset = 0.22
+atm.Color = Color3.fromRGB(95, 30, 150)
+atm.Decay = Color3.fromRGB(60, 18, 100)
+atm.Glare = 0.50; atm.Haze = 1.7
+
+print("[StrayLighting] cyberpunk noir tuning applied (canonical)")
+
+]])
+
+-- ServerScriptService/SummonSystem.server.lua
+W({'ServerScriptService','SummonSystem'}, 'Script', [[
+-- SummonSystem.server.lua
+-- Spawns Robloxian "human" NPCs for the player to prank.
+-- Place in: ServerScriptService > SummonSystem (Script)
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local SharedUtil = require(ReplicatedStorage.Modules.SharedUtil)
+
+local SummonSystem = {}
+
+-- Export to _G FIRST so dependents (PrankSystem) never deadlock if anything below errors.
+_G.KittyRaiserSummon = SummonSystem
+
+local SUMMON_COOLDOWN = 1.5
+local NPC_DESPAWN_AFTER = 25
+local lastSummonTime = {}
+
+-- Server-side registry of legitimate NPCs. Clients can no longer pass arbitrary
+-- Workspace Models with the KittyRaiserNPC attribute spoofed.
+local registry = setmetatable({}, {__mode = "k"})  -- weak keys: cleared on GC
+
+local npcFolder = Workspace:FindFirstChild("PrankNPCs")
+if not npcFolder then
+    npcFolder = Instance.new("Folder")
+    npcFolder.Name = "PrankNPCs"
+    npcFolder.Parent = Workspace
+end
+
+local function getSpawnPads()
+    local pads = Workspace:FindFirstChild("SpawnPads")
+    if not pads then return {} end
+    return pads:GetChildren()
+end
+
+local function isValidSpawnPosition(v)
+    if not v then return false end
+    if v.Magnitude > 10000 then return false end
+    -- guard against NaN
+    return v.X == v.X and v.Y == v.Y and v.Z == v.Z
+end
+
+local function buildHumanNPC()
+    local model = Instance.new("Model")
+    model.Name = "PrankTarget"
+    model:SetAttribute("KittyRaiserNPC", true)
+    model:SetAttribute("Pranked", false)
+
+    local hrp = Instance.new("Part")
+    hrp.Name = "HumanoidRootPart"
+    hrp.Size = Vector3.new(2, 2, 1)
+    hrp.Transparency = 1
+    hrp.CanCollide = true   -- HRP MUST collide for humanoid physics
+    hrp.Anchored = false
+    hrp.Massless = true
+    hrp.Parent = model
+
+    local torso = Instance.new("Part")
+    torso.Name = "Torso"
+    torso.Size = Vector3.new(2, 2, 1)
+    torso.Color = Color3.fromRGB(0, 100, 200)
+    torso.CanCollide = false
+    torso.Position = hrp.Position
+    torso.Parent = model
+    local torsoWeld = Instance.new("WeldConstraint")
+    torsoWeld.Part0, torsoWeld.Part1, torsoWeld.Parent = hrp, torso, torso
+
+    local head = Instance.new("Part")
+    head.Name = "Head"
+    head.Size = Vector3.new(1.5, 1.5, 1.5)
+    head.Shape = Enum.PartType.Ball
+    head.Color = Color3.fromRGB(245, 205, 160)
+    head.CanCollide = false
+    head.Position = torso.Position + Vector3.new(0, 1.75, 0)
+    head.Parent = model
+    local headWeld = Instance.new("WeldConstraint")
+    headWeld.Part0, headWeld.Part1, headWeld.Parent = torso, head, head
+
+    local face = Instance.new("Decal")
+    face.Texture = "rbxasset://textures/face.png"
+    face.Face = Enum.NormalId.Front
+    face.Parent = head
+
+    local legs = Instance.new("Part")
+    legs.Name = "Legs"
+    legs.Size = Vector3.new(2, 2, 1)
+    legs.Color = Color3.fromRGB(40, 40, 80)
+    legs.CanCollide = false
+    legs.Position = torso.Position + Vector3.new(0, -2, 0)
+    legs.Parent = model
+    local legWeld = Instance.new("WeldConstraint")
+    legWeld.Part0, legWeld.Part1, legWeld.Parent = torso, legs, legs
+
+    local humanoid = Instance.new("Humanoid")
+    humanoid.MaxHealth = math.huge   -- NPCs can't die from stray world damage
+    humanoid.Health = math.huge
+    humanoid.WalkSpeed = 8
+    humanoid.JumpPower = 0
+    humanoid.HealthDisplayDistance = 0
+    humanoid.Parent = model
+
+    model.PrimaryPart = hrp
+    return model
+end
+
+-- Despawn pranked NPC after a delay. Atomic claim semantics: returns true if
+-- THIS caller successfully marked it; false if it was already pranked.
+function SummonSystem.markPranked(npc)
+    if not npc or not npc.Parent then return false end
+    if npc:GetAttribute("Pranked") then return false end
+    npc:SetAttribute("Pranked", true)
+    task.delay(2, function()
+        if npc.Parent then npc:Destroy() end
+    end)
+    return true
+end
+
+function SummonSystem.isRegistered(npc)
+    return npc and registry[npc] == true
+end
+
+-- Pick a non-overlapping spawn position from a candidate set.
+local function findClearSpawn(candidatePos)
+    -- check existing NPCs in the radius and offset if too close
+    local minSpacing = 5
+    for _, existing in ipairs(npcFolder:GetChildren()) do
+        local p = existing.PrimaryPart
+        if p and (p.Position - candidatePos).Magnitude < minSpacing then
+            candidatePos = candidatePos + Vector3.new(math.random(-8, 8), 0, math.random(-8, 8))
+        end
+    end
+    return candidatePos
+end
+
+function SummonSystem.summon(player)
+    local now = os.clock()
+    local last = lastSummonTime[player.UserId]
+    if last and (now - last) < SUMMON_COOLDOWN then
+        return false, "summon_cooldown"
+    end
+
+    -- global server-wide cap so 50 players spamming summon doesn't tank perf
+    if #npcFolder:GetChildren() >= GameConfig.MAX_NPCS_ON_SERVER then
+        return false, "server_npc_cap"
+    end
+
+    lastSummonTime[player.UserId] = now
+
+    local pads = getSpawnPads()
+    local spawnPos
+    if #pads > 0 then
+        local pad = pads[math.random(1, #pads)]
+        spawnPos = pad.Position + Vector3.new(0, 4, 0)
+    else
+        local char = player.Character
+        if char and char.PrimaryPart then
+            spawnPos = char.PrimaryPart.Position + Vector3.new(math.random(-10, 10), 5, math.random(-10, 10))
+        else
+            spawnPos = Vector3.new(0, 10, 0)
+        end
+    end
+    if not isValidSpawnPosition(spawnPos) then
+        spawnPos = Vector3.new(0, 10, 0)
+    end
+    spawnPos = findClearSpawn(spawnPos)
+
+    local npc = buildHumanNPC()
+    npc:PivotTo(CFrame.new(spawnPos))
+    npc:SetAttribute("SummonedBy", player.UserId)
+    npc.Parent = npcFolder
+    registry[npc] = true
+
+    -- Spawn-in tween: pop from tiny scale. We fire-and-forget; tween cleanup is
+    -- automatic when the part is destroyed.
+    for _, p in ipairs(npc:GetDescendants()) do
+        if p:IsA("BasePart") then
+            local origSize = p.Size
+            p.Size = Vector3.new(0.1, 0.1, 0.1)
+            local tween = TweenService:Create(
+                p, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+                {Size = origSize}
+            )
+            pcall(function() tween:Play() end)
+        end
+    end
+
+    -- Wander AI scoped to this NPC
+    task.spawn(function()
+        local hum = npc:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+        local startTime = os.clock()
+        while npc.Parent == npcFolder and (os.clock() - startTime) < NPC_DESPAWN_AFTER do
+            local hrp = npc.PrimaryPart
+            if not hrp then break end
+            local rand = Vector3.new(math.random(-15, 15), 0, math.random(-15, 15))
+            hum:MoveTo(hrp.Position + rand)
+            task.wait(math.random(2, 4))
+        end
+        if npc.Parent and not npc:GetAttribute("Pranked") then
+            registry[npc] = nil
+            npc:Destroy()
+        end
+    end)
+    return true, npc
+end
+
+Remotes.RequestSummonHuman.OnServerEvent:Connect(function(player)
+    if not SharedUtil.checkRate(player, "summon", 0.6) then return end
+    SummonSystem.summon(player)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    lastSummonTime[player.UserId] = nil
+    for _, npc in ipairs(npcFolder:GetChildren()) do
+        if npc:GetAttribute("SummonedBy") == player.UserId then
+            registry[npc] = nil
+            npc:Destroy()
+        end
+    end
+end)
+
+return SummonSystem
+
+]])
+
 -- ServerScriptService/SurvivalSystem.server.lua
 W({'ServerScriptService','SurvivalSystem'}, 'Script', [[
 -- SurvivalSystem.server.lua
@@ -160,8 +713,19 @@ local function setupFoodPart(part)
     sourceConns[part] = {touched = touchedConn, ancestry = destroyConn}
 end
 
-for _, p in ipairs(Workspace:GetDescendants()) do setupFoodPart(p) end
-Workspace.DescendantAdded:Connect(setupFoodPart)
+-- Scoped listener: only walks parts that already have the FoodSource /
+-- WaterSource attribute, instead of every Workspace.DescendantAdded fire.
+-- The previous design ran setupFoodPart() on every prank particle / NPC body
+-- part / coin spawn (~thousands per minute) and just bailed if the attribute
+-- was absent. We still attach to Workspace.DescendantAdded but with a
+-- cheap-attribute pre-check so the function exits before doing any work.
+local function setupFoodPartIfTagged(part)
+    if not part:IsA("BasePart") then return end
+    if not (part:GetAttribute("FoodSource") or part:GetAttribute("WaterSource")) then return end
+    setupFoodPart(part)
+end
+for _, p in ipairs(Workspace:GetDescendants()) do setupFoodPartIfTagged(p) end
+Workspace.DescendantAdded:Connect(setupFoodPartIfTagged)
 
 -- Direct request remotes (used by interaction prompts). Now validate proximity
 -- so the client can't eat infinitely without being near a source.
@@ -367,6 +931,10 @@ end
 function _G.KittyRaiserGetWeatherMult() return CurrentMultBonus end
 
 local function setWeather(weather)
+    if not table.find(GameConfig.WEATHER_TYPES, weather) then
+        warn("[WeatherSystem] unknown weather '" .. tostring(weather) .. "'; defaulting to Sunny")
+        weather = "Sunny"
+    end
     CurrentWeather = weather
     CurrentMultBonus = (weather == "RedMist") and GameConfig.RED_MIST_CHAOS_MULT or 1.0
     applyVisuals(weather)
@@ -1544,6 +2112,79 @@ return true
 
 ]])
 
+-- StarterPlayer/StarterPlayerScripts/GraphicsQuality.client.lua
+W({'StarterPlayer','StarterPlayerScripts','GraphicsQuality'}, 'LocalScript', [[
+-- GraphicsQuality.client.lua
+-- Auto-detect mobile (TouchEnabled + no Mouse) and apply lower-quality
+-- visuals: dimmer post-FX, fewer particles, reduced StreamingTargetRadius
+-- (clientside hint only — the server is authoritative).
+-- Player can override via settingsGraphicsQuality.
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+
+local player = Players.LocalPlayer
+
+local function applyPreset(quality)
+    if quality == "low" then
+        for _, fx in ipairs(Lighting:GetChildren()) do
+            if fx:IsA("BloomEffect") then fx.Intensity = 1.2; fx.Size = 14 end
+            if fx:IsA("DepthOfFieldEffect") then fx.Enabled = false end
+            if fx:IsA("SunRaysEffect") then fx.Intensity = 0.05 end
+        end
+        local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+        if atm then atm.Density = 0.18 end
+        Workspace.StreamingTargetRadius = math.min(Workspace.StreamingTargetRadius, 800)
+    elseif quality == "medium" then
+        for _, fx in ipairs(Lighting:GetChildren()) do
+            if fx:IsA("BloomEffect") then fx.Intensity = 2.0; fx.Size = 20 end
+            if fx:IsA("DepthOfFieldEffect") then fx.Enabled = true; fx.FarIntensity = 0.04 end
+            if fx:IsA("SunRaysEffect") then fx.Intensity = 0.15 end
+        end
+        local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+        if atm then atm.Density = 0.24 end
+    else  -- high
+        for _, fx in ipairs(Lighting:GetChildren()) do
+            if fx:IsA("BloomEffect") then fx.Intensity = 2.6; fx.Size = 24 end
+            if fx:IsA("DepthOfFieldEffect") then fx.Enabled = true; fx.FarIntensity = 0.06 end
+            if fx:IsA("SunRaysEffect") then fx.Intensity = 0.22 end
+        end
+    end
+end
+
+local function autoDetect()
+    if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
+        return "low"
+    end
+    -- Approximate desktop midrange detection: smaller workspaces or laptops
+    if Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize.X < 1366 then
+        return "medium"
+    end
+    return "high"
+end
+
+-- Honor saved preference; otherwise use auto-detect
+local applied = false
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(d)
+    if applied then return end
+    applied = true
+    local q = d.settingsGraphicsQuality
+    if not q or q == "" then q = autoDetect() end
+    applyPreset(q)
+end)
+
+-- Allow toggling at runtime via setting change
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(d)
+    if d.settingsGraphicsQuality then applyPreset(d.settingsGraphicsQuality) end
+end)
+
+]])
+
 -- StarterPlayer/StarterPlayerScripts/HUDController.client.lua
 W({'StarterPlayer','StarterPlayerScripts','HUDController'}, 'LocalScript', [[
 -- HUDController.client.lua
@@ -1685,6 +2326,8 @@ local function buildShopList(inventoryMode)
     for _, c in ipairs(list:GetChildren()) do
         if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end
     end
+    -- Fire-and-forget preview event for SkinPreviewer
+    local previewEv = playerGui:FindFirstChild("PreviewSkinEvent")
     for _, skinId in ipairs(CosmeticConfig.Order) do
         local skin = CosmeticConfig.Skins[skinId]
         local owned = CurrentData.ownedSkins and table.find(CurrentData.ownedSkins, skinId)
@@ -1695,6 +2338,17 @@ local function buildShopList(inventoryMode)
             row.BorderSizePixel = 0
             Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
             row.Parent = list
+
+            -- Tap-anywhere-on-row preview button (under the labels, above the buy button).
+            local previewClick = Instance.new("TextButton")
+            previewClick.Size = UDim2.new(0.55, 0, 1, 0)
+            previewClick.Position = UDim2.new(0, 0, 0, 0)
+            previewClick.BackgroundTransparency = 1
+            previewClick.Text = ""
+            previewClick.Parent = row
+            previewClick.MouseButton1Click:Connect(function()
+                if previewEv then previewEv:Fire(skinId) end
+            end)
 
             local nameLabel = Instance.new("TextLabel")
             nameLabel.Size = UDim2.new(0.4, 0, 0.5, 0)
@@ -1940,6 +2594,109 @@ UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 return true
+
+]])
+
+-- StarterPlayer/StarterPlayerScripts/IntroSplash.client.lua
+W({'StarterPlayer','StarterPlayerScripts','IntroSplash'}, 'LocalScript', [[
+-- IntroSplash.client.lua
+-- 10-second cinematic intro on first ever play. Uses seenIntro flag from
+-- DataHandler. Skippable via Tap-to-skip or any input.
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local shown = false
+local function showIntro()
+    if shown then return end
+    shown = true
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "IntroSplash"
+    gui.IgnoreGuiInset = true
+    gui.ResetOnSpawn = false
+    gui.DisplayOrder = 100
+    gui.Parent = playerGui
+
+    local bg = Instance.new("Frame", gui)
+    bg.Size = UDim2.fromScale(1, 1)
+    bg.BackgroundColor3 = Color3.new(0, 0, 0)
+
+    local lines = {
+        {text="The city sleeps...",        color=Color3.fromRGB(180, 150, 220), font=Enum.Font.GothamBlack, hold=2.0},
+        {text="But the cats don't.",       color=Color3.fromRGB(255, 80, 200),  font=Enum.Font.GothamBlack, hold=2.0},
+        {text="Welcome to KITTYRAISER",    color=Color3.fromRGB(255, 215, 0),   font=Enum.Font.GothamBlack, hold=2.5},
+        {text="Cause CHAOS. Be the cat.",  color=Color3.fromRGB(80, 220, 255),  font=Enum.Font.GothamBold,  hold=2.0},
+    }
+
+    local skipLbl = Instance.new("TextLabel", gui)
+    skipLbl.Size = UDim2.new(1, 0, 0, 30)
+    skipLbl.Position = UDim2.new(0, 0, 1, -50)
+    skipLbl.BackgroundTransparency = 1
+    skipLbl.Text = "Tap to skip"
+    skipLbl.TextColor3 = Color3.fromRGB(150, 150, 150)
+    skipLbl.Font = Enum.Font.Gotham
+    skipLbl.TextScaled = true
+
+    local skipped = false
+    local function dismiss()
+        if skipped then return end
+        skipped = true
+        TweenService:Create(bg, TweenInfo.new(0.6), {BackgroundTransparency = 1}):Play()
+        task.wait(0.7); gui:Destroy()
+    end
+
+    local skipButton = Instance.new("TextButton", gui)
+    skipButton.Size = UDim2.fromScale(1, 1)
+    skipButton.BackgroundTransparency = 1
+    skipButton.Text = ""
+    skipButton.MouseButton1Click:Connect(dismiss)
+
+    -- Walk through lines
+    task.spawn(function()
+        for _, line in ipairs(lines) do
+            if skipped then return end
+            local lbl = Instance.new("TextLabel", gui)
+            lbl.AnchorPoint = Vector2.new(0.5, 0.5)
+            lbl.Position = UDim2.new(0.5, 0, 0.5, 0)
+            lbl.Size = UDim2.new(0, 700, 0, 90)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = line.text
+            lbl.TextColor3 = line.color
+            lbl.Font = line.font
+            lbl.TextScaled = true
+            lbl.TextStrokeTransparency = 0
+            lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
+            lbl.TextTransparency = 1
+            lbl.TextStrokeTransparency = 1
+            TweenService:Create(lbl, TweenInfo.new(0.5), {TextTransparency = 0, TextStrokeTransparency = 0.2}):Play()
+            task.wait(line.hold)
+            if skipped then return end
+            TweenService:Create(lbl, TweenInfo.new(0.4), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+            task.wait(0.4)
+            lbl:Destroy()
+        end
+        dismiss()
+    end)
+end
+
+-- Wait for first data packet, then check seenIntro flag.
+local subscribed = false
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(d)
+    if subscribed then return end
+    subscribed = true
+    if not d.seenIntro then
+        showIntro()
+        Remotes.RequestSettingChange:InvokeServer("seenIntro", true)
+    end
+end)
 
 ]])
 
@@ -2255,6 +3012,190 @@ end)
 task.delay(2, function() setMusic("chill") end)
 
 print("[MusicSystem] online")
+
+]])
+
+-- StarterPlayer/StarterPlayerScripts/PatchNotesUI.client.lua
+W({'StarterPlayer','StarterPlayerScripts','PatchNotesUI'}, 'LocalScript', [[
+-- PatchNotesUI.client.lua
+-- Show "What's New" modal on first join after a deploy. Compares the current
+-- GAME_VERSION against the player's saved lastSeenPatchVersion.
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Patch notes content. Bump GAME_VERSION + add a new entry on each release.
+local PATCH_NOTES = {
+    {
+        version = "v1.0",
+        title = "Launch!",
+        items = {
+            "8 pranks: Pie, Anvil, Fart, Laser, and more",
+            "5 cat skins to start, 25 total to collect",
+            "Daily quests + achievements + 7-day login streak",
+            "Settings: music, SFX, camera, codes",
+            "Cyberpunk Cat Alley with weather + day/night",
+        },
+    },
+}
+
+local CURRENT_VERSION = GameConfig.GAME_VERSION or "v1.0"
+
+local subscribed = false
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(d)
+    if subscribed then return end
+    subscribed = true
+    if d.lastSeenPatchVersion == CURRENT_VERSION then return end
+    -- Only show if user has played before; brand-new players get the IntroSplash instead.
+    if not d.seenIntro then return end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "PatchNotes"
+    gui.IgnoreGuiInset = true
+    gui.ResetOnSpawn = false
+    gui.DisplayOrder = 75
+    gui.Parent = playerGui
+
+    local dim = Instance.new("Frame", gui)
+    dim.Size = UDim2.fromScale(1, 1)
+    dim.BackgroundColor3 = Color3.new(0, 0, 0)
+    dim.BackgroundTransparency = 0.4
+
+    local card = Instance.new("Frame", gui)
+    card.AnchorPoint = Vector2.new(0.5, 0.5)
+    card.Position = UDim2.new(0.5, 0, 0.5, 0)
+    card.Size = UDim2.new(0, 480, 0, 480)
+    card.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+    card.BorderSizePixel = 0
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 16)
+    local stroke = Instance.new("UIStroke", card); stroke.Thickness = 3; stroke.Color = Color3.fromRGB(80, 220, 255)
+
+    local title = Instance.new("TextLabel", card)
+    title.Size = UDim2.new(1, -20, 0, 50)
+    title.Position = UDim2.new(0, 10, 0, 10)
+    title.BackgroundTransparency = 1
+    title.Text = "WHAT'S NEW — " .. CURRENT_VERSION
+    title.TextColor3 = Color3.fromRGB(80, 220, 255)
+    title.Font = Enum.Font.GothamBlack
+    title.TextScaled = true
+
+    local list = Instance.new("ScrollingFrame", card)
+    list.Size = UDim2.new(1, -40, 1, -130)
+    list.Position = UDim2.new(0, 20, 0, 70)
+    list.BackgroundTransparency = 1
+    list.BorderSizePixel = 0
+    list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    list.CanvasSize = UDim2.new()
+    list.ScrollBarThickness = 6
+
+    local layout = Instance.new("UIListLayout", list); layout.Padding = UDim.new(0, 10)
+
+    for _, patch in ipairs(PATCH_NOTES) do
+        local h = Instance.new("TextLabel", list)
+        h.Size = UDim2.new(1, 0, 0, 28)
+        h.BackgroundTransparency = 1
+        h.Text = patch.version .. ": " .. patch.title
+        h.TextColor3 = Color3.fromRGB(255, 215, 0)
+        h.Font = Enum.Font.GothamBlack
+        h.TextScaled = true
+        h.TextXAlignment = Enum.TextXAlignment.Left
+
+        for _, item in ipairs(patch.items) do
+            local li = Instance.new("TextLabel", list)
+            li.Size = UDim2.new(1, 0, 0, 28)
+            li.BackgroundTransparency = 1
+            li.Text = "• " .. item
+            li.TextColor3 = Color3.fromRGB(220, 220, 220)
+            li.Font = Enum.Font.Gotham
+            li.TextScaled = true
+            li.TextXAlignment = Enum.TextXAlignment.Left
+        end
+    end
+
+    local close = Instance.new("TextButton", card)
+    close.AnchorPoint = Vector2.new(0.5, 0)
+    close.Position = UDim2.new(0.5, 0, 1, -56)
+    close.Size = UDim2.new(0, 200, 0, 44)
+    close.BackgroundColor3 = Color3.fromRGB(80, 220, 255)
+    close.TextColor3 = Color3.new(0, 0, 0)
+    close.Font = Enum.Font.GothamBlack
+    close.TextScaled = true
+    close.Text = "GOT IT"
+    Instance.new("UICorner", close).CornerRadius = UDim.new(0, 8)
+    close.MouseButton1Click:Connect(function()
+        Remotes.RequestSettingChange:InvokeServer("lastSeenPatchVersion", CURRENT_VERSION)
+        TweenService:Create(card, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(dim, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
+        task.wait(0.4); gui:Destroy()
+    end)
+end)
+
+]])
+
+-- StarterPlayer/StarterPlayerScripts/PawTrailFX.client.lua
+W({'StarterPlayer','StarterPlayerScripts','PawTrailFX'}, 'LocalScript', [[
+-- PawTrailFX.client.lua
+-- Spawns a small footstep particle on the ground every ~0.3s while the local
+-- character is moving. Cheap; runs only locally.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Debris = game:GetService("Debris")
+
+local player = Players.LocalPlayer
+
+local SPACING_STUDS = 4
+local lastFootprint = nil
+local lastSide = 1
+
+local function tryFootprint(char)
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char.PrimaryPart
+    if not hum or not hrp then return end
+    if hum.MoveDirection.Magnitude < 0.1 then return end
+
+    if lastFootprint and (hrp.Position - lastFootprint).Magnitude < SPACING_STUDS then
+        return
+    end
+    lastFootprint = hrp.Position
+
+    local print_ = Instance.new("Part")
+    print_.Anchored = true
+    print_.CanCollide = false
+    print_.Size = Vector3.new(0.4, 0.05, 0.6)
+    print_.Material = Enum.Material.SmoothPlastic
+    print_.Color = Color3.fromRGB(255, 100, 200)
+    print_.Transparency = 0.4
+    -- Side-to-side offset to alternate left/right paws
+    local side = lastSide; lastSide = -side
+    local rightVec = hrp.CFrame.RightVector * (0.7 * side)
+    local downVec = Vector3.new(0, -2.7, 0)
+    print_.CFrame = CFrame.new(hrp.Position + rightVec + downVec) * CFrame.Angles(0, hrp.Orientation.Y * math.pi / 180, 0)
+    print_.Parent = Workspace
+    Debris:AddItem(print_, 1.5)
+    -- fade-out via heartbeat (cheap)
+    local t0 = os.clock()
+    local conn
+    conn = RunService.Heartbeat:Connect(function()
+        if not print_.Parent then conn:Disconnect(); return end
+        local age = os.clock() - t0
+        print_.Transparency = 0.4 + math.min(0.6, age * 0.6)
+        if age > 1.4 then conn:Disconnect() end
+    end)
+end
+
+RunService.Heartbeat:Connect(function()
+    local char = player.Character
+    if char then tryFootprint(char) end
+end)
 
 ]])
 
@@ -2866,6 +3807,198 @@ print("[PreSpawnLobby v3 grokfix] ready, requestSpawn = " .. tostring(requestSpa
 
 ]])
 
+-- StarterPlayer/StarterPlayerScripts/QuestUI.client.lua
+W({'StarterPlayer','StarterPlayerScripts','QuestUI'}, 'LocalScript', [[
+-- QuestUI.client.lua
+-- Bottom-bar quests button → modal showing today's 3 quests with progress bars
+-- and claim buttons.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local QuestConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("QuestConfig"))
+
+local player = Players.LocalPlayer
+local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 60)
+if not hud then return end
+
+local POOL_BY_ID = {}
+for _, q in ipairs(QuestConfig.Pool) do POOL_BY_ID[q.id] = q end
+
+local CurrentData = nil
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(d) CurrentData = d end)
+
+local modal = Instance.new("Frame")
+modal.Name = "QuestModal"
+modal.Size = UDim2.new(0, 480, 0, 440)
+modal.AnchorPoint = Vector2.new(0.5, 0.5)
+modal.Position = UDim2.new(0.5, 0, 0.5, 0)
+modal.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+modal.BorderSizePixel = 0
+modal.Visible = false
+modal.ZIndex = 50
+modal.Parent = hud
+Instance.new("UICorner", modal).CornerRadius = UDim.new(0, 16)
+local stroke = Instance.new("UIStroke", modal); stroke.Thickness = 3; stroke.Color = Color3.fromRGB(255, 200, 0)
+
+local title = Instance.new("TextLabel", modal)
+title.Size = UDim2.new(1, -20, 0, 50)
+title.Position = UDim2.new(0, 10, 0, 10)
+title.BackgroundTransparency = 1
+title.Text = "DAILY QUESTS"
+title.TextColor3 = Color3.fromRGB(255, 200, 0)
+title.Font = Enum.Font.GothamBlack
+title.TextScaled = true
+
+local close = Instance.new("TextButton", modal)
+close.Size = UDim2.new(0, 40, 0, 40)
+close.Position = UDim2.new(1, -50, 0, 10)
+close.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+close.Text = "X"
+close.TextColor3 = Color3.fromRGB(255, 255, 255)
+close.Font = Enum.Font.GothamBlack
+close.TextScaled = true
+Instance.new("UICorner", close).CornerRadius = UDim.new(0, 8)
+close.MouseButton1Click:Connect(function() modal.Visible = false end)
+
+local list = Instance.new("Frame", modal)
+list.Size = UDim2.new(1, -20, 1, -80)
+list.Position = UDim2.new(0, 10, 0, 70)
+list.BackgroundTransparency = 1
+local layout = Instance.new("UIListLayout", list)
+layout.Padding = UDim.new(0, 10)
+
+local function rebuild()
+    if not CurrentData then return end
+    for _, c in ipairs(list:GetChildren()) do
+        if not c:IsA("UIListLayout") then c:Destroy() end
+    end
+    local assigned = CurrentData.questAssigned or {}
+    if #assigned == 0 then
+        local lbl = Instance.new("TextLabel", list)
+        lbl.Size = UDim2.new(1, 0, 0, 50)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = "Today's quests are loading…"
+        lbl.TextColor3 = Color3.fromRGB(180, 180, 180)
+        lbl.Font = Enum.Font.Gotham
+        lbl.TextScaled = true
+        return
+    end
+    for _, qid in ipairs(assigned) do
+        local q = POOL_BY_ID[qid]
+        if q then
+            local row = Instance.new("Frame", list)
+            row.Size = UDim2.new(1, 0, 0, 90)
+            row.BackgroundColor3 = Color3.fromRGB(40, 25, 60)
+            Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+            local label = Instance.new("TextLabel", row)
+            label.Size = UDim2.new(0.65, 0, 0.4, 0)
+            label.Position = UDim2.new(0.02, 0, 0.05, 0)
+            label.BackgroundTransparency = 1
+            label.Text = q.label
+            label.Font = Enum.Font.GothamBlack
+            label.TextScaled = true
+            label.TextColor3 = Color3.fromRGB(255, 200, 0)
+            label.TextXAlignment = Enum.TextXAlignment.Left
+
+            local progressVal = (CurrentData.questCounters and CurrentData.questCounters[q.counter]) or 0
+            local pct = math.clamp(progressVal / q.target, 0, 1)
+
+            local progLabel = Instance.new("TextLabel", row)
+            progLabel.Size = UDim2.new(0.65, 0, 0.3, 0)
+            progLabel.Position = UDim2.new(0.02, 0, 0.45, 0)
+            progLabel.BackgroundTransparency = 1
+            progLabel.Text = ("%d / %d"):format(math.min(progressVal, q.target), q.target)
+            progLabel.Font = Enum.Font.Gotham
+            progLabel.TextScaled = true
+            progLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+            progLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+            local barBg = Instance.new("Frame", row)
+            barBg.Size = UDim2.new(0.65, 0, 0.18, 0)
+            barBg.Position = UDim2.new(0.02, 0, 0.78, 0)
+            barBg.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+            barBg.BorderSizePixel = 0
+            Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
+            local fill = Instance.new("Frame", barBg)
+            fill.Size = UDim2.new(pct, 0, 1, 0)
+            fill.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+            fill.BorderSizePixel = 0
+            Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+            local rewardLbl = Instance.new("TextLabel", row)
+            rewardLbl.Size = UDim2.new(0.3, 0, 0.4, 0)
+            rewardLbl.Position = UDim2.new(0.69, 0, 0.05, 0)
+            rewardLbl.BackgroundTransparency = 1
+            rewardLbl.Text = ("%d ⚡%s"):format(q.chaos or 0,
+                (q.hellTokens or 0) > 0 and ("\n" .. q.hellTokens .. " 🔥") or "")
+            rewardLbl.Font = Enum.Font.GothamBold
+            rewardLbl.TextScaled = true
+            rewardLbl.TextColor3 = Color3.fromRGB(50, 220, 100)
+
+            local btn = Instance.new("TextButton", row)
+            btn.Size = UDim2.new(0.3, 0, 0.4, 0)
+            btn.Position = UDim2.new(0.69, 0, 0.5, 0)
+            btn.Font = Enum.Font.GothamBlack
+            btn.TextScaled = true
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+            local claimed = CurrentData.questClaimed and CurrentData.questClaimed[qid]
+            if claimed then
+                btn.Text = "CLAIMED"
+                btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+                btn.AutoButtonColor = false
+            elseif progressVal >= q.target then
+                btn.Text = "CLAIM"
+                btn.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
+                btn.MouseButton1Click:Connect(function()
+                    btn.Active = false; btn.Text = "..."
+                    task.spawn(function()
+                        Remotes.RequestQuestClaim:InvokeServer(qid)
+                    end)
+                end)
+            else
+                btn.Text = "LOCKED"
+                btn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+                btn.AutoButtonColor = false
+            end
+        end
+    end
+end
+
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(d)
+    CurrentData = d
+    if modal.Visible then rebuild() end
+end)
+
+-- Hook into bottom bar (or create button)
+local botBar = hud:FindFirstChild("BottomBar")
+local function ensureButton()
+    if not botBar then return end
+    if botBar:FindFirstChild("QuestsButton") then return end
+    local btn = Instance.new("TextButton")
+    btn.Name = "QuestsButton"
+    btn.Size = UDim2.new(0, 70, 0, 44)
+    btn.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+    btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+    btn.Font = Enum.Font.GothamBlack
+    btn.Text = "QUESTS"
+    btn.TextScaled = true
+    btn.LayoutOrder = 6
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
+    btn.Parent = botBar
+    btn.MouseButton1Click:Connect(function()
+        modal.Visible = not modal.Visible
+        if modal.Visible then rebuild() end
+    end)
+end
+ensureButton()
+hud.ChildAdded:Connect(function() task.wait(0.5); ensureButton() end)
+
+]])
+
 -- StarterPlayer/StarterPlayerScripts/SettingsUI.client.lua
 W({'StarterPlayer','StarterPlayerScripts','SettingsUI'}, 'LocalScript', [[
 -- SettingsUI.client.lua
@@ -3077,6 +4210,306 @@ end)
 
 ]])
 
+-- StarterPlayer/StarterPlayerScripts/SkinPreviewer.client.lua
+W({'StarterPlayer','StarterPlayerScripts','SkinPreviewer'}, 'LocalScript', [[
+-- SkinPreviewer.client.lua
+-- Listens for a BindableEvent fired by the shop UI ("PreviewSkin") with a
+-- skin id; tints the local cat to that skin for 5s so the player sees what
+-- they're buying. Original colors restore automatically.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local CosmeticConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CosmeticConfig"))
+
+local player = Players.LocalPlayer
+
+-- BindableEvent under PlayerGui so HUDController can fire it.
+local pg = player:WaitForChild("PlayerGui")
+local previewEv = pg:FindFirstChild("PreviewSkinEvent")
+if not previewEv then
+    previewEv = Instance.new("BindableEvent")
+    previewEv.Name = "PreviewSkinEvent"
+    previewEv.Parent = pg
+end
+
+local PREVIEW_DURATION = 5
+
+local function tint(skinId)
+    local char = player.Character
+    if not char then return end
+    local skin = CosmeticConfig.getSkin(skinId)
+    if not skin or not skin.bodyColors then return end
+
+    local TINT_SKIP = {Pupil=true, Eye=true, Nose=true, Mouth=true,
+                       Tongue=true, Whisker=true, Tooth=true}
+
+    local prevColors = {}  -- restore on timeout
+    for _, p in ipairs(char:GetDescendants()) do
+        if (p:IsA("BasePart") or p:IsA("MeshPart")) and not TINT_SKIP[p.Name]
+            and not p:GetAttribute("NoTint")
+        then
+            prevColors[p] = p.Color
+            -- Use TorsoColor as the primary preview tint
+            local target = skin.bodyColors.TorsoColor
+            if typeof(target) == "Color3" then p.Color = target end
+        end
+    end
+
+    -- Show small banner
+    local banner = Instance.new("ScreenGui", pg)
+    banner.Name = "PreviewBanner"
+    banner.IgnoreGuiInset = true
+    banner.DisplayOrder = 70
+    local lbl = Instance.new("TextLabel", banner)
+    lbl.AnchorPoint = Vector2.new(0.5, 0)
+    lbl.Position = UDim2.new(0.5, 0, 0, 70)
+    lbl.Size = UDim2.new(0, 280, 0, 40)
+    lbl.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+    lbl.BackgroundTransparency = 0.2
+    lbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextScaled = true
+    lbl.Text = "Previewing: " .. (skin.displayName or skinId)
+    Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 8)
+
+    task.delay(PREVIEW_DURATION, function()
+        for p, c in pairs(prevColors) do
+            if p.Parent then p.Color = c end
+        end
+        if banner.Parent then banner:Destroy() end
+    end)
+end
+
+previewEv.Event:Connect(function(skinId) tint(skinId) end)
+
+]])
+
+-- StarterPlayer/StarterPlayerScripts/SocialLink.client.lua
+W({'StarterPlayer','StarterPlayerScripts','SocialLink'}, 'LocalScript', [[
+-- SocialLink.client.lua
+-- Discord/community link. Roblox blocks arbitrary URL navigation; the
+-- canonical pattern is to display a copy-friendly text and use SocialService
+-- to prompt-share the GAME itself with friends. Both are exposed.
+
+local Players = game:GetService("Players")
+local SocialService = game:GetService("SocialService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 60)
+if not hud then return end
+
+local DISCORD_HANDLE = "discord.gg/kittyraiser"  -- TODO: update with your real invite
+
+-- Modal
+local modal = Instance.new("Frame")
+modal.Name = "SocialModal"
+modal.AnchorPoint = Vector2.new(0.5, 0.5)
+modal.Position = UDim2.new(0.5, 0, 0.5, 0)
+modal.Size = UDim2.new(0, 380, 0, 280)
+modal.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+modal.Visible = false
+modal.ZIndex = 50
+modal.Parent = hud
+Instance.new("UICorner", modal).CornerRadius = UDim.new(0, 16)
+local stroke = Instance.new("UIStroke", modal); stroke.Thickness = 3; stroke.Color = Color3.fromRGB(88, 101, 242)
+
+local title = Instance.new("TextLabel", modal)
+title.Size = UDim2.new(1, -20, 0, 40)
+title.Position = UDim2.new(0, 10, 0, 10)
+title.BackgroundTransparency = 1
+title.Text = "JOIN THE COMMUNITY"
+title.TextColor3 = Color3.fromRGB(88, 101, 242)
+title.Font = Enum.Font.GothamBlack
+title.TextScaled = true
+
+local close = Instance.new("TextButton", modal)
+close.Size = UDim2.new(0, 36, 0, 36)
+close.Position = UDim2.new(1, -42, 0, 6)
+close.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+close.Text = "X"; close.Font = Enum.Font.GothamBlack; close.TextScaled = true
+close.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", close).CornerRadius = UDim.new(0, 8)
+close.MouseButton1Click:Connect(function() modal.Visible = false end)
+
+local discord = Instance.new("TextBox", modal)
+discord.Size = UDim2.new(1, -40, 0, 50)
+discord.Position = UDim2.new(0, 20, 0, 80)
+discord.BackgroundColor3 = Color3.fromRGB(40, 25, 60)
+discord.TextColor3 = Color3.fromRGB(255, 255, 255)
+discord.Font = Enum.Font.GothamBold
+discord.TextScaled = true
+discord.Text = DISCORD_HANDLE
+discord.TextEditable = false
+discord.ClearTextOnFocus = false
+Instance.new("UICorner", discord).CornerRadius = UDim.new(0, 8)
+
+local note = Instance.new("TextLabel", modal)
+note.Size = UDim2.new(1, -40, 0, 30)
+note.Position = UDim2.new(0, 20, 0, 140)
+note.BackgroundTransparency = 1
+note.Text = "Tap the box, copy and paste in your browser"
+note.Font = Enum.Font.Gotham
+note.TextScaled = true
+note.TextColor3 = Color3.fromRGB(180, 180, 180)
+
+-- Invite button (uses SocialService to prompt the player to invite friends to
+-- THIS game; this is allowed by Roblox without external URL navigation).
+local invite = Instance.new("TextButton", modal)
+invite.Size = UDim2.new(1, -40, 0, 50)
+invite.Position = UDim2.new(0, 20, 0, 190)
+invite.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
+invite.TextColor3 = Color3.fromRGB(255, 255, 255)
+invite.Font = Enum.Font.GothamBlack
+invite.TextScaled = true
+invite.Text = "INVITE FRIENDS"
+Instance.new("UICorner", invite).CornerRadius = UDim.new(0, 8)
+invite.MouseButton1Click:Connect(function()
+    local ok, can = pcall(SocialService.CanSendGameInviteAsync, SocialService, player)
+    if ok and can then
+        pcall(SocialService.PromptGameInvite, SocialService, player)
+    end
+end)
+
+-- Bottom-bar button to open
+local botBar = hud:FindFirstChild("BottomBar")
+local function ensureBtn()
+    if not botBar then return end
+    if botBar:FindFirstChild("SocialButton") then return end
+    local btn = Instance.new("TextButton")
+    btn.Name = "SocialButton"
+    btn.Size = UDim2.new(0, 70, 0, 44)
+    btn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBlack
+    btn.Text = "JOIN"
+    btn.TextScaled = true
+    btn.LayoutOrder = 7
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
+    btn.Parent = botBar
+    btn.MouseButton1Click:Connect(function() modal.Visible = not modal.Visible end)
+end
+ensureBtn()
+hud.ChildAdded:Connect(function() task.wait(0.5); ensureBtn() end)
+
+]])
+
+-- StarterPlayer/StarterPlayerScripts/SpectateSystem.client.lua
+W({'StarterPlayer','StarterPlayerScripts','SpectateSystem'}, 'LocalScript', [[
+-- SpectateSystem.client.lua
+-- Spectate mode: clicking the leaderboard button toggles a "spectate top
+-- player" overlay. While spectating, camera follows the #1 chaos earner.
+-- Press B or click the X to exit.
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+
+local player = Players.LocalPlayer
+local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 60)
+if not hud then return end
+
+local lastTop = {}
+Remotes.LeaderboardUpdated.OnClientEvent:Connect(function(top) lastTop = top end)
+
+local spectating = nil  -- target Player
+local cam = Workspace.CurrentCamera
+local conn
+
+local overlay = Instance.new("Frame", hud)
+overlay.Name = "SpectateOverlay"
+overlay.Size = UDim2.new(1, 0, 0, 60)
+overlay.Position = UDim2.new(0, 0, 0, 80)
+overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+overlay.BackgroundTransparency = 0.3
+overlay.Visible = false
+overlay.ZIndex = 60
+
+local lbl = Instance.new("TextLabel", overlay)
+lbl.Size = UDim2.new(1, -120, 1, 0)
+lbl.Position = UDim2.new(0, 60, 0, 0)
+lbl.BackgroundTransparency = 1
+lbl.Font = Enum.Font.GothamBlack
+lbl.TextScaled = true
+lbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+
+local exitBtn = Instance.new("TextButton", overlay)
+exitBtn.AnchorPoint = Vector2.new(1, 0.5)
+exitBtn.Position = UDim2.new(1, -10, 0.5, 0)
+exitBtn.Size = UDim2.new(0, 100, 0, 40)
+exitBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+exitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+exitBtn.Font = Enum.Font.GothamBlack
+exitBtn.TextScaled = true
+exitBtn.Text = "EXIT"
+Instance.new("UICorner", exitBtn).CornerRadius = UDim.new(0, 8)
+
+local function stopSpectate()
+    if conn then conn:Disconnect(); conn = nil end
+    spectating = nil
+    cam.CameraType = Enum.CameraType.Custom
+    cam.CameraSubject = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    overlay.Visible = false
+end
+
+local function startSpectate(target)
+    if not target or target == player then return end
+    spectating = target
+    overlay.Visible = true
+    lbl.Text = "Watching " .. (target.DisplayName or target.Name)
+    cam.CameraType = Enum.CameraType.Custom
+    if target.Character and target.Character:FindFirstChildOfClass("Humanoid") then
+        cam.CameraSubject = target.Character:FindFirstChildOfClass("Humanoid")
+    end
+    conn = RunService.Heartbeat:Connect(function()
+        if not spectating or not spectating.Parent then stopSpectate(); return end
+        if spectating.Character and spectating.Character:FindFirstChildOfClass("Humanoid") then
+            cam.CameraSubject = spectating.Character:FindFirstChildOfClass("Humanoid")
+        end
+    end)
+end
+
+exitBtn.MouseButton1Click:Connect(stopSpectate)
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.B and spectating then stopSpectate() end
+end)
+
+-- Add a "WATCH TOP" button to the leaderboard modal
+task.spawn(function()
+    task.wait(2)
+    local lbModal = hud:FindFirstChild("LeaderboardModal")
+    if not lbModal then return end
+    if lbModal:FindFirstChild("WatchTopButton") then return end
+    local btn = Instance.new("TextButton", lbModal)
+    btn.Name = "WatchTopButton"
+    btn.AnchorPoint = Vector2.new(0.5, 1)
+    btn.Position = UDim2.new(0.5, 0, 1, -10)
+    btn.Size = UDim2.new(0, 220, 0, 44)
+    btn.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+    btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+    btn.Font = Enum.Font.GothamBlack
+    btn.TextScaled = true
+    btn.Text = "WATCH #1"
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    btn.MouseButton1Click:Connect(function()
+        local top = lastTop[1]
+        if not top then return end
+        local target = Players:GetPlayerByUserId(top.userId)
+        if target and target ~= player then
+            lbModal.Visible = false
+            startSpectate(target)
+        end
+    end)
+end)
+
+]])
+
 -- StarterPlayer/StarterPlayerScripts/SurvivalUI.client.lua
 W({'StarterPlayer','StarterPlayerScripts','SurvivalUI'}, 'LocalScript', [[
 -- SurvivalUI.client.lua
@@ -3149,6 +4582,105 @@ return true
 
 ]])
 
+-- StarterPlayer/StarterPlayerScripts/TooltipSystem.client.lua
+W({'StarterPlayer','StarterPlayerScripts','TooltipSystem'}, 'LocalScript', [[
+-- TooltipSystem.client.lua
+-- Generic tooltip overlay. Any GuiObject with a "Tooltip" attribute set to a
+-- string will show a tooltip near it on hover (desktop) or long-press (mobile).
+-- To opt into tooltips for an existing button, set:
+--   button:SetAttribute("Tooltip", "Summon a human to prank")
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 60)
+if not hud then return end
+
+local container = Instance.new("ScreenGui")
+container.Name = "TooltipOverlay"
+container.IgnoreGuiInset = true
+container.ResetOnSpawn = false
+container.DisplayOrder = 200
+container.Parent = player.PlayerGui
+
+local tip = Instance.new("Frame", container)
+tip.Visible = false
+tip.AnchorPoint = Vector2.new(0.5, 1)
+tip.Size = UDim2.new(0, 220, 0, 36)
+tip.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+tip.BackgroundTransparency = 0.05
+tip.BorderSizePixel = 0
+Instance.new("UICorner", tip).CornerRadius = UDim.new(0, 6)
+local stroke = Instance.new("UIStroke", tip); stroke.Thickness = 1; stroke.Color = Color3.fromRGB(150, 50, 200)
+
+local lbl = Instance.new("TextLabel", tip)
+lbl.Size = UDim2.new(1, -10, 1, -6)
+lbl.Position = UDim2.new(0, 5, 0, 3)
+lbl.BackgroundTransparency = 1
+lbl.TextColor3 = Color3.fromRGB(220, 220, 220)
+lbl.Font = Enum.Font.Gotham
+lbl.TextScaled = true
+lbl.Text = ""
+
+local function showTooltipFor(obj, text)
+    lbl.Text = text
+    -- Position above the object
+    local abs = obj.AbsolutePosition
+    local size = obj.AbsoluteSize
+    tip.Position = UDim2.fromOffset(abs.X + size.X / 2, abs.Y - 6)
+    tip.Visible = true
+end
+
+local function hideTooltip() tip.Visible = false end
+
+-- Walk all GuiObjects with "Tooltip" attr; install hover handlers.
+local installed = setmetatable({}, {__mode = "k"})  -- weak so destroyed buttons don't leak
+local function attach(gui)
+    if installed[gui] then return end
+    if not gui:IsA("GuiButton") and not gui:IsA("GuiObject") then return end
+    local txt = gui:GetAttribute("Tooltip")
+    if not txt then return end
+    installed[gui] = true
+    gui.MouseEnter:Connect(function() showTooltipFor(gui, gui:GetAttribute("Tooltip") or "") end)
+    gui.MouseLeave:Connect(hideTooltip)
+end
+
+local function sweep(parent)
+    for _, c in ipairs(parent:GetDescendants()) do attach(c) end
+    parent.DescendantAdded:Connect(attach)
+end
+sweep(hud)
+
+-- Add tooltips to known HUD buttons. Defer until they exist.
+task.spawn(function()
+    task.wait(2)
+    local function set(name, text)
+        local b = hud:FindFirstChild(name, true)
+        if b then b:SetAttribute("Tooltip", text) end
+    end
+    set("SummonButton",      "Summon a human (E)")
+    set("ShopButton",        "Browse and buy skins")
+    set("InventoryButton",   "Your owned skins")
+    set("RebirthButton",     "Reset progress for a chaos multiplier")
+    set("LeaderboardButton", "See the top players in this server")
+    set("StatsButton",       "Spend stat points")
+    set("QuestsButton",      "Today's daily challenges")
+    set("SocialButton",      "Discord + invite friends")
+    set("SettingsGear",      "Music, camera, redeem code")
+    -- Prank buttons: walk children of PrankColumn
+    local col = hud:FindFirstChild("PrankColumn")
+    if col then
+        for _, b in ipairs(col:GetChildren()) do
+            local p = b:GetAttribute("PrankName")
+            if p then b:SetAttribute("Tooltip", p .. " — get close, then tap") end
+        end
+    end
+end)
+
+]])
+
 -- StarterPlayer/StarterPlayerScripts/TutorialController.client.lua
 W({'StarterPlayer','StarterPlayerScripts','TutorialController'}, 'LocalScript', [[
 -- TutorialController.client.lua
@@ -3216,131 +4748,6 @@ task.spawn(function()
             end
         end
     end
-end)
-
-return true
-
-]])
-
--- StarterPlayer/StarterPlayerScripts/WeatherClient.client.lua
-W({'StarterPlayer','StarterPlayerScripts','WeatherClient'}, 'LocalScript', [[
--- WeatherClient.client.lua
--- Reacts to weather changes: spawns rain/fog/red mist particles, shows banner.
--- Place in: StarterPlayer > StarterPlayerScripts > WeatherClient (LocalScript)
-
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
-
-local player = Players.LocalPlayer
-local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 60)
-if not hud then return end
-
-local banner = Instance.new("TextLabel")
-banner.Size = UDim2.new(0, 300, 0, 50)
-banner.AnchorPoint = Vector2.new(0.5, 0)
-banner.Position = UDim2.new(0.5, 0, 0, 90)
-banner.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
-banner.BackgroundTransparency = 0.2
-banner.TextColor3 = Color3.fromRGB(255, 200, 0)
-banner.Font = Enum.Font.GothamBlack
-banner.TextScaled = true
-banner.Visible = false
-banner.Text = ""
-Instance.new("UICorner", banner).CornerRadius = UDim.new(0, 12)
-banner.Parent = hud
-
-local activeFX, activeConn
-
-local function clearFX()
-    if activeConn then
-        pcall(function() activeConn:Disconnect() end)
-        activeConn = nil
-    end
-    if activeFX then
-        pcall(function() activeFX:Destroy() end)
-        activeFX = nil
-    end
-end
-
-local function rainFX()
-    local model = Instance.new("Model")
-    model.Name = "RainFX"
-    model.Parent = Workspace
-    local p = Instance.new("Part")
-    p.Anchored = true; p.CanCollide = false; p.Transparency = 1
-    p.Size = Vector3.new(60, 1, 60)
-    p.Parent = model
-    local cam = Workspace.CurrentCamera
-    activeConn = RunService.Heartbeat:Connect(function()
-        if not p.Parent or not cam then
-            if activeConn then activeConn:Disconnect(); activeConn = nil end
-            return
-        end
-        p.CFrame = CFrame.new(cam.CFrame.Position + Vector3.new(0, 30, 0))
-    end)
-    local emitter = Instance.new("ParticleEmitter")
-    emitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
-    emitter.Color = ColorSequence.new(Color3.fromRGB(150, 180, 220))
-    emitter.Lifetime = NumberRange.new(0.6, 0.9)
-    emitter.Rate = 200
-    emitter.Speed = NumberRange.new(40, 60)
-    emitter.SpreadAngle = Vector2.new(5, 5)
-    emitter.Size = NumberSequence.new(0.3, 0.1)
-    emitter.Acceleration = Vector3.new(0, -50, 0)
-    emitter.Parent = p
-    return model
-end
-
-local function fogFX()
-    local frame = Instance.new("Frame")
-    frame.Name = "FogOverlay"
-    frame.Size = UDim2.new(1, 0, 1, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
-    frame.BackgroundTransparency = 0.85
-    frame.BorderSizePixel = 0
-    frame.ZIndex = 0
-    frame.Parent = hud
-    return frame
-end
-
-local function redMistFX()
-    local frame = Instance.new("Frame")
-    frame.Name = "RedMistOverlay"
-    frame.Size = UDim2.new(1, 0, 1, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    frame.BackgroundTransparency = 0.92
-    frame.BorderSizePixel = 0
-    frame.ZIndex = 0
-    frame.Parent = hud
-    return frame
-end
-
-Remotes.WeatherChanged.OnClientEvent:Connect(function(weather, multBonus)
-    clearFX()
-    banner.Text = string.format("%s%s", weather:upper(),
-        (multBonus and multBonus > 1) and (" (x" .. multBonus .. ")") or "")
-    banner.TextColor3 = ({
-        Sunny = Color3.fromRGB(255, 220, 80),
-        Rainy = Color3.fromRGB(120, 180, 255),
-        Foggy = Color3.fromRGB(220, 220, 220),
-        RedMist = Color3.fromRGB(255, 50, 50),
-    })[weather] or Color3.fromRGB(255, 200, 0)
-    banner.Visible = true
-    task.delay(4, function() if banner then banner.Visible = false end end)
-
-    if weather == "Rainy" then activeFX = rainFX()
-    elseif weather == "Foggy" then activeFX = fogFX()
-    elseif weather == "RedMist" then activeFX = redMistFX() end
-end)
-
-Remotes.EventBroadcast.OnClientEvent:Connect(function(message)
-    banner.Text = message
-    banner.Visible = true
-    task.delay(5, function() if banner then banner.Visible = false end end)
 end)
 
 return true

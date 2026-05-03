@@ -130,6 +130,72 @@ end
 return AssetIds
 ]])
 
+-- ReplicatedStorage/Modules/BadgeConfig.lua
+W({'ReplicatedStorage','Modules','BadgeConfig'}, 'ModuleScript', [[
+-- BadgeConfig.lua
+-- Internal achievement system. Each entry is awarded by the server once the
+-- player meets a condition (checked via 'check' field). Badges are stored in
+-- DataHandler.awardedBadges and visualized in the Achievements UI.
+--
+-- Optional: if `robloxBadgeId` is set to a non-zero number, the server will
+-- also call BadgeService:AwardBadge so the badge appears on the player's
+-- public Roblox profile. Create badges at create.roblox.com → Inventory →
+-- Badges, then paste IDs here. Leave at 0 to keep them internal-only.
+
+local BadgeConfig = {}
+
+BadgeConfig.Badges = {
+    {id="first_prank",     name="First Prank",          desc="Land your first prank",          robloxBadgeId=0,
+        check=function(d) return (d.totalPranks or 0) >= 1 end},
+    {id="prank_100",       name="Pranking Pro",         desc="Land 100 pranks",                 robloxBadgeId=0,
+        check=function(d) return (d.totalPranks or 0) >= 100 end},
+    {id="prank_1k",        name="Chaos Causer",         desc="Land 1,000 pranks",               robloxBadgeId=0,
+        check=function(d) return (d.totalPranks or 0) >= 1000 end},
+    {id="prank_10k",       name="Mythic Prankster",     desc="Land 10,000 pranks",              robloxBadgeId=0,
+        check=function(d) return (d.totalPranks or 0) >= 10000 end},
+    {id="level_25",        name="Quarter Century",      desc="Reach level 25",                  robloxBadgeId=0,
+        check=function(d) return (d.level or 1) >= 25 end},
+    {id="level_50",        name="Halfway",              desc="Reach level 50",                  robloxBadgeId=0,
+        check=function(d) return (d.level or 1) >= 50 end},
+    {id="level_100",       name="Maxed Out",            desc="Reach level 100",                 robloxBadgeId=0,
+        check=function(d) return (d.level or 1) >= 100 end},
+    {id="rebirth_1",       name="Reborn",               desc="Complete your first rebirth",     robloxBadgeId=0,
+        check=function(d) return (d.rebirths or 0) >= 1 end},
+    {id="rebirth_10",      name="Eternally Reborn",     desc="Reach 10 rebirths",               robloxBadgeId=0,
+        check=function(d) return (d.rebirths or 0) >= 10 end},
+    {id="rebirth_25",      name="Soft Cap Survivor",    desc="Reach the rebirth soft cap",      robloxBadgeId=0,
+        check=function(d) return (d.rebirths or 0) >= 25 end},
+    {id="chaos_100k",      name="100K Chaos",            desc="Earn 100K chaos points (lifetime)", robloxBadgeId=0,
+        check=function(d) return (d.totalRobuxSpent or 0) + (d.chaosPoints or 0) >= 100000 end},
+    {id="hellTokens_50",   name="Hell-Bound",            desc="Hold 50 Hell Tokens",             robloxBadgeId=0,
+        check=function(d) return (d.hellTokens or 0) >= 50 end},
+    {id="rare_skin",       name="Fashionable",           desc="Own a Rare skin",                 robloxBadgeId=0,
+        check=function(d, ctx)
+            if not d.ownedSkins then return false end
+            for _, sid in ipairs(d.ownedSkins) do
+                local skin = ctx.CosmeticConfig.Skins[sid]
+                if skin and skin.rarity == "Rare" then return true end
+            end
+            return false
+        end},
+    {id="all_pranks",      name="Master of Pranks",      desc="Unlock every prank type",         robloxBadgeId=0,
+        check=function(d, ctx)
+            local maxLvl = 1
+            for _, p in pairs(ctx.PrankConfig.Pranks) do
+                if p.unlockLevel > maxLvl then maxLvl = p.unlockLevel end
+            end
+            return (d.level or 1) >= maxLvl
+        end},
+    {id="combo_10",        name="Combo Master",          desc="Reach a 10x prank combo",         robloxBadgeId=0,
+        check=function(d) return (d.bestComboEver or 0) >= 10 end},
+    {id="dedicated",       name="Dedicated",             desc="7-day daily reward streak",       robloxBadgeId=0,
+        check=function(d) return (d.dailyStreak or 0) >= 7 end},
+}
+
+return BadgeConfig
+
+]])
+
 -- ReplicatedStorage/Modules/CodeConfig.lua
 W({'ReplicatedStorage','Modules','CodeConfig'}, 'ModuleScript', [[
 -- CodeConfig.lua
@@ -247,6 +313,10 @@ W({'ReplicatedStorage','Modules','GameConfig'}, 'ModuleScript', [[
 -- Place in: ReplicatedStorage > Modules > GameConfig (ModuleScript)
 
 local GameConfig = {}
+
+-- ===== VERSION =====
+-- Bump this every release. PatchNotesUI shows the modal once per new version.
+GameConfig.GAME_VERSION = "v1.0"
 
 -- ===== ECONOMY =====
 GameConfig.STARTING_CHAOS = 0
@@ -621,6 +691,61 @@ end
 return PrankConfig
 
 ]])
+
+-- ReplicatedStorage/Modules/QuestConfig.lua
+W({'ReplicatedStorage','Modules','QuestConfig'}, 'ModuleScript', [=[
+-- QuestConfig.lua
+-- Daily quest pool. Each day at UTC midnight, the server picks 3 quests for
+-- the player from this pool. Each quest has: id, label, target counter, the
+-- counter key they tick (must match a key written by gameplay code), and reward.
+
+local QuestConfig = {}
+
+QuestConfig.Pool = {
+    {id="prank10",      label="Prank 10 NPCs",            counter="totalPranks",         target=10,  chaos=2500,  hellTokens=0},
+    {id="prank50",      label="Prank 50 NPCs",            counter="totalPranks",         target=50,  chaos=10000, hellTokens=1},
+    {id="summon20",     label="Summon 20 NPCs",           counter="totalSummons",        target=20,  chaos=5000,  hellTokens=0},
+    {id="emote5",       label="Use 5 emotes",             counter="totalEmotes",         target=5,   chaos=1500,  hellTokens=0},
+    {id="anvil5",       label="Drop 5 Anvils",            counter="prank_Anvil",         target=5,   chaos=4000,  hellTokens=0},
+    {id="pie10",        label="Throw 10 Pies",            counter="prank_Pie",           target=10,  chaos=3000,  hellTokens=0},
+    {id="laser5",       label="Zap 5 with Laser Eyes",    counter="prank_LaserEyes",     target=5,   chaos=4500,  hellTokens=0},
+    {id="combo5",       label="Reach a 5x combo",         counter="bestComboToday",      target=5,   chaos=3500,  hellTokens=0},
+    {id="combo10",      label="Reach a 10x combo",        counter="bestComboToday",      target=10,  chaos=8000,  hellTokens=1},
+    {id="rebirth1",     label="Complete 1 rebirth",       counter="rebirthsToday",       target=1,   chaos=15000, hellTokens=2},
+    {id="walk1000",     label="Walk 1000 studs",          counter="distanceTraveled",    target=1000, chaos=2000, hellTokens=0},
+    {id="diff_pranks",  label="Use 4 different pranks",   counter="distinctPranksToday", target=4,   chaos=4000,  hellTokens=0},
+}
+
+QuestConfig.PER_DAY = 3
+
+-- Deterministic per-day picker so all servers on the same day pick the same set.
+function QuestConfig.pickForDay(dayKey)
+    local pool = QuestConfig.Pool
+    local seed = 0
+    for i = 1, #dayKey do seed = (seed * 31 + dayKey:byte(i)) % 2^31 end
+    local rng = Random.new(seed)
+    -- Fisher–Yates a copy
+    local indices = {}
+    for i = 1, #pool do indices[i] = i end
+    for i = #indices, 2, -1 do
+        local j = rng:NextInteger(1, i)
+        indices[i], indices[j] = indices[j], indices[i]
+    end
+    local picked = {}
+    for i = 1, math.min(QuestConfig.PER_DAY, #indices) do
+        table.insert(picked, pool[indices[i]])
+    end
+    return picked
+end
+
+function QuestConfig.dayKey(now)
+    -- UTC day in YYYYMMDD form, ignoring sub-day time
+    return os.date("!%Y%m%d", now or os.time())
+end
+
+return QuestConfig
+
+]=])
 
 -- ReplicatedStorage/Modules/RemoteEvents.lua
 W({'ReplicatedStorage','Modules','RemoteEvents'}, 'ModuleScript', [[
@@ -1517,8 +1642,129 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- Flag decay: clean play (~30 minutes without flags) reduces a single flag.
+-- Prevents permanent lockout from a single false-positive (e.g., one teleport
+-- detection from a lag spike). Suspended players still need admin /unsuspend
+-- because the in-memory `suspended` flag persists for the whole session.
+local FLAG_DECAY_INTERVAL = 1800  -- 30 minutes
+task.spawn(function()
+    while true do
+        task.wait(FLAG_DECAY_INTERVAL)
+        for userId, s in pairs(State) do
+            if s.flagCount > 0 and not s.suspended then
+                s.flagCount = math.max(0, s.flagCount - 1)
+                local handler = dh()
+                if handler then
+                    local player = Players:GetPlayerByUserId(userId)
+                    if player then
+                        handler.modify(player, function(d) d.flagCount = s.flagCount end)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Public unsuspend (admin tools / server console / appeal flow).
+function AntiCheat.unsuspend(player)
+    if not player then return end
+    local s = getState(player.UserId)
+    s.flagCount = 0
+    s.suspended = false
+    local handler = dh()
+    if handler then
+        handler.modify(player, function(d)
+            d.flagCount = 0; d.suspended = false
+        end)
+    end
+end
+
 _G.KittyRaiserAntiCheat = AntiCheat
 return AntiCheat
+
+]])
+
+-- ServerScriptService/BadgeSystem.server.lua
+W({'ServerScriptService','BadgeSystem'}, 'Script', [[
+-- BadgeSystem.server.lua
+-- Walks every player's data once per second and awards badges whose check()
+-- newly returns true. Internal achievement (always works) + optional Roblox
+-- BadgeService award (when a real badge ID is configured).
+
+local Players = game:GetService("Players")
+local BadgeService = game:GetService("BadgeService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local BadgeConfig = require(ReplicatedStorage.Modules.BadgeConfig)
+local CosmeticConfig = require(ReplicatedStorage.Modules.CosmeticConfig)
+local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+local SharedUtil = require(ReplicatedStorage.Modules.SharedUtil)
+
+local DataHandler = SharedUtil.waitForGlobal("KittyRaiserData", 30)
+if not DataHandler then return end
+
+local CTX = {CosmeticConfig = CosmeticConfig, PrankConfig = PrankConfig}
+
+-- Per-player Roblox-badge award debounce so we never call AwardBadge twice in
+-- quick succession (Roblox internally rate-limits, but we de-dup ourselves).
+local rbxBadgeAwarding = {}
+
+local function awardRobloxBadge(player, badgeId)
+    if not badgeId or badgeId == 0 then return end
+    local key = player.UserId .. "_" .. badgeId
+    if rbxBadgeAwarding[key] then return end
+    rbxBadgeAwarding[key] = true
+    task.spawn(function()
+        local ok, awarded = pcall(function()
+            return BadgeService:AwardBadge(player.UserId, badgeId)
+        end)
+        if not ok then warn("[BadgeSystem] AwardBadge failed:", awarded) end
+        task.wait(5); rbxBadgeAwarding[key] = nil
+    end)
+end
+
+local function checkAll(player)
+    local d = DataHandler.getData(player)
+    if not d then return end
+    d.awardedBadges = d.awardedBadges or {}
+    local newlyAwarded = {}
+    for _, b in ipairs(BadgeConfig.Badges) do
+        if not d.awardedBadges[b.id] then
+            local ok, result = pcall(b.check, d, CTX)
+            if ok and result then
+                d.awardedBadges[b.id] = os.time()
+                table.insert(newlyAwarded, b)
+            end
+        end
+    end
+    if #newlyAwarded > 0 then
+        DataHandler.replicateToClient(player)
+        for _, b in ipairs(newlyAwarded) do
+            Remotes.NotifyClient:FireClient(player,
+                "🏆 BADGE: " .. b.name, "success")
+            awardRobloxBadge(player, b.robloxBadgeId)
+        end
+    end
+end
+
+-- 5s tick (was 2s). Awarded badges short-circuit, so the only cost is checks
+-- for not-yet-awarded ones, which is small per-player. Server-load wise this
+-- scales to 50 players × 16 unawarded checks comfortably under 80 ops / 5s.
+task.spawn(function()
+    while true do
+        task.wait(5)
+        for _, p in ipairs(Players:GetPlayers()) do checkAll(p) end
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    for k in pairs(rbxBadgeAwarding) do
+        if k:find("^" .. p.UserId .. "_") then rbxBadgeAwarding[k] = nil end
+    end
+end)
+
+print("[BadgeSystem] online — " .. #BadgeConfig.Badges .. " badges registered")
 
 ]])
 
@@ -2217,7 +2463,15 @@ local BODY_PART_NAMES = {
 local function applySkinToCharacter(character, skinId)
     if not character then return end
     local skin = CosmeticConfig.getSkin(skinId)
-    if not skin or not skin.bodyColors then return end
+    if not skin or not skin.bodyColors then
+        -- AAA-audit fix: corrupted equippedSkin used to silently no-op.
+        -- Now we fall back to Default so the character still has body color.
+        if skinId ~= "Default" then
+            warn("[CosmeticHandler] skin not found: " .. tostring(skinId) .. " — falling back to Default")
+            skin = CosmeticConfig.getSkin("Default")
+        end
+        if not skin then return end
+    end
 
     local bodyColors = character:FindFirstChildOfClass("BodyColors")
     if not bodyColors then
@@ -2460,7 +2714,7 @@ local function getJobId()
 end
 local SERVER_JOB_ID = getJobId()
 
-local LOCK_TIMEOUT_SEC = 600  -- 10 minutes; survives most server crashes without permanently locking players
+local LOCK_TIMEOUT_SEC = 120  -- 2 minutes; balances crash recovery vs rapid rejoin friction
 
 local function defaultData()
     return {
@@ -2484,8 +2738,20 @@ local function defaultData()
         settingsMusicVolume = 0.5,
         settingsSFXVolume = 0.7,
         settingsCameraMode = "third",
+        settingsGraphicsQuality = "",   -- empty = auto-detect
+        seenIntro = false,
+        lastSeenPatchVersion = "",
         redeemedCodes = {},
         purchasedDevProductIds = {},
+        questDay = "",
+        questAssigned = {},
+        questCounters = {},
+        questClaimed = {},
+        awardedBadges = {},
+        bestComboToday = 0,
+        bestComboEver = 0,
+        totalSummons = 0,
+        totalEmotes = 0,
         stats = {Speed=0, Jump=0, Luck=0, Strength=0, Agility=0},
         unspentStatPoints = 0,
         perks = {},
@@ -2546,6 +2812,9 @@ local function migrate(data)
     data.hellTokens = math.max(0, data.hellTokens or 0)
     data.hunger = math.clamp(data.hunger or 100, 0, 100)
     data.thirst = math.clamp(data.thirst or 100, 0, 100)
+    -- Cap XP at one level's worth so a corrupt huge value doesn't trigger
+    -- a level-up burst on the next prank.
+    data.xp = math.max(0, math.min(data.xp or 0, GameConfig.xpRequired(GameConfig.LEVEL_CAP) - 1))
     return data
 end
 
@@ -2908,7 +3177,7 @@ local DataHandler = SharedUtil.waitForGlobal("KittyRaiserData", 30)
 if not DataHandler then return end
 
 local UPDATE_INTERVAL_MAX = 5
-local UPDATE_INTERVAL_MIN = 0.5
+local UPDATE_INTERVAL_MIN = 1.0  -- 0.5s was too eager; 1s is plenty for a top-10 board.
 
 local dirty = true
 local lastBroadcast = ""
@@ -3552,9 +3821,11 @@ Players.PlayerRemoving:Connect(function(p) lastSeenLevel[p.UserId] = nil end)
 
 -- Throttled change-detector. Idempotent: only fires for the *delta* in level
 -- since we last saw it (so it never double-grants for the same level).
+-- 0.5s tick (was 1s) so quick double-level-ups can't slip past unnoticed if a
+-- single prank pushes the player across two thresholds.
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(0.5)
         for _, player in ipairs(Players:GetPlayers()) do
             local data = DataHandler.getData(player)
             if data then
@@ -3701,6 +3972,12 @@ function PrankSystem.handlePrankRequest(player, prankName, targetModel)
     end
 
     -- NPC validity (now requires registry membership + ownership match)
+    -- AAA-audit fix: explicit ancestor check before passing to AntiCheat,
+    -- defends against forged Model references that aren't in workspace.
+    if not targetModel or not targetModel.Parent or not targetModel:IsDescendantOf(workspace) then
+        Remotes.PrankFailed:FireClient(player, "invalid_target")
+        return
+    end
     local valid, vErr = AntiCheat.isValidNPC(targetModel, player)
     if not valid then
         Remotes.PrankFailed:FireClient(player, vErr or "invalid_target")
@@ -3762,6 +4039,160 @@ Remotes.RequestPrank.OnServerEvent:Connect(function(player, prankName, targetMod
 end)
 
 return PrankSystem
+
+]])
+
+-- ServerScriptService/QuestSystem.server.lua
+W({'ServerScriptService','QuestSystem'}, 'Script', [[
+-- QuestSystem.server.lua
+-- Daily quest tracking. Hooks into gameplay events (prank, summon, emote,
+-- rebirth) and bumps the per-counter values on the player's data. Rewards are
+-- claimed via RequestQuestClaim. Resets at UTC midnight.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local QuestConfig = require(ReplicatedStorage.Modules.QuestConfig)
+local SharedUtil = require(ReplicatedStorage.Modules.SharedUtil)
+
+local DataHandler = SharedUtil.waitForGlobal("KittyRaiserData", 30)
+if not DataHandler then return end
+
+local QuestSystem = {}
+
+local function ensureToday(d)
+    d.questDay = d.questDay or ""
+    d.questCounters = d.questCounters or {}
+    d.questClaimed = d.questClaimed or {}
+    d.questAssigned = d.questAssigned or {}
+    local today = QuestConfig.dayKey()
+    if d.questDay ~= today then
+        d.questDay = today
+        d.questCounters = {}
+        d.questClaimed = {}
+        d.questAssigned = {}  -- recomputed lazily; deterministic from today
+    end
+    if #d.questAssigned == 0 then
+        for _, q in ipairs(QuestConfig.pickForDay(today)) do
+            table.insert(d.questAssigned, q.id)
+        end
+    end
+end
+
+function QuestSystem.bump(player, counterKey, amount)
+    if not player or not counterKey then return end
+    amount = amount or 1
+    DataHandler.modify(player, function(d)
+        ensureToday(d)
+        d.questCounters[counterKey] = (d.questCounters[counterKey] or 0) + amount
+    end)
+end
+
+function QuestSystem.setBest(player, counterKey, value)
+    -- For "best of day" counters like bestComboToday — store max not sum
+    if not player or not counterKey then return end
+    DataHandler.modify(player, function(d)
+        ensureToday(d)
+        d.questCounters[counterKey] = math.max(d.questCounters[counterKey] or 0, value or 0)
+    end)
+end
+
+-- Lookup a quest entry by id from the pool.
+local POOL_BY_ID = {}
+for _, q in ipairs(QuestConfig.Pool) do POOL_BY_ID[q.id] = q end
+
+Remotes.RequestQuestClaim.OnServerInvoke = function(player, questId)
+    if not SharedUtil.checkRate(player, "questClaim", 0.5) then
+        return false, "rate_limited"
+    end
+    if type(questId) ~= "string" or #questId > 32 then return false, "bad_id" end
+    local q = POOL_BY_ID[questId]
+    if not q then return false, "unknown_quest" end
+    local d = DataHandler.getData(player)
+    if not d then return false, "no_data" end
+    ensureToday(d)
+    if not table.find(d.questAssigned, questId) then return false, "not_today" end
+    if d.questClaimed[questId] then return false, "already_claimed" end
+    local progress = d.questCounters[q.counter] or 0
+    if progress < q.target then return false, "incomplete", progress, q.target end
+
+    DataHandler.modify(player, function(dd)
+        dd.questClaimed[questId] = true
+        dd.chaosPoints = (dd.chaosPoints or 0) + (q.chaos or 0)
+        dd.hellTokens = (dd.hellTokens or 0) + (q.hellTokens or 0)
+    end)
+    Remotes.NotifyClient:FireClient(player,
+        ("Quest complete! +%d chaos%s"):format(q.chaos or 0,
+            (q.hellTokens or 0) > 0 and (" + " .. q.hellTokens .. " HT") or ""),
+        "success")
+    return true, q
+end
+
+-- Attach hooks to gameplay events. Each hook bumps a per-day counter.
+-- We listen on the server-side OnServerEvent of remotes that gameplay uses.
+local prankHook = Remotes.RequestPrank
+if prankHook and prankHook.OnServerEvent then
+    prankHook.OnServerEvent:Connect(function(player, prankName)
+        QuestSystem.bump(player, "totalPranks", 1)
+        if type(prankName) == "string" then
+            QuestSystem.bump(player, "prank_" .. prankName, 1)
+            -- distinctPranksToday: unique count
+            DataHandler.modify(player, function(d)
+                ensureToday(d)
+                d.questDistinctPranks = d.questDistinctPranks or {}
+                if d.questDistinctPranks._day ~= d.questDay then
+                    d.questDistinctPranks = {_day = d.questDay}
+                end
+                if not d.questDistinctPranks[prankName] then
+                    d.questDistinctPranks[prankName] = true
+                    local n = 0
+                    for k, _ in pairs(d.questDistinctPranks) do
+                        if k ~= "_day" then n = n + 1 end
+                    end
+                    d.questCounters.distinctPranksToday = n
+                end
+            end)
+        end
+    end)
+end
+
+local summonHook = Remotes.RequestSummonHuman
+if summonHook and summonHook.OnServerEvent then
+    summonHook.OnServerEvent:Connect(function(player)
+        QuestSystem.bump(player, "totalSummons", 1)
+    end)
+end
+
+local emoteHook = Remotes.RequestEmote
+if emoteHook and emoteHook.OnServerEvent then
+    emoteHook.OnServerEvent:Connect(function(player)
+        QuestSystem.bump(player, "totalEmotes", 1)
+    end)
+end
+
+-- Rebirth hook: poll player data, bump rebirthsToday whenever rebirth count
+-- changes upward.
+local lastSeenRebirths = {}
+task.spawn(function()
+    while true do
+        task.wait(2)
+        for _, p in ipairs(Players:GetPlayers()) do
+            local d = DataHandler.getData(p)
+            if d then
+                local prev = lastSeenRebirths[p.UserId]
+                if prev and (d.rebirths or 0) > prev then
+                    QuestSystem.bump(p, "rebirthsToday", (d.rebirths or 0) - prev)
+                end
+                lastSeenRebirths[p.UserId] = d.rebirths or 0
+            end
+        end
+    end
+end)
+Players.PlayerRemoving:Connect(function(p) lastSeenRebirths[p.UserId] = nil end)
+
+_G.KittyRaiserQuests = QuestSystem
+print("[QuestSystem] online — " .. #QuestConfig.Pool .. " quests in pool, " .. QuestConfig.PER_DAY .. " per day")
 
 ]])
 
@@ -4062,7 +4493,11 @@ local ALLOWED_KEYS = {
     settingsSFXOn = "boolean",
     settingsMusicVolume = "number",
     settingsSFXVolume = "number",
-    settingsCameraMode = "string",   -- "third" or "first"
+    settingsCameraMode = "string",      -- "third" or "first"
+    settingsGraphicsQuality = "string", -- "low" / "medium" / "high"
+    seenIntro = "boolean",              -- one-shot flag set by IntroSplash
+    seenTutorial = "boolean",           -- one-shot flag set by TutorialController
+    lastSeenPatchVersion = "string",    -- set by PatchNotesUI when player dismisses
 }
 
 Remotes.RequestSettingChange.OnServerInvoke = function(player, key, value)
@@ -4082,559 +4517,6 @@ Remotes.RequestSettingChange.OnServerInvoke = function(player, key, value)
 end
 
 print("[SettingsSystem] online — " .. (function() local n=0; for _ in pairs(ALLOWED_KEYS) do n=n+1 end; return n end)() .. " settings keys")
-
-]])
-
--- ServerScriptService/SpawnEnforcer.server.lua
-W({'ServerScriptService','SpawnEnforcer'}, 'Script', [[
--- SpawnEnforcer.server.lua  — guarantees a cat spawns for every player no matter what
--- Place in: ServerScriptService > SpawnEnforcer (Script). Auto-runs FIRST.
-
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
-
-print("[SpawnEnforcer] online — guaranteeing every player spawns a cat")
-
--- Idempotent toggle. Multiple scripts must not flip-flop this.
-if Players.CharacterAutoLoads then
-    Players.CharacterAutoLoads = false
-end
-
-local SAFE_FALLBACK_CFRAME = CFrame.new(0, 20, 0)
-local function isUsableSpawn(cf)
-    if not cf then return false end
-    local p = cf.Position
-    if p.Magnitude > 10000 then return false end
-    if p.Y < -200 then return false end  -- below world = void
-    return p.X == p.X and p.Y == p.Y and p.Z == p.Z  -- NaN guard
-end
-
-local function makeFallbackCat(player, fallbackColor)
-    local model = Instance.new("Model")
-    model.Name = player.Name
-
-    local hrp = Instance.new("Part")
-    hrp.Name = "HumanoidRootPart"
-    hrp.Size = Vector3.new(2, 1, 4)
-    hrp.Transparency = 1; hrp.CanCollide = false; hrp.Massless = true
-    hrp.Parent = model
-
-    local body = Instance.new("Part")
-    body.Name = "Torso"
-    body.Size = Vector3.new(3, 2.5, 4.5)
-    body.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
-    body.Material = Enum.Material.SmoothPlastic
-    body.CFrame = hrp.CFrame
-    body.Parent = model
-    local bw = Instance.new("WeldConstraint"); bw.Part0 = hrp; bw.Part1 = body; bw.Parent = hrp
-
-    local head = Instance.new("Part")
-    head.Name = "Head"
-    head.Shape = Enum.PartType.Ball
-    head.Size = Vector3.new(2.2, 2.2, 2.2)
-    head.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
-    head.Material = Enum.Material.SmoothPlastic
-    head.CanCollide = false; head.Massless = true
-    head.CFrame = hrp.CFrame * CFrame.new(0, 0.4, -2.6)
-    head.Parent = model
-    local hw = Instance.new("WeldConstraint"); hw.Part0 = hrp; hw.Part1 = head; hw.Parent = hrp
-
-    for _, off in ipairs({Vector3.new(-0.5, 0.3, -0.85), Vector3.new(0.5, 0.3, -0.85)}) do
-        local eye = Instance.new("Part")
-        eye.Shape = Enum.PartType.Ball
-        eye.Size = Vector3.new(0.45, 0.45, 0.45)
-        eye.Color = Color3.fromRGB(255, 255, 255)
-        eye.Material = Enum.Material.Neon
-        eye.CanCollide = false; eye.Massless = true
-        eye:SetAttribute("NoTint", true)
-        eye.CFrame = head.CFrame * CFrame.new(off)
-        eye.Parent = model
-        local w = Instance.new("WeldConstraint"); w.Part0 = head; w.Part1 = eye; w.Parent = head
-        local pupil = Instance.new("Part")
-        pupil.Shape = Enum.PartType.Ball
-        pupil.Size = Vector3.new(0.25, 0.4, 0.25)
-        pupil.Color = Color3.fromRGB(50, 220, 100)
-        pupil.Material = Enum.Material.Neon
-        pupil.CanCollide = false; pupil.Massless = true
-        pupil:SetAttribute("NoTint", true)
-        pupil.CFrame = eye.CFrame * CFrame.new(0, 0, -0.15)
-        pupil.Parent = model
-        local w2 = Instance.new("WeldConstraint"); w2.Part0 = eye; w2.Part1 = pupil; w2.Parent = eye
-    end
-
-    for _, off in ipairs({Vector3.new(-0.7, 1.0, 0), Vector3.new(0.7, 1.0, 0)}) do
-        local ear = Instance.new("Part")
-        ear.Size = Vector3.new(0.6, 0.9, 0.5)
-        ear.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
-        ear.Material = Enum.Material.SmoothPlastic
-        ear.CanCollide = false; ear.Massless = true
-        ear.CFrame = head.CFrame * CFrame.new(off) * CFrame.Angles(math.rad(-15), 0, 0)
-        ear.Parent = model
-        local w = Instance.new("WeldConstraint"); w.Part0 = head; w.Part1 = ear; w.Parent = head
-    end
-
-    local nose = Instance.new("Part")
-    nose.Size = Vector3.new(0.35, 0.25, 0.25)
-    nose.Color = Color3.fromRGB(255, 130, 140)
-    nose.Material = Enum.Material.SmoothPlastic
-    nose.CanCollide = false; nose.Massless = true
-    nose:SetAttribute("NoTint", true)
-    nose.CFrame = head.CFrame * CFrame.new(0, -0.1, -1.0)
-    nose.Parent = model
-    local nw = Instance.new("WeldConstraint"); nw.Part0 = head; nw.Part1 = nose; nw.Parent = head
-
-    for _, lp in ipairs({Vector3.new(-0.8, -1.2, -1.6), Vector3.new(0.8, -1.2, -1.6),
-                         Vector3.new(-0.8, -1.2, 1.5), Vector3.new(0.8, -1.2, 1.5)}) do
-        local leg = Instance.new("Part")
-        leg.Size = Vector3.new(0.6, 1.5, 0.6)
-        leg.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
-        leg.Material = Enum.Material.SmoothPlastic
-        leg.CanCollide = false; leg.Massless = true
-        leg.CFrame = hrp.CFrame * CFrame.new(lp)
-        leg.Parent = model
-        local w = Instance.new("WeldConstraint"); w.Part0 = body; w.Part1 = leg; w.Parent = body
-    end
-
-    for i = 1, 5 do
-        local seg = Instance.new("Part")
-        seg.Name = "TailSeg" .. i
-        seg.Size = Vector3.new(0.5 - i*0.06, 0.5 - i*0.06, 0.7)
-        seg.Color = fallbackColor or Color3.fromRGB(220, 130, 50)
-        seg.Material = Enum.Material.SmoothPlastic
-        seg.CanCollide = false; seg.Massless = true
-        local angle = math.rad(20 + i*5)
-        seg.CFrame = body.CFrame * CFrame.new(0, 0.3 + i*0.25, 1.9 + i*0.55) * CFrame.Angles(angle, 0, 0)
-        seg.Parent = model
-        local w = Instance.new("WeldConstraint"); w.Part0 = body; w.Part1 = seg; w.Parent = body
-    end
-
-    local hum = Instance.new("Humanoid")
-    hum.RigType = Enum.HumanoidRigType.R6
-    hum.WalkSpeed = 16
-    hum.JumpPower = 50
-    hum.Health = 100; hum.MaxHealth = 100
-    hum.HipHeight = 0
-    hum.Parent = model
-
-    model.PrimaryPart = hrp
-    return model
-end
-
--- One-at-a-time spawn per player to prevent the duplicate-character bug.
-local spawnInProgress = {}
-
-local function ensureCat(player, color)
-    if spawnInProgress[player.UserId] then return end
-    spawnInProgress[player.UserId] = true
-
-    -- Skip if there's already a fully-built cat
-    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-        local count = 0
-        for _ in ipairs(player.Character:GetChildren()) do count = count + 1 end
-        if count >= 5 then
-            spawnInProgress[player.UserId] = nil
-            return
-        end
-    end
-
-    local sp = Workspace:FindFirstChild("MainSpawn") or Workspace:FindFirstChildOfClass("SpawnLocation")
-    local cf = sp and (sp.CFrame * CFrame.new(0, 5, 0)) or SAFE_FALLBACK_CFRAME
-    if not isUsableSpawn(cf) then cf = SAFE_FALLBACK_CFRAME end
-
-    local fc = player:GetAttribute("FurColor")
-    local actualColor = (typeof(fc) == "Color3") and fc
-        or (color or Color3.fromRGB(220, 130, 50))
-
-    if player.Character then
-        local old = player.Character
-        player.Character = nil
-        old:Destroy()
-        task.wait(0.1)
-    end
-
-    if not player.Parent then
-        spawnInProgress[player.UserId] = nil
-        return
-    end
-
-    local cat = makeFallbackCat(player, actualColor)
-    cat:PivotTo(cf)
-    cat.Parent = Workspace
-    player.Character = cat
-
-    local head = cat:FindFirstChild("Head")
-    if head then
-        local g = Instance.new("BillboardGui")
-        g.Size = UDim2.new(0, 200, 0, 50)
-        g.StudsOffset = Vector3.new(0, 3, 0)
-        g.AlwaysOnTop = true
-        g.Parent = head
-        local l = Instance.new("TextLabel")
-        l.Size = UDim2.fromScale(1, 1)
-        l.BackgroundTransparency = 1
-        l.Text = string.sub(player.DisplayName or player.Name, 1, 30)
-        l.Font = Enum.Font.GothamBlack
-        l.TextScaled = true
-        l.TextSize = 24  -- floor when TextScaled can't shrink further
-        l.TextColor3 = Color3.fromRGB(255, 255, 255)
-        l.TextStrokeTransparency = 0
-        l.TextStrokeColor3 = Color3.new(0, 0, 0)
-        l.Parent = g
-    end
-
-    spawnInProgress[player.UserId] = nil
-    print("[SpawnEnforcer] spawned cat for " .. player.Name .. " at " .. tostring(cf.Position))
-end
-
-local function setup(player)
-    task.spawn(function()
-        task.wait(1)
-        if player.Parent then ensureCat(player) end
-    end)
-    player.CharacterRemoving:Connect(function()
-        task.wait(2)
-        if player.Parent then ensureCat(player) end
-    end)
-end
-
-Players.PlayerAdded:Connect(setup)
-Players.PlayerRemoving:Connect(function(p) spawnInProgress[p.UserId] = nil end)
-for _, plr in ipairs(Players:GetPlayers()) do setup(plr) end
-
--- Spawn customization listener via the canonical Remotes module.
-if Remotes.RequestSpawnCustomization then
-    Remotes.RequestSpawnCustomization.OnServerEvent:Connect(function(player, data)
-        if type(data) ~= "table" or not data.furColor then return end
-        local fc = data.furColor
-        if type(fc) ~= "table" then return end
-        local r = math.clamp(tonumber(fc[1]) or 220, 0, 255)
-        local g = math.clamp(tonumber(fc[2]) or 130, 0, 255)
-        local b = math.clamp(tonumber(fc[3]) or 50, 0, 255)
-        local color = Color3.fromRGB(r, g, b)
-        player:SetAttribute("FurColor", color)
-        ensureCat(player, color)
-    end)
-    print("[SpawnEnforcer] listening for RequestSpawnCustomization")
-else
-    warn("[SpawnEnforcer] Remotes.RequestSpawnCustomization missing")
-end
-
-]])
-
--- ServerScriptService/SpawnProtection.server.lua
-W({'ServerScriptService','SpawnProtection'}, 'Script', [[
--- SpawnProtection.server.lua
--- Gives a 5-second ForceField on every character spawn to prevent
--- spawn-camping from stealing kills / pranks before the player gets bearings.
-
-local Players = game:GetService("Players")
-
-local PROTECT_SECONDS = 5
-
-local function protect(character)
-    -- A ForceField makes the humanoid invulnerable until removed.
-    local existing = character:FindFirstChildOfClass("ForceField")
-    if existing then existing:Destroy() end
-    local ff = Instance.new("ForceField")
-    ff.Name = "SpawnProtection"
-    ff.Visible = true
-    ff.Parent = character
-    task.delay(PROTECT_SECONDS, function()
-        if ff and ff.Parent then ff:Destroy() end
-    end)
-end
-
-local function attach(player)
-    if player.Character then protect(player.Character) end
-    player.CharacterAdded:Connect(protect)
-end
-
-Players.PlayerAdded:Connect(attach)
-for _, p in ipairs(Players:GetPlayers()) do attach(p) end
-
-print("[SpawnProtection] online — " .. PROTECT_SECONDS .. "s ForceField on respawn")
-
-]])
-
--- ServerScriptService/StrayLighting.server.lua
-W({'ServerScriptService','StrayLighting'}, 'Script', [[
--- StrayLighting.server.lua — canonical lighting script.
--- This is the SINGLE source of truth for Lighting properties. Previously
--- CityRebuild also set Lighting.Brightness/Ambient/Atmosphere etc. which
--- created an order-dependent race; CityRebuild now only owns geometry.
--- Place in: ServerScriptService > StrayLighting (Script).
-
-local Lighting = game:GetService("Lighting")
-
-Lighting.Technology = Enum.Technology.Future
-Lighting.Brightness = 3.0
-Lighting.Ambient = Color3.fromRGB(70, 35, 110)
-Lighting.OutdoorAmbient = Color3.fromRGB(95, 60, 145)
-Lighting.EnvironmentDiffuseScale = 0.7
-Lighting.EnvironmentSpecularScale = 0.9
-Lighting.ClockTime = 19.5
-Lighting.GeographicLatitude = 41.5
-Lighting.GlobalShadows = true
-
-local function ensure(cls, props)
-    local fx = Lighting:FindFirstChildOfClass(cls)
-    if not fx then fx = Instance.new(cls); fx.Parent = Lighting end
-    for k, v in pairs(props) do pcall(function() fx[k] = v end) end
-    return fx
-end
-
-ensure("BloomEffect",           {Intensity = 2.6, Size = 24, Threshold = 1.55})
-ensure("ColorCorrectionEffect", {Saturation = 0.30, Brightness = 0.04, Contrast = 0.16,
-                                 TintColor = Color3.fromRGB(255, 240, 230)})
-ensure("DepthOfFieldEffect",    {FocusDistance = 60, InFocusRadius = 25,
-                                 FarIntensity = 0.06, NearIntensity = 0.02})
-ensure("SunRaysEffect",         {Intensity = 0.22, Spread = 0.7})
-ensure("BlurEffect",            {Size = 0})
-
-local atm = Lighting:FindFirstChildOfClass("Atmosphere")
-if not atm then atm = Instance.new("Atmosphere"); atm.Parent = Lighting end
--- Density was 0.45 + an extra 0.28 from CityRebuild = opaque fog wall ~25 studs.
--- 0.30 gives noir feel without choking visibility.
-atm.Density = 0.30; atm.Offset = 0.22
-atm.Color = Color3.fromRGB(95, 30, 150)
-atm.Decay = Color3.fromRGB(60, 18, 100)
-atm.Glare = 0.50; atm.Haze = 1.7
-
-print("[StrayLighting] cyberpunk noir tuning applied (canonical)")
-
-]])
-
--- ServerScriptService/SummonSystem.server.lua
-W({'ServerScriptService','SummonSystem'}, 'Script', [[
--- SummonSystem.server.lua
--- Spawns Robloxian "human" NPCs for the player to prank.
--- Place in: ServerScriptService > SummonSystem (Script)
-
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
-local SharedUtil = require(ReplicatedStorage.Modules.SharedUtil)
-
-local SummonSystem = {}
-
--- Export to _G FIRST so dependents (PrankSystem) never deadlock if anything below errors.
-_G.KittyRaiserSummon = SummonSystem
-
-local SUMMON_COOLDOWN = 1.5
-local NPC_DESPAWN_AFTER = 25
-local lastSummonTime = {}
-
--- Server-side registry of legitimate NPCs. Clients can no longer pass arbitrary
--- Workspace Models with the KittyRaiserNPC attribute spoofed.
-local registry = setmetatable({}, {__mode = "k"})  -- weak keys: cleared on GC
-
-local npcFolder = Workspace:FindFirstChild("PrankNPCs")
-if not npcFolder then
-    npcFolder = Instance.new("Folder")
-    npcFolder.Name = "PrankNPCs"
-    npcFolder.Parent = Workspace
-end
-
-local function getSpawnPads()
-    local pads = Workspace:FindFirstChild("SpawnPads")
-    if not pads then return {} end
-    return pads:GetChildren()
-end
-
-local function isValidSpawnPosition(v)
-    if not v then return false end
-    if v.Magnitude > 10000 then return false end
-    -- guard against NaN
-    return v.X == v.X and v.Y == v.Y and v.Z == v.Z
-end
-
-local function buildHumanNPC()
-    local model = Instance.new("Model")
-    model.Name = "PrankTarget"
-    model:SetAttribute("KittyRaiserNPC", true)
-    model:SetAttribute("Pranked", false)
-
-    local hrp = Instance.new("Part")
-    hrp.Name = "HumanoidRootPart"
-    hrp.Size = Vector3.new(2, 2, 1)
-    hrp.Transparency = 1
-    hrp.CanCollide = true   -- HRP MUST collide for humanoid physics
-    hrp.Anchored = false
-    hrp.Massless = true
-    hrp.Parent = model
-
-    local torso = Instance.new("Part")
-    torso.Name = "Torso"
-    torso.Size = Vector3.new(2, 2, 1)
-    torso.Color = Color3.fromRGB(0, 100, 200)
-    torso.CanCollide = false
-    torso.Position = hrp.Position
-    torso.Parent = model
-    local torsoWeld = Instance.new("WeldConstraint")
-    torsoWeld.Part0, torsoWeld.Part1, torsoWeld.Parent = hrp, torso, torso
-
-    local head = Instance.new("Part")
-    head.Name = "Head"
-    head.Size = Vector3.new(1.5, 1.5, 1.5)
-    head.Shape = Enum.PartType.Ball
-    head.Color = Color3.fromRGB(245, 205, 160)
-    head.CanCollide = false
-    head.Position = torso.Position + Vector3.new(0, 1.75, 0)
-    head.Parent = model
-    local headWeld = Instance.new("WeldConstraint")
-    headWeld.Part0, headWeld.Part1, headWeld.Parent = torso, head, head
-
-    local face = Instance.new("Decal")
-    face.Texture = "rbxasset://textures/face.png"
-    face.Face = Enum.NormalId.Front
-    face.Parent = head
-
-    local legs = Instance.new("Part")
-    legs.Name = "Legs"
-    legs.Size = Vector3.new(2, 2, 1)
-    legs.Color = Color3.fromRGB(40, 40, 80)
-    legs.CanCollide = false
-    legs.Position = torso.Position + Vector3.new(0, -2, 0)
-    legs.Parent = model
-    local legWeld = Instance.new("WeldConstraint")
-    legWeld.Part0, legWeld.Part1, legWeld.Parent = torso, legs, legs
-
-    local humanoid = Instance.new("Humanoid")
-    humanoid.MaxHealth = math.huge   -- NPCs can't die from stray world damage
-    humanoid.Health = math.huge
-    humanoid.WalkSpeed = 8
-    humanoid.JumpPower = 0
-    humanoid.HealthDisplayDistance = 0
-    humanoid.Parent = model
-
-    model.PrimaryPart = hrp
-    return model
-end
-
--- Despawn pranked NPC after a delay. Atomic claim semantics: returns true if
--- THIS caller successfully marked it; false if it was already pranked.
-function SummonSystem.markPranked(npc)
-    if not npc or not npc.Parent then return false end
-    if npc:GetAttribute("Pranked") then return false end
-    npc:SetAttribute("Pranked", true)
-    task.delay(2, function()
-        if npc.Parent then npc:Destroy() end
-    end)
-    return true
-end
-
-function SummonSystem.isRegistered(npc)
-    return npc and registry[npc] == true
-end
-
--- Pick a non-overlapping spawn position from a candidate set.
-local function findClearSpawn(candidatePos)
-    -- check existing NPCs in the radius and offset if too close
-    local minSpacing = 5
-    for _, existing in ipairs(npcFolder:GetChildren()) do
-        local p = existing.PrimaryPart
-        if p and (p.Position - candidatePos).Magnitude < minSpacing then
-            candidatePos = candidatePos + Vector3.new(math.random(-8, 8), 0, math.random(-8, 8))
-        end
-    end
-    return candidatePos
-end
-
-function SummonSystem.summon(player)
-    local now = os.clock()
-    local last = lastSummonTime[player.UserId]
-    if last and (now - last) < SUMMON_COOLDOWN then
-        return false, "summon_cooldown"
-    end
-
-    -- global server-wide cap so 50 players spamming summon doesn't tank perf
-    if #npcFolder:GetChildren() >= GameConfig.MAX_NPCS_ON_SERVER then
-        return false, "server_npc_cap"
-    end
-
-    lastSummonTime[player.UserId] = now
-
-    local pads = getSpawnPads()
-    local spawnPos
-    if #pads > 0 then
-        local pad = pads[math.random(1, #pads)]
-        spawnPos = pad.Position + Vector3.new(0, 4, 0)
-    else
-        local char = player.Character
-        if char and char.PrimaryPart then
-            spawnPos = char.PrimaryPart.Position + Vector3.new(math.random(-10, 10), 5, math.random(-10, 10))
-        else
-            spawnPos = Vector3.new(0, 10, 0)
-        end
-    end
-    if not isValidSpawnPosition(spawnPos) then
-        spawnPos = Vector3.new(0, 10, 0)
-    end
-    spawnPos = findClearSpawn(spawnPos)
-
-    local npc = buildHumanNPC()
-    npc:PivotTo(CFrame.new(spawnPos))
-    npc:SetAttribute("SummonedBy", player.UserId)
-    npc.Parent = npcFolder
-    registry[npc] = true
-
-    -- Spawn-in tween: pop from tiny scale. We fire-and-forget; tween cleanup is
-    -- automatic when the part is destroyed.
-    for _, p in ipairs(npc:GetDescendants()) do
-        if p:IsA("BasePart") then
-            local origSize = p.Size
-            p.Size = Vector3.new(0.1, 0.1, 0.1)
-            local tween = TweenService:Create(
-                p, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-                {Size = origSize}
-            )
-            pcall(function() tween:Play() end)
-        end
-    end
-
-    -- Wander AI scoped to this NPC
-    task.spawn(function()
-        local hum = npc:FindFirstChildOfClass("Humanoid")
-        if not hum then return end
-        local startTime = os.clock()
-        while npc.Parent == npcFolder and (os.clock() - startTime) < NPC_DESPAWN_AFTER do
-            local hrp = npc.PrimaryPart
-            if not hrp then break end
-            local rand = Vector3.new(math.random(-15, 15), 0, math.random(-15, 15))
-            hum:MoveTo(hrp.Position + rand)
-            task.wait(math.random(2, 4))
-        end
-        if npc.Parent and not npc:GetAttribute("Pranked") then
-            registry[npc] = nil
-            npc:Destroy()
-        end
-    end)
-    return true, npc
-end
-
-Remotes.RequestSummonHuman.OnServerEvent:Connect(function(player)
-    if not SharedUtil.checkRate(player, "summon", 0.6) then return end
-    SummonSystem.summon(player)
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    lastSummonTime[player.UserId] = nil
-    for _, npc in ipairs(npcFolder:GetChildren()) do
-        if npc:GetAttribute("SummonedBy") == player.UserId then
-            registry[npc] = nil
-            npc:Destroy()
-        end
-    end
-end)
-
-return SummonSystem
 
 ]])
 

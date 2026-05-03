@@ -137,6 +137,8 @@ local function buildShopList(inventoryMode)
     for _, c in ipairs(list:GetChildren()) do
         if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end
     end
+    -- Fire-and-forget preview event for SkinPreviewer
+    local previewEv = playerGui:FindFirstChild("PreviewSkinEvent")
     for _, skinId in ipairs(CosmeticConfig.Order) do
         local skin = CosmeticConfig.Skins[skinId]
         local owned = CurrentData.ownedSkins and table.find(CurrentData.ownedSkins, skinId)
@@ -147,6 +149,17 @@ local function buildShopList(inventoryMode)
             row.BorderSizePixel = 0
             Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
             row.Parent = list
+
+            -- Tap-anywhere-on-row preview button (under the labels, above the buy button).
+            local previewClick = Instance.new("TextButton")
+            previewClick.Size = UDim2.new(0.55, 0, 1, 0)
+            previewClick.Position = UDim2.new(0, 0, 0, 0)
+            previewClick.BackgroundTransparency = 1
+            previewClick.Text = ""
+            previewClick.Parent = row
+            previewClick.MouseButton1Click:Connect(function()
+                if previewEv then previewEv:Fire(skinId) end
+            end)
 
             local nameLabel = Instance.new("TextLabel")
             nameLabel.Size = UDim2.new(0.4, 0, 0.5, 0)

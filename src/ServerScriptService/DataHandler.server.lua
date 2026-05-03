@@ -31,7 +31,7 @@ local function getJobId()
 end
 local SERVER_JOB_ID = getJobId()
 
-local LOCK_TIMEOUT_SEC = 600  -- 10 minutes; survives most server crashes without permanently locking players
+local LOCK_TIMEOUT_SEC = 120  -- 2 minutes; balances crash recovery vs rapid rejoin friction
 
 local function defaultData()
     return {
@@ -55,8 +55,20 @@ local function defaultData()
         settingsMusicVolume = 0.5,
         settingsSFXVolume = 0.7,
         settingsCameraMode = "third",
+        settingsGraphicsQuality = "",   -- empty = auto-detect
+        seenIntro = false,
+        lastSeenPatchVersion = "",
         redeemedCodes = {},
         purchasedDevProductIds = {},
+        questDay = "",
+        questAssigned = {},
+        questCounters = {},
+        questClaimed = {},
+        awardedBadges = {},
+        bestComboToday = 0,
+        bestComboEver = 0,
+        totalSummons = 0,
+        totalEmotes = 0,
         stats = {Speed=0, Jump=0, Luck=0, Strength=0, Agility=0},
         unspentStatPoints = 0,
         perks = {},
@@ -117,6 +129,9 @@ local function migrate(data)
     data.hellTokens = math.max(0, data.hellTokens or 0)
     data.hunger = math.clamp(data.hunger or 100, 0, 100)
     data.thirst = math.clamp(data.thirst or 100, 0, 100)
+    -- Cap XP at one level's worth so a corrupt huge value doesn't trigger
+    -- a level-up burst on the next prank.
+    data.xp = math.max(0, math.min(data.xp or 0, GameConfig.xpRequired(GameConfig.LEVEL_CAP) - 1))
     return data
 end
 

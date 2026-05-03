@@ -26,7 +26,15 @@ local BODY_PART_NAMES = {
 local function applySkinToCharacter(character, skinId)
     if not character then return end
     local skin = CosmeticConfig.getSkin(skinId)
-    if not skin or not skin.bodyColors then return end
+    if not skin or not skin.bodyColors then
+        -- AAA-audit fix: corrupted equippedSkin used to silently no-op.
+        -- Now we fall back to Default so the character still has body color.
+        if skinId ~= "Default" then
+            warn("[CosmeticHandler] skin not found: " .. tostring(skinId) .. " — falling back to Default")
+            skin = CosmeticConfig.getSkin("Default")
+        end
+        if not skin then return end
+    end
 
     local bodyColors = character:FindFirstChildOfClass("BodyColors")
     if not bodyColors then

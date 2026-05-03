@@ -122,6 +122,12 @@ function PrankSystem.handlePrankRequest(player, prankName, targetModel)
     end
 
     -- NPC validity (now requires registry membership + ownership match)
+    -- AAA-audit fix: explicit ancestor check before passing to AntiCheat,
+    -- defends against forged Model references that aren't in workspace.
+    if not targetModel or not targetModel.Parent or not targetModel:IsDescendantOf(workspace) then
+        Remotes.PrankFailed:FireClient(player, "invalid_target")
+        return
+    end
     local valid, vErr = AntiCheat.isValidNPC(targetModel, player)
     if not valid then
         Remotes.PrankFailed:FireClient(player, vErr or "invalid_target")

@@ -147,9 +147,11 @@ Players.PlayerRemoving:Connect(function(p) lastSeenLevel[p.UserId] = nil end)
 
 -- Throttled change-detector. Idempotent: only fires for the *delta* in level
 -- since we last saw it (so it never double-grants for the same level).
+-- 0.5s tick (was 1s) so quick double-level-ups can't slip past unnoticed if a
+-- single prank pushes the player across two thresholds.
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(0.5)
         for _, player in ipairs(Players:GetPlayers()) do
             local data = DataHandler.getData(player)
             if data then

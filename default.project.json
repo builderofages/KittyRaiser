@@ -29,6 +29,12 @@
         },
         "CodeConfig": {
           "$path": "src/ReplicatedStorage/Modules/CodeConfig.lua"
+        },
+        "QuestConfig": {
+          "$path": "src/ReplicatedStorage/Modules/QuestConfig.lua"
+        },
+        "BadgeConfig": {
+          "$path": "src/ReplicatedStorage/Modules/BadgeConfig.lua"
         }
       }
     },
@@ -139,6 +145,12 @@
       "ChatTags": {
         "$path": "src/ServerScriptService/ChatTags.server.lua"
       },
+      "QuestSystem": {
+        "$path": "src/ServerScriptService/QuestSystem.server.lua"
+      },
+      "BadgeSystem": {
+        "$path": "src/ServerScriptService/BadgeSystem.server.lua"
+      },
       "CatLifelike": {
         "$path": "src/ServerScriptService/CatLifelike.server.lua"
       }
@@ -206,6 +218,33 @@
         },
         "CameraToggle": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/CameraToggle.client.lua"
+        },
+        "QuestUI": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/QuestUI.client.lua"
+        },
+        "IntroSplash": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/IntroSplash.client.lua"
+        },
+        "PatchNotesUI": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/PatchNotesUI.client.lua"
+        },
+        "PawTrailFX": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/PawTrailFX.client.lua"
+        },
+        "SocialLink": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/SocialLink.client.lua"
+        },
+        "GraphicsQuality": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/GraphicsQuality.client.lua"
+        },
+        "TooltipSystem": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/TooltipSystem.client.lua"
+        },
+        "SpectateSystem": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/SpectateSystem.client.lua"
+        },
+        "SkinPreviewer": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/SkinPreviewer.client.lua"
         }
       }
     },

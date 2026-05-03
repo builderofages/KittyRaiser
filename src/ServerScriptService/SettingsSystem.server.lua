@@ -15,7 +15,11 @@ local ALLOWED_KEYS = {
     settingsSFXOn = "boolean",
     settingsMusicVolume = "number",
     settingsSFXVolume = "number",
-    settingsCameraMode = "string",   -- "third" or "first"
+    settingsCameraMode = "string",      -- "third" or "first"
+    settingsGraphicsQuality = "string", -- "low" / "medium" / "high"
+    seenIntro = "boolean",              -- one-shot flag set by IntroSplash
+    seenTutorial = "boolean",           -- one-shot flag set by TutorialController
+    lastSeenPatchVersion = "string",    -- set by PatchNotesUI when player dismisses
 }
 
 Remotes.RequestSettingChange.OnServerInvoke = function(player, key, value)

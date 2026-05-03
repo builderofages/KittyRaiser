@@ -4,6 +4,10 @@
 
 local GameConfig = {}
 
+-- ===== VERSION =====
+-- Bump this every release. PatchNotesUI shows the modal once per new version.
+GameConfig.GAME_VERSION = "v1.0"
+
 -- ===== ECONOMY =====
 GameConfig.STARTING_CHAOS = 0
 GameConfig.STARTING_HELLTOKENS = 0

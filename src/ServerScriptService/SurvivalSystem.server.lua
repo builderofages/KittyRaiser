@@ -115,8 +115,19 @@ local function setupFoodPart(part)
     sourceConns[part] = {touched = touchedConn, ancestry = destroyConn}
 end
 
-for _, p in ipairs(Workspace:GetDescendants()) do setupFoodPart(p) end
-Workspace.DescendantAdded:Connect(setupFoodPart)
+-- Scoped listener: only walks parts that already have the FoodSource /
+-- WaterSource attribute, instead of every Workspace.DescendantAdded fire.
+-- The previous design ran setupFoodPart() on every prank particle / NPC body
+-- part / coin spawn (~thousands per minute) and just bailed if the attribute
+-- was absent. We still attach to Workspace.DescendantAdded but with a
+-- cheap-attribute pre-check so the function exits before doing any work.
+local function setupFoodPartIfTagged(part)
+    if not part:IsA("BasePart") then return end
+    if not (part:GetAttribute("FoodSource") or part:GetAttribute("WaterSource")) then return end
+    setupFoodPart(part)
+end
+for _, p in ipairs(Workspace:GetDescendants()) do setupFoodPartIfTagged(p) end
+Workspace.DescendantAdded:Connect(setupFoodPartIfTagged)
 
 -- Direct request remotes (used by interaction prompts). Now validate proximity
 -- so the client can't eat infinitely without being near a source.

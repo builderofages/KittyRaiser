@@ -12,7 +12,7 @@ local DataHandler = SharedUtil.waitForGlobal("KittyRaiserData", 30)
 if not DataHandler then return end
 
 local UPDATE_INTERVAL_MAX = 5
-local UPDATE_INTERVAL_MIN = 0.5
+local UPDATE_INTERVAL_MIN = 1.0  -- 0.5s was too eager; 1s is plenty for a top-10 board.
 
 local dirty = true
 local lastBroadcast = ""
