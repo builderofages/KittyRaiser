@@ -6,9 +6,9 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
-local PerkConfig = require(ReplicatedStorage.Modules.PerkConfig)
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local PerkConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PerkConfig"))
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")

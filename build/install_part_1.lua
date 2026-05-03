@@ -3204,7 +3204,9 @@ local function awardChaosAndXP(player, baseChaos)
 
     local skinMult = math.max(0, CosmeticConfig.getMultiplier(data.equippedSkin or "Default") or 1)
     local luckStat = (data.stats and data.stats.Luck) or 0
-    local totalMult = GameConfig.computeMultiplier(data.rebirths or 0, hasVIP(player), luckStat) * skinMult
+    local weatherMult = (_G.KittyRaiserGetWeatherMult and _G.KittyRaiserGetWeatherMult()) or 1
+    local totalMult = GameConfig.computeMultiplier(data.rebirths or 0, hasVIP(player), luckStat)
+        * skinMult * weatherMult
 
     local chaosGained = math.max(0, math.floor(baseChaos * totalMult))
 
@@ -3235,6 +3237,7 @@ local function awardChaosAndXP(player, baseChaos)
             d.xp = math.min(d.xp, GameConfig.xpRequired(d.level) - 1)
         end
     end)
+    if _G.KittyRaiserMarkLeaderboardDirty then _G.KittyRaiserMarkLeaderboardDirty() end
     return chaosGained, GameConfig.PRANK_XP_PER_HIT
 end
 

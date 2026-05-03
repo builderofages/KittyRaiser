@@ -8,8 +8,8 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
-local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local PrankConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PrankConfig"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")

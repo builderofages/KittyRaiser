@@ -11,7 +11,7 @@ local Debris = game:GetService("Debris")
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
 local AssetIds = require(ReplicatedStorage.Modules:WaitForChild("AssetIds"))
-local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+local PrankConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PrankConfig"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")

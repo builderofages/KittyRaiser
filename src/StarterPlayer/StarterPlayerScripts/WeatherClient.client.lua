@@ -7,7 +7,7 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
 
 local player = Players.LocalPlayer
 local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 60)

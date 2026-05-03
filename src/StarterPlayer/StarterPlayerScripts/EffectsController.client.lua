@@ -9,9 +9,9 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
-local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local PrankConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PrankConfig"))
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera

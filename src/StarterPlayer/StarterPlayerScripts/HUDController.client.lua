@@ -8,8 +8,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
-local CosmeticConfig = require(ReplicatedStorage.Modules.CosmeticConfig)
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
+local CosmeticConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CosmeticConfig"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")

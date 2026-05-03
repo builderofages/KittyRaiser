@@ -53,7 +53,7 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
-local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+local PrankConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PrankConfig"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -429,7 +429,7 @@ local Debris = game:GetService("Debris")
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
 local AssetIds = require(ReplicatedStorage.Modules:WaitForChild("AssetIds"))
-local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+local PrankConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PrankConfig"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -794,9 +794,9 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
-local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local PrankConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PrankConfig"))
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -968,8 +968,8 @@ W({'StarterPlayer','StarterPlayerScripts','EmoteWheel'}, 'LocalScript', [[
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
 
 local player = Players.LocalPlayer
 local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
@@ -1073,8 +1073,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
-local CosmeticConfig = require(ReplicatedStorage.Modules.CosmeticConfig)
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
+local CosmeticConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CosmeticConfig"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -1337,8 +1337,8 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
-local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local PrankConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PrankConfig"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -1700,9 +1700,9 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
-local PerkConfig = require(ReplicatedStorage.Modules.PerkConfig)
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local PerkConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PerkConfig"))
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -2307,7 +2307,7 @@ W({'StarterPlayer','StarterPlayerScripts','SurvivalUI'}, 'LocalScript', [[
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
 
 local player = Players.LocalPlayer
 local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
@@ -2382,7 +2382,7 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -2454,7 +2454,7 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
 
 local player = Players.LocalPlayer
 local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 60)
