@@ -22,6 +22,5 @@ __pycache__/
 venv/
 .venv/
 
-# Build / dist
-build/
+# Misc dist
 dist/
