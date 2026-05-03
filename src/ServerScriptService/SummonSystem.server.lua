@@ -138,8 +138,8 @@ end
 
 function SummonSystem.summon(player)
     local now = os.clock()
-    local last = lastSummonTime[player.UserId] or 0
-    if (now - last) < SUMMON_COOLDOWN then
+    local last = lastSummonTime[player.UserId]
+    if last and (now - last) < SUMMON_COOLDOWN then
         return false, "summon_cooldown"
     end
 

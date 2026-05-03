@@ -287,6 +287,15 @@ local INIT_ORDER = {
     "MeshLoader.server.lua",
     "PerfOptimize.server.lua",
     "DiagnosticDump.server.lua",
+    -- New systems added in the polish pass
+    "LeaderstatsSystem.server.lua",
+    "CodeSystem.server.lua",
+    "SettingsSystem.server.lua",
+    "KillBarrier.server.lua",
+    "SpawnProtection.server.lua",
+    "AFKSystem.server.lua",
+    "CoinPickup.server.lua",
+    "ChatTags.server.lua",
 }
 
 for _, fname in ipairs(INIT_ORDER) do
@@ -361,6 +370,246 @@ if _G.KittyRaiserAntiCheat and _G.KittyRaiserAntiCheat.checkRateLimit then
     local denied = _G.KittyRaiserAntiCheat.checkRateLimit(fakePlayer)
     if denied == false then pass("AntiCheat rate-limit: 7th rejected")
     else fail("AntiCheat rate-limit reject", "should have blocked") end
+end
+
+-- ============================================================================
+-- Phase 6: End-to-end gameplay simulation
+-- Simulates a player session: spawn → summon NPC → prank → chaos → level up
+-- → rebirth → code redeem → setting change.
+-- ============================================================================
+
+print("\n========== Phase 6: Gameplay simulation ==========")
+
+local Players = game:GetService("Players")
+
+-- Synthesize a Player object that mimics enough of the Roblox Player API.
+local function makeFakePlayer(userId, name)
+    local p = Instance.new("Player")
+    p.Name = name
+    p.DisplayName = name
+    p.UserId = userId
+    p.Character = nil
+    p.Parent = Players
+    p.GetAttribute = function(self, k) return self._attributes and self._attributes[k] end
+    p.SetAttribute = function(self, k, v) self._attributes = self._attributes or {}; self._attributes[k] = v end
+    p.Kick = function(self, msg) self._kicked = msg end
+    p.CharacterAdded = {Connect = function(_, fn) return {Disconnect = function() end} end,
+                        Once = function(_, fn) return {Disconnect = function() end} end,
+                        Fire = function() end}
+    p.CharacterRemoving = {Connect = function(_, fn) return {Disconnect = function() end} end,
+                           Fire = function() end}
+    p.Chatted = {Connect = function(_, fn) return {Disconnect = function() end} end}
+    return p
+end
+
+-- Override Players.GetPlayerByUserId to return our fakes.
+local fakePlayers = {}
+Players.GetPlayerByUserId = function(_, id) return fakePlayers[id] end
+Players.GetPlayerFromCharacter = function(_, char)
+    for _, p in pairs(fakePlayers) do
+        if p.Character == char then return p end
+    end
+    return nil
+end
+Players.GetPlayers = function(_)
+    local out = {}
+    for _, p in pairs(fakePlayers) do table.insert(out, p) end
+    return out
+end
+
+-- Bootstrap a fake player with data straight into DataHandler.
+local function spawnFakePlayer(userId, name)
+    local p = makeFakePlayer(userId, name)
+    fakePlayers[userId] = p
+    -- Manually inject default data (skip session lock for simulation)
+    local default = {
+        version = 3,
+        chaosPoints = 0, hellTokens = 0, level = 1, xp = 0, rebirths = 0,
+        equippedSkin = "Default",
+        ownedSkins = {"Default"},
+        soulShards = 0, totalPranks = 0, totalRobuxSpent = 0,
+        firstPlayDate = os.time(), lastPlayDate = os.time(),
+        flagCount = 0, suspended = false,
+        settingsMusicOn = true, settingsSFXOn = true,
+        settingsMusicVolume = 0.5, settingsSFXVolume = 0.7, settingsCameraMode = "third",
+        redeemedCodes = {},
+        purchasedDevProductIds = {},
+        stats = {Speed=0, Jump=0, Luck=0, Strength=0, Agility=0},
+        unspentStatPoints = 0, perks = {},
+        hunger = 100, thirst = 100,
+        dailyStreak = 0, lastDailyClaim = 0,
+        seenTutorial = false,
+    }
+    _G.KittyRaiserData.setData(p, default)
+    return p
+end
+
+local fakeP = spawnFakePlayer(1001, "TestPlayer1")
+if fakeP then pass("simulated player join") else fail("simulated player join", "nil") end
+
+-- Verify data populated
+local d = _G.KittyRaiserData.getData(fakeP)
+if d and d.level == 1 and d.chaosPoints == 0 then
+    pass("simulated player has default data (L1, 0 chaos)")
+else
+    fail("simulated player default data", "level=" .. tostring(d and d.level))
+end
+
+-- Simulate summoning an NPC, then validate registry membership.
+local SummonSystem = _G.KittyRaiserSummon
+if SummonSystem and SummonSystem.summon then
+    -- Give the player a character so summon's spawn logic has something to anchor to
+    local char = Instance.new("Model")
+    char.Name = fakeP.Name
+    local hrp = Instance.new("Part")
+    hrp.Name = "HumanoidRootPart"
+    hrp.Position = Vector3.new(0, 5, 0)
+    hrp.Parent = char
+    char.PrimaryPart = hrp
+    fakeP.Character = char
+
+    local ok, npc = SummonSystem.summon(fakeP)
+    if ok and npc then
+        pass("SummonSystem.summon returns NPC")
+        if SummonSystem.isRegistered(npc) then
+            pass("NPC is in server registry")
+        else
+            fail("NPC registry check", "summoned NPC not in registry")
+        end
+        if npc:GetAttribute("SummonedBy") == fakeP.UserId then
+            pass("NPC has SummonedBy attribute")
+        else
+            fail("NPC SummonedBy", "missing or wrong")
+        end
+    else
+        fail("SummonSystem.summon", tostring(npc))
+    end
+end
+
+-- Simulate awarding chaos by directly manipulating DataHandler.modify
+local before = _G.KittyRaiserData.getData(fakeP).chaosPoints
+_G.KittyRaiserData.modify(fakeP, function(dd)
+    dd.chaosPoints = (dd.chaosPoints or 0) + 100
+    dd.totalPranks = (dd.totalPranks or 0) + 1
+end)
+local after = _G.KittyRaiserData.getData(fakeP).chaosPoints
+if after - before == 100 then
+    pass("DataHandler.modify added 100 chaos")
+else
+    fail("DataHandler.modify chaos delta", "got " .. (after - before))
+end
+
+-- Simulate progression to level 5 (perk slot threshold)
+_G.KittyRaiserData.modify(fakeP, function(dd) dd.level = 5; dd.xp = 0 end)
+local availSlots = (modules.GameConfig).perkSlotsAtLevel(5)
+if availSlots == 1 then pass("at L5, perkSlotsAtLevel returns 1")
+else fail("perkSlotsAtLevel(5)", "got " .. availSlots) end
+
+-- Equip a slot-1 perk and verify
+local equipResult = nil
+do
+    local rf = modules.RemoteEvents.RequestEquipPerk
+    if rf and rf.OnServerInvoke then
+        local ok, result = pcall(rf.OnServerInvoke, fakeP, 1, "QuickPaws")
+        equipResult = ok and result
+    end
+end
+if equipResult == true then
+    local d2 = _G.KittyRaiserData.getData(fakeP)
+    if d2.perks["1"] == "QuickPaws" then
+        pass("equipped QuickPaws in slot 1; data persisted")
+    else
+        fail("perk equip persistence", "perks[1]=" .. tostring(d2.perks["1"]))
+    end
+else
+    fail("equip QuickPaws", "OnServerInvoke returned " .. tostring(equipResult))
+end
+
+-- Try to skip slot 2 → should fail (sequential rule)
+do
+    local rf = modules.RemoteEvents.RequestEquipPerk
+    -- Player is L5, only 1 slot avail. Try slot 2 — should be slot_locked.
+    local ok, err = pcall(rf.OnServerInvoke, fakeP, 2, "PieMaster")
+    if not ok or err ~= true then
+        pass("perk slot 2 locked at L5 (correct)")
+    else
+        fail("perk slot 2 at L5", "should be locked but allowed")
+    end
+end
+
+-- Bring player to L25 + max chaos for rebirth attempt
+_G.KittyRaiserData.modify(fakeP, function(dd)
+    dd.level = 25; dd.chaosPoints = 200000; dd.rebirths = 0
+end)
+do
+    local rf = modules.RemoteEvents.RequestRebirth
+    local ok, result = pcall(rf.OnServerInvoke, fakeP)
+    if ok and result == true then
+        local d2 = _G.KittyRaiserData.getData(fakeP)
+        if d2.rebirths == 1 and d2.level == 1 then
+            pass("rebirth: rebirths=1, level reset to 1")
+        else
+            fail("rebirth state", ("rebirths=%d level=%d"):format(d2.rebirths, d2.level))
+        end
+    else
+        fail("rebirth invoke", tostring(result))
+    end
+end
+
+-- Code redemption: try invalid code, then a real one.
+-- Clear rate-limit state between calls so tight test loops don't trip the
+-- 1-second limit on RequestRedeemCode.
+modules.SharedUtil.clearRate(fakeP.UserId)
+do
+    local rf = modules.RemoteEvents.RequestRedeemCode
+    if rf and rf.OnServerInvoke then
+        local _, err1 = pcall(rf.OnServerInvoke, fakeP, "GARBAGE_CODE")
+        if err1 == "invalid_code" or err1 == false then
+            pass("invalid code rejected")
+        else
+            -- pcall returns (true, returnValue1, returnValue2) so check both
+            local ok2, ret1, ret2 = pcall(rf.OnServerInvoke, fakeP, "GARBAGE_CODE")
+            if ret1 == false and ret2 == "invalid_code" then
+                pass("invalid code rejected")
+            else
+                fail("invalid code", ("ret1=%s ret2=%s"):format(tostring(ret1), tostring(ret2)))
+            end
+        end
+        modules.SharedUtil.clearRate(fakeP.UserId)
+        local before = _G.KittyRaiserData.getData(fakeP).chaosPoints
+        local ok3, ret = pcall(rf.OnServerInvoke, fakeP, "LAUNCH")
+        local after = _G.KittyRaiserData.getData(fakeP).chaosPoints
+        if (after - before) == 5000 then
+            pass("LAUNCH code grants 5000 chaos")
+        else
+            fail("LAUNCH redemption", "delta=" .. (after - before))
+        end
+        -- Try redeeming again: should fail (already_redeemed, not rate_limited)
+        modules.SharedUtil.clearRate(fakeP.UserId)
+        local _, ret2, _ = pcall(rf.OnServerInvoke, fakeP, "LAUNCH")
+        local d3 = _G.KittyRaiserData.getData(fakeP)
+        if d3.chaosPoints == after then
+            pass("double-redeem of same code rejected")
+        else
+            fail("double-redeem", "balance changed from " .. after .. " to " .. d3.chaosPoints)
+        end
+    end
+end
+
+-- Reset rate-limit state before settings test (otherwise hits 0.2s window).
+modules.SharedUtil.clearRate(fakeP.UserId)
+
+-- Setting change: valid + invalid
+do
+    local rf = modules.RemoteEvents.RequestSettingChange
+    if rf and rf.OnServerInvoke then
+        local ok, ret = pcall(rf.OnServerInvoke, fakeP, "settingsMusicVolume", 0.3)
+        if ok and ret == true then pass("setting music volume to 0.3 succeeded")
+        else fail("setting music volume", tostring(ret)) end
+        local _, badret = pcall(rf.OnServerInvoke, fakeP, "settingsCameraMode", "isometric")
+        if badret == false then pass("invalid camera mode rejected")
+        else fail("invalid camera mode", tostring(badret)) end
+    end
 end
 
 -- ============================================================================

@@ -211,17 +211,21 @@ local function buildShopList(inventoryMode)
                         if not ok then showToast("Purchase failed: " .. tostring(err)) end
                     end)
                 else
-                    btn.Text = "ROBUX"
-                    btn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-                    btn.MouseButton1Click:Connect(function()
-                        local gpKey = skin.gamepassKey or (string.upper(skinId) .. "_SKIN")
-                        local gpId = GameConfig.GAMEPASS_IDS[gpKey]
-                        if gpId and gpId ~= 0 then
+                    -- Robux currency. If GamePass ID hasn't been filled in,
+                    -- show "Coming Soon" instead of a dead-end ROBUX button.
+                    local gpKey = skin.gamepassKey or (string.upper(skinId) .. "_SKIN")
+                    local gpId = GameConfig.GAMEPASS_IDS[gpKey]
+                    if gpId and gpId ~= 0 then
+                        btn.Text = "ROBUX"
+                        btn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+                        btn.MouseButton1Click:Connect(function()
                             MarketplaceService:PromptGamePassPurchase(player, gpId)
-                        else
-                            showToast("Coming soon!", Color3.fromRGB(255, 200, 0))
-                        end
-                    end)
+                        end)
+                    else
+                        btn.Text = "SOON"
+                        btn.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+                        btn.AutoButtonColor = false
+                    end
                 end
             end
         end

@@ -41,6 +41,358 @@ local function W(parentPath, className, source)
     INSTALLED = INSTALLED + 1
 end
 
+-- ServerScriptService/SurvivalSystem.server.lua
+W({'ServerScriptService','SurvivalSystem'}, 'Script', [[
+-- SurvivalSystem.server.lua
+-- Hunger/thirst decay over time. Below 25 = slow. At 0 = ragdoll respawn.
+-- Place in: ServerScriptService > SurvivalSystem (Script)
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local SharedUtil = require(ReplicatedStorage.Modules.SharedUtil)
+
+local DataHandler = SharedUtil.waitForGlobal("KittyRaiserData", 30)
+if not DataHandler then return end
+
+if not GameConfig.SURVIVAL_ENABLED then
+    print("[SurvivalSystem] Disabled in config")
+    return
+end
+
+local TICK = 5
+local hungerPerTick = (GameConfig.HUNGER_DECAY_PER_MIN / 60) * TICK
+local thirstPerTick = (GameConfig.THIRST_DECAY_PER_MIN / 60) * TICK
+
+-- Stash original walkspeed per character so debuff can be reverted cleanly
+local function setBaseSpeedAttribute(character)
+    local hum = character:FindFirstChildOfClass("Humanoid")
+    if hum and not character:GetAttribute("BaseWalkSpeed") then
+        character:SetAttribute("BaseWalkSpeed", hum.WalkSpeed)
+    end
+end
+
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(setBaseSpeedAttribute)
+end)
+for _, p in ipairs(Players:GetPlayers()) do
+    if p.Character then setBaseSpeedAttribute(p.Character) end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(TICK)
+        for _, player in ipairs(Players:GetPlayers()) do
+            local data = DataHandler.getData(player)
+            if data then
+                DataHandler.modify(player, function(d)
+                    -- math.max preserves the float (math.clamp truncates to int via implicit
+                    -- conversion in some places); 0.4/tick decay was being floored to 0.
+                    d.hunger = math.max(0, math.min(100, (d.hunger or 100) - hungerPerTick))
+                    d.thirst = math.max(0, math.min(100, (d.thirst or 100) - thirstPerTick))
+                end)
+                Remotes.SurvivalUpdate:FireClient(player, data.hunger, data.thirst)
+
+                local char = player.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        local base = char:GetAttribute("BaseWalkSpeed") or 16
+                        local lowVitals = data.hunger < GameConfig.SURVIVAL_DEBUFF_AT
+                            or data.thirst < GameConfig.SURVIVAL_DEBUFF_AT
+                        -- Set, don't subtract — old code chained subtractions making the slow permanent.
+                        hum.WalkSpeed = lowVitals and math.max(8, base * 0.5) or base
+
+                        if data.hunger <= 0 or data.thirst <= 0 then
+                            hum.Health = 0
+                            DataHandler.modify(player, function(d)
+                                d.hunger = 50
+                                d.thirst = 50
+                            end)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Food/water sources detection. Connections are tracked so we can disconnect
+-- when a part is destroyed (previous code leaked connections).
+local sourceConns = {}
+local function setupFoodPart(part)
+    if not part:IsA("BasePart") then return end
+    if not part:GetAttribute("FoodSource") and not part:GetAttribute("WaterSource") then return end
+    if sourceConns[part] then return end
+
+    local touchedConn
+    touchedConn = part.Touched:Connect(function(hit)
+        local char = hit and hit.Parent
+        if not char then return end
+        local player = Players:GetPlayerFromCharacter(char)
+        if not player then return end
+        local now = os.clock()
+        local lastUse = part:GetAttribute("LastUse_"..player.UserId) or 0
+        if (now - lastUse) < 5 then return end
+        part:SetAttribute("LastUse_"..player.UserId, now)
+        DataHandler.modify(player, function(d)
+            if part:GetAttribute("FoodSource") then
+                d.hunger = math.min(100, (d.hunger or 0) + GameConfig.FOOD_RESTORE)
+            end
+            if part:GetAttribute("WaterSource") then
+                d.thirst = math.min(100, (d.thirst or 0) + GameConfig.WATER_RESTORE)
+            end
+        end)
+        Remotes.NotifyClient:FireClient(player,
+            part:GetAttribute("FoodSource") and "+Food" or "+Water", "success")
+    end)
+    local destroyConn
+    destroyConn = part.AncestryChanged:Connect(function()
+        if not part:IsDescendantOf(workspace) then
+            if touchedConn then touchedConn:Disconnect() end
+            if destroyConn then destroyConn:Disconnect() end
+            sourceConns[part] = nil
+        end
+    end)
+    sourceConns[part] = {touched = touchedConn, ancestry = destroyConn}
+end
+
+for _, p in ipairs(Workspace:GetDescendants()) do setupFoodPart(p) end
+Workspace.DescendantAdded:Connect(setupFoodPart)
+
+-- Direct request remotes (used by interaction prompts). Now validate proximity
+-- so the client can't eat infinitely without being near a source.
+local function nearSource(player, sourceModel, maxStuds)
+    if not sourceModel or not sourceModel.Parent then return false end
+    if not sourceModel:IsDescendantOf(workspace) then return false end
+    local char = player.Character
+    if not char or not char.PrimaryPart then return false end
+    local pivot = nil
+    if sourceModel:IsA("Model") then
+        pivot = sourceModel.PrimaryPart and sourceModel.PrimaryPart.Position
+            or sourceModel:GetPivot().Position
+    elseif sourceModel:IsA("BasePart") then
+        pivot = sourceModel.Position
+    end
+    if not pivot then return false end
+    return (char.PrimaryPart.Position - pivot).Magnitude <= maxStuds
+end
+
+Remotes.RequestEatFood.OnServerEvent:Connect(function(player, sourceModel)
+    if not SharedUtil.checkRate(player, "eat", 0.5) then return end
+    if not (sourceModel and sourceModel:GetAttribute("FoodSource")) then return end
+    if not nearSource(player, sourceModel, 12) then return end
+    DataHandler.modify(player, function(d)
+        d.hunger = math.min(100, (d.hunger or 0) + GameConfig.FOOD_RESTORE)
+    end)
+end)
+
+Remotes.RequestDrinkWater.OnServerEvent:Connect(function(player, sourceModel)
+    if not SharedUtil.checkRate(player, "drink", 0.5) then return end
+    if not (sourceModel and sourceModel:GetAttribute("WaterSource")) then return end
+    if not nearSource(player, sourceModel, 12) then return end
+    DataHandler.modify(player, function(d)
+        d.thirst = math.min(100, (d.thirst or 0) + GameConfig.WATER_RESTORE)
+    end)
+end)
+
+return true
+
+]])
+
+-- ServerScriptService/WalkAnim.server.lua
+W({'ServerScriptService','WalkAnim'}, 'Script', [[
+-- WalkAnim.server.lua  — applies walk/idle animation to spawned cat
+-- Place in: ServerScriptService > WalkAnim. Auto-runs.
+
+local Players = game:GetService("Players")
+
+local ANIMS = {
+    walk = "rbxassetid://507777826",
+    run  = "rbxassetid://507767714",
+    idle = "rbxassetid://507766388",
+    jump = "rbxassetid://507765000",
+}
+
+local SPEED_THRESHOLD = 4  -- studs/sec; below this, idle animation plays
+
+local function setupAnim(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if not hum then return end
+    local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
+
+    local idle = Instance.new("Animation"); idle.AnimationId = ANIMS.idle
+    local idleTrack = animator:LoadAnimation(idle)
+    idleTrack.Looped = true
+    idleTrack.Priority = Enum.AnimationPriority.Idle
+    idleTrack:Play()
+
+    local walk = Instance.new("Animation"); walk.AnimationId = ANIMS.walk
+    local walkTrack = animator:LoadAnimation(walk)
+    walkTrack.Looped = true
+    walkTrack.Priority = Enum.AnimationPriority.Movement
+
+    -- Watch hum.Running — it's the canonical Roblox signal for "moving" and
+    -- doesn't false-positive on slide physics like raw velocity does.
+    task.spawn(function()
+        while char.Parent and hum.Parent do
+            local moving = hum.MoveDirection.Magnitude > 0.1
+                or hum:GetState() == Enum.HumanoidStateType.Running
+                or (char.PrimaryPart
+                    and Vector3.new(char.PrimaryPart.AssemblyLinearVelocity.X, 0,
+                                    char.PrimaryPart.AssemblyLinearVelocity.Z).Magnitude > SPEED_THRESHOLD)
+
+            if moving then
+                if not walkTrack.IsPlaying then walkTrack:Play(0.2) end
+                if idleTrack.IsPlaying then idleTrack:Stop(0.2) end
+            else
+                if not idleTrack.IsPlaying then idleTrack:Play(0.2) end
+                if walkTrack.IsPlaying then walkTrack:Stop(0.2) end
+            end
+            task.wait(0.15)
+        end
+    end)
+
+    -- Procedural tail wag: only while moving so it doesn't conflict with
+    -- CatLifelike's idle tail dynamics.
+    local tail
+    for i = 1, 5 do
+        local seg = char:FindFirstChild("TailSeg" .. i)
+        if seg then tail = seg; break end
+    end
+    if tail and tail:IsA("BasePart") then
+        local origCF = tail.CFrame
+        task.spawn(function()
+            local t = 0
+            while char.Parent and tail.Parent do
+                local moving = (char.PrimaryPart and char.PrimaryPart.AssemblyLinearVelocity.Magnitude > SPEED_THRESHOLD)
+                if moving then
+                    t = t + 0.05
+                    local angle = math.sin(t * 3) * 0.2
+                    pcall(function() tail.CFrame = origCF * CFrame.Angles(0, angle, 0) end)
+                end
+                task.wait(0.08)
+            end
+        end)
+    end
+end
+
+local function setup(player)
+    if player.Character then setupAnim(player.Character) end
+    player.CharacterAdded:Connect(function(char)
+        task.wait(0.5)
+        setupAnim(char)
+    end)
+end
+
+Players.PlayerAdded:Connect(setup)
+for _, plr in ipairs(Players:GetPlayers()) do setup(plr) end
+
+print("[WalkAnim] cat walk/idle animations + tail wag ready")
+
+]])
+
+-- ServerScriptService/WeatherSystem.server.lua
+W({'ServerScriptService','WeatherSystem'}, 'Script', [[
+-- WeatherSystem.server.lua
+-- Cycles Sunny / Rainy / Foggy / RedMist. Broadcasts state, applies bonuses.
+-- Place in: ServerScriptService > WeatherSystem (Script)
+
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+local CurrentWeather = "Sunny"
+local CurrentMultBonus = 1.0
+
+-- Build a deterministic pickWeather that always sums to 1.0 by normalizing
+-- weights on first call. Eliminates the "fall through to fallback" bias.
+local _normalized
+local function normalizedWeights()
+    if _normalized then return _normalized end
+    local sum = 0
+    for _, w in pairs(GameConfig.WEATHER_WEIGHTS) do sum = sum + w end
+    if sum <= 0 then
+        warn("[WeatherSystem] WEATHER_WEIGHTS sum non-positive; defaulting to Sunny")
+        _normalized = {Sunny = 1.0}
+        return _normalized
+    end
+    _normalized = {}
+    for k, w in pairs(GameConfig.WEATHER_WEIGHTS) do
+        _normalized[k] = w / sum
+    end
+    return _normalized
+end
+
+local function pickWeather()
+    local w = normalizedWeights()
+    local roll = math.random()
+    local cum = 0
+    for k, p in pairs(w) do
+        cum = cum + p
+        if roll <= cum then return k end
+    end
+    return "Sunny"
+end
+
+local function applyVisuals(weather)
+    if weather == "Sunny" then
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 1000
+        Lighting.FogStart = 200
+        Lighting.FogColor = Color3.fromRGB(180, 180, 200)
+    elseif weather == "Rainy" then
+        Lighting.ClockTime = 13
+        Lighting.FogEnd = 400
+        Lighting.FogStart = 50
+        Lighting.FogColor = Color3.fromRGB(100, 100, 130)
+    elseif weather == "Foggy" then
+        Lighting.ClockTime = 18
+        Lighting.FogEnd = 200
+        Lighting.FogStart = 20
+        Lighting.FogColor = Color3.fromRGB(220, 220, 220)
+    elseif weather == "RedMist" then
+        Lighting.ClockTime = 22
+        Lighting.FogEnd = 250
+        Lighting.FogStart = 30
+        Lighting.FogColor = Color3.fromRGB(180, 0, 0)
+    end
+end
+
+function _G.KittyRaiserGetWeatherMult() return CurrentMultBonus end
+
+local function setWeather(weather)
+    CurrentWeather = weather
+    CurrentMultBonus = (weather == "RedMist") and GameConfig.RED_MIST_CHAOS_MULT or 1.0
+    applyVisuals(weather)
+    -- Send the multiplier with the broadcast so clients can't lie about it.
+    Remotes.WeatherChanged:FireAllClients(weather, CurrentMultBonus)
+    Remotes.EventBroadcast:FireAllClients(
+        weather == "RedMist"
+            and ("RED MIST! 2x Chaos for " .. GameConfig.RED_MIST_DURATION_MIN .. " min!")
+            or weather:upper(),
+        weather
+    )
+end
+
+task.spawn(function()
+    while true do
+        local weather = pickWeather()
+        setWeather(weather)
+        local dur = (weather == "RedMist") and GameConfig.RED_MIST_DURATION_MIN or GameConfig.WEATHER_CYCLE_MIN
+        task.wait(dur * 60)
+    end
+end)
+
+return true
+
+]])
+
 -- StarterGui/HUDBuilder.client.lua
 W({'StarterGui','HUDBuilder'}, 'LocalScript', [[
 -- HUDBuilder.client.lua
@@ -411,6 +763,137 @@ print("[HUDBuilder] MainHUD constructed")
 
 -- Expose remote-controlled refs (other client scripts find by Name)
 return screenGui
+
+]])
+
+-- StarterPlayer/StarterPlayerScripts/CameraToggle.client.lua
+W({'StarterPlayer','StarterPlayerScripts','CameraToggle'}, 'LocalScript', [[
+-- CameraToggle.client.lua
+-- Listen for settingsCameraMode and force camera distance accordingly.
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+
+local player = Players.LocalPlayer
+
+local function applyMode(mode)
+    if mode == "first" then
+        player.CameraMaxZoomDistance = 0.5
+        player.CameraMinZoomDistance = 0.5
+    else
+        player.CameraMaxZoomDistance = 30
+        player.CameraMinZoomDistance = 8
+    end
+end
+
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(d)
+    if d.settingsCameraMode then applyMode(d.settingsCameraMode) end
+end)
+
+-- Hotkey: V toggles
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.V then
+        local current = (player.CameraMaxZoomDistance == 0.5) and "first" or "third"
+        local new = current == "first" and "third" or "first"
+        applyMode(new)
+        Remotes.RequestSettingChange:InvokeServer("settingsCameraMode", new)
+    end
+end)
+
+]])
+
+-- StarterPlayer/StarterPlayerScripts/CelebrationFX.client.lua
+W({'StarterPlayer','StarterPlayerScripts','CelebrationFX'}, 'LocalScript', [[
+-- CelebrationFX.client.lua
+-- Confetti / fireworks / screen-flash on level up + rebirth.
+-- Listens to LevelUp + RebirthCompleted; spawns particles around the camera.
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+
+local player = Players.LocalPlayer
+
+local function spawnConfetti(intensity)
+    intensity = intensity or 1
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+    local origin = cam.CFrame.Position + cam.CFrame.LookVector * 8
+
+    local part = Instance.new("Part")
+    part.Anchored = true; part.CanCollide = false; part.Transparency = 1
+    part.Size = Vector3.new(1, 1, 1)
+    part.CFrame = CFrame.new(origin)
+    part.Parent = Workspace
+
+    local emitter = Instance.new("ParticleEmitter")
+    emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+    emitter.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0,   Color3.fromRGB(255, 215, 0)),
+        ColorSequenceKeypoint.new(0.3, Color3.fromRGB(255, 80, 200)),
+        ColorSequenceKeypoint.new(0.6, Color3.fromRGB(80, 255, 200)),
+        ColorSequenceKeypoint.new(1,   Color3.fromRGB(120, 200, 255)),
+    }
+    emitter.Lifetime = NumberRange.new(1.5, 2.5)
+    emitter.Rate = 0
+    emitter.Speed = NumberRange.new(20, 40)
+    emitter.SpreadAngle = Vector2.new(180, 180)
+    emitter.Size = NumberSequence.new(1.0, 0.1)
+    emitter.Acceleration = Vector3.new(0, -25, 0)
+    emitter.Rotation = NumberRange.new(-180, 180)
+    emitter.RotSpeed = NumberRange.new(-180, 180)
+    emitter.Parent = part
+    emitter:Emit(60 * intensity)
+
+    Debris:AddItem(part, 4)
+end
+
+Remotes.LevelUp.OnClientEvent:Connect(function(newLevel)
+    spawnConfetti(1)
+    -- Bigger one every 5 levels
+    if newLevel % 5 == 0 then spawnConfetti(2) end
+end)
+
+Remotes.RebirthCompleted.OnClientEvent:Connect(function()
+    -- Three bursts in sequence for rebirth
+    spawnConfetti(3)
+    task.delay(0.4, function() spawnConfetti(3) end)
+    task.delay(0.8, function() spawnConfetti(3) end)
+end)
+
+print("[CelebrationFX] online")
+
+]])
+
+-- StarterPlayer/StarterPlayerScripts/CleanCoreGui.client.lua
+W({'StarterPlayer','StarterPlayerScripts','CleanCoreGui'}, 'LocalScript', [[
+-- CleanCoreGui.client.lua
+-- Hide unused Roblox CoreGui elements that would clutter the UI.
+-- Kept enabled: PlayerList (so leaderstats show), Chat, Health.
+
+local StarterGui = game:GetService("StarterGui")
+
+local DISABLED = {
+    Enum.CoreGuiType.Backpack,        -- no tools/items in this game
+    Enum.CoreGuiType.EmotesMenu,      -- replaced by our own EmoteWheel
+}
+
+for _, kind in ipairs(DISABLED) do
+    pcall(function() StarterGui:SetCoreGuiEnabled(kind, false) end)
+end
+
+-- Keep PlayerList visible (leaderstats display).
+pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, true) end)
+pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, true) end)
+pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, true) end)
 
 ]])
 
@@ -1276,17 +1759,21 @@ local function buildShopList(inventoryMode)
                         if not ok then showToast("Purchase failed: " .. tostring(err)) end
                     end)
                 else
-                    btn.Text = "ROBUX"
-                    btn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-                    btn.MouseButton1Click:Connect(function()
-                        local gpKey = skin.gamepassKey or (string.upper(skinId) .. "_SKIN")
-                        local gpId = GameConfig.GAMEPASS_IDS[gpKey]
-                        if gpId and gpId ~= 0 then
+                    -- Robux currency. If GamePass ID hasn't been filled in,
+                    -- show "Coming Soon" instead of a dead-end ROBUX button.
+                    local gpKey = skin.gamepassKey or (string.upper(skinId) .. "_SKIN")
+                    local gpId = GameConfig.GAMEPASS_IDS[gpKey]
+                    if gpId and gpId ~= 0 then
+                        btn.Text = "ROBUX"
+                        btn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+                        btn.MouseButton1Click:Connect(function()
                             MarketplaceService:PromptGamePassPurchase(player, gpId)
-                        else
-                            showToast("Coming soon!", Color3.fromRGB(255, 200, 0))
-                        end
-                    end)
+                        end)
+                    else
+                        btn.Text = "SOON"
+                        btn.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+                        btn.AutoButtonColor = false
+                    end
                 end
             end
         end
@@ -1687,6 +2174,87 @@ task.spawn(function()
 end)
 
 print("[Minimap] top-right minimap rendering player + NPC dots")
+
+]])
+
+-- StarterPlayer/StarterPlayerScripts/MusicSystem.client.lua
+W({'StarterPlayer','StarterPlayerScripts','MusicSystem'}, 'LocalScript', [[
+-- MusicSystem.client.lua
+-- Background music with weather/event-aware crossfading. Respects player's
+-- settingsMusicOn / settingsMusicVolume from saved data.
+
+local Players = game:GetService("Players")
+local SoundService = game:GetService("SoundService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+
+local player = Players.LocalPlayer
+
+-- Roblox public free music tracks (curated). Replace with custom IDs once uploaded.
+local TRACKS = {
+    chill   = "rbxassetid://1846458016",  -- public lo-fi loop
+    intense = "rbxassetid://1839907000",
+    eerie   = "rbxassetid://1842437342",
+}
+
+local active = nil
+local musicOn = true
+local musicVolume = 0.5
+
+local function makeSound(id)
+    local s = Instance.new("Sound")
+    s.SoundId = id
+    s.Looped = true
+    s.Volume = 0
+    s.Parent = SoundService
+    return s
+end
+
+local function setMusic(trackKey)
+    if not musicOn then
+        if active then TweenService:Create(active, TweenInfo.new(0.5), {Volume = 0}):Play() end
+        return
+    end
+    local id = TRACKS[trackKey] or TRACKS.chill
+    if active and active.SoundId == id then
+        TweenService:Create(active, TweenInfo.new(0.5), {Volume = musicVolume}):Play()
+        return
+    end
+    if active then
+        local fadeOut = TweenService:Create(active, TweenInfo.new(1.0), {Volume = 0})
+        fadeOut:Play()
+        fadeOut.Completed:Connect(function()
+            if active then active:Destroy() end
+        end)
+    end
+    active = makeSound(id)
+    active:Play()
+    TweenService:Create(active, TweenInfo.new(1.0), {Volume = musicVolume}):Play()
+end
+
+Remotes.UpdatePlayerData.OnClientEvent:Connect(function(d)
+    musicOn = d.settingsMusicOn ~= false
+    if d.settingsMusicVolume ~= nil then
+        musicVolume = math.clamp(d.settingsMusicVolume, 0, 1)
+    end
+    if active then
+        TweenService:Create(active, TweenInfo.new(0.3),
+            {Volume = musicOn and musicVolume or 0}):Play()
+    end
+end)
+
+Remotes.WeatherChanged.OnClientEvent:Connect(function(weather)
+    if weather == "RedMist" then setMusic("intense")
+    elseif weather == "Foggy" or weather == "Rainy" then setMusic("eerie")
+    else setMusic("chill") end
+end)
+
+-- Kick off default track
+task.delay(2, function() setMusic("chill") end)
+
+print("[MusicSystem] online")
 
 ]])
 
@@ -2295,6 +2863,217 @@ hint.TextColor3 = Color3.fromRGB(180, 150, 220)
 hint.Parent = lobby
 
 print("[PreSpawnLobby v3 grokfix] ready, requestSpawn = " .. tostring(requestSpawn))
+
+]])
+
+-- StarterPlayer/StarterPlayerScripts/SettingsUI.client.lua
+W({'StarterPlayer','StarterPlayerScripts','SettingsUI'}, 'LocalScript', [[
+-- SettingsUI.client.lua
+-- Settings menu: music/SFX volume sliders + camera mode + redeem code.
+-- Opens via a small gear icon top-left of the HUD.
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local hud = playerGui:WaitForChild("MainHUD", 60)
+if not hud then return end
+
+-- Gear button on top bar
+local topBar = hud:WaitForChild("TopBar")
+local gear = Instance.new("TextButton")
+gear.Name = "SettingsGear"
+gear.Size = UDim2.new(0, 36, 0, 36)
+gear.Position = UDim2.new(1, -44, 0, 4)
+gear.BackgroundColor3 = Color3.fromRGB(60, 30, 90)
+gear.TextColor3 = Color3.fromRGB(255, 255, 255)
+gear.Font = Enum.Font.GothamBold
+gear.TextScaled = true
+gear.Text = "⚙"
+gear.Parent = topBar
+Instance.new("UICorner", gear).CornerRadius = UDim.new(1, 0)
+
+-- Modal
+local modal = Instance.new("Frame")
+modal.Name = "SettingsModal"
+modal.Size = UDim2.new(0, 480, 0, 460)
+modal.AnchorPoint = Vector2.new(0.5, 0.5)
+modal.Position = UDim2.new(0.5, 0, 0.5, 0)
+modal.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+modal.BorderSizePixel = 0
+modal.Visible = false
+modal.ZIndex = 50
+modal.Parent = hud
+Instance.new("UICorner", modal).CornerRadius = UDim.new(0, 16)
+local stroke = Instance.new("UIStroke", modal); stroke.Thickness = 3; stroke.Color = Color3.fromRGB(150, 50, 200)
+
+local title = Instance.new("TextLabel", modal)
+title.Size = UDim2.new(1, -20, 0, 50)
+title.Position = UDim2.new(0, 10, 0, 10)
+title.BackgroundTransparency = 1
+title.Text = "SETTINGS"
+title.TextColor3 = Color3.fromRGB(255, 100, 200)
+title.Font = Enum.Font.GothamBlack
+title.TextScaled = true
+
+local close = Instance.new("TextButton", modal)
+close.Size = UDim2.new(0, 40, 0, 40)
+close.Position = UDim2.new(1, -50, 0, 10)
+close.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+close.Text = "X"
+close.TextColor3 = Color3.fromRGB(255, 255, 255)
+close.Font = Enum.Font.GothamBlack
+close.TextScaled = true
+Instance.new("UICorner", close).CornerRadius = UDim.new(0, 8)
+close.MouseButton1Click:Connect(function() modal.Visible = false end)
+
+local function makeSlider(label, posY, settingKey, defaultValue)
+    local row = Instance.new("Frame", modal)
+    row.Size = UDim2.new(1, -40, 0, 50)
+    row.Position = UDim2.new(0, 20, 0, posY)
+    row.BackgroundTransparency = 1
+
+    local lbl = Instance.new("TextLabel", row)
+    lbl.Size = UDim2.new(0.4, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = label
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextScaled = true
+    lbl.TextColor3 = Color3.fromRGB(220, 220, 220)
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local bg = Instance.new("Frame", row)
+    bg.Size = UDim2.new(0.55, 0, 0.5, 0)
+    bg.Position = UDim2.new(0.42, 0, 0.25, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(40, 25, 60)
+    bg.BorderSizePixel = 0
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(1, 0)
+
+    local fill = Instance.new("Frame", bg)
+    fill.Size = UDim2.new(defaultValue or 0.5, 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(150, 50, 200)
+    fill.BorderSizePixel = 0
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+    local btn = Instance.new("TextButton", bg)
+    btn.Size = UDim2.fromScale(1, 1)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    btn.MouseButton1Click:Connect(function()
+        local mouse = UserInputService:GetMouseLocation()
+        local relX = mouse.X - bg.AbsolutePosition.X
+        local pct = math.clamp(relX / math.max(1, bg.AbsoluteSize.X), 0, 1)
+        fill.Size = UDim2.new(pct, 0, 1, 0)
+        Remotes.RequestSettingChange:InvokeServer(settingKey, pct)
+    end)
+    return fill
+end
+
+makeSlider("Music",     80,  "settingsMusicVolume", 0.5)
+makeSlider("SFX",       140, "settingsSFXVolume",   0.7)
+
+-- Camera mode toggle
+local camRow = Instance.new("Frame", modal)
+camRow.Size = UDim2.new(1, -40, 0, 50)
+camRow.Position = UDim2.new(0, 20, 0, 200)
+camRow.BackgroundTransparency = 1
+
+local camLbl = Instance.new("TextLabel", camRow)
+camLbl.Size = UDim2.new(0.4, 0, 1, 0)
+camLbl.BackgroundTransparency = 1
+camLbl.Text = "Camera"
+camLbl.Font = Enum.Font.GothamBold
+camLbl.TextScaled = true
+camLbl.TextColor3 = Color3.fromRGB(220, 220, 220)
+camLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+local thirdBtn = Instance.new("TextButton", camRow)
+thirdBtn.Size = UDim2.new(0.27, 0, 0.7, 0)
+thirdBtn.Position = UDim2.new(0.42, 0, 0.15, 0)
+thirdBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 200)
+thirdBtn.Text = "3rd"
+thirdBtn.Font = Enum.Font.GothamBold
+thirdBtn.TextScaled = true
+thirdBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", thirdBtn).CornerRadius = UDim.new(0, 8)
+thirdBtn.MouseButton1Click:Connect(function()
+    Remotes.RequestSettingChange:InvokeServer("settingsCameraMode", "third")
+end)
+
+local firstBtn = Instance.new("TextButton", camRow)
+firstBtn.Size = UDim2.new(0.27, 0, 0.7, 0)
+firstBtn.Position = UDim2.new(0.71, 0, 0.15, 0)
+firstBtn.BackgroundColor3 = Color3.fromRGB(60, 30, 90)
+firstBtn.Text = "1st"
+firstBtn.Font = Enum.Font.GothamBold
+firstBtn.TextScaled = true
+firstBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", firstBtn).CornerRadius = UDim.new(0, 8)
+firstBtn.MouseButton1Click:Connect(function()
+    Remotes.RequestSettingChange:InvokeServer("settingsCameraMode", "first")
+end)
+
+-- Redeem code section
+local codeLbl = Instance.new("TextLabel", modal)
+codeLbl.Size = UDim2.new(1, -40, 0, 30)
+codeLbl.Position = UDim2.new(0, 20, 0, 280)
+codeLbl.BackgroundTransparency = 1
+codeLbl.Text = "Redeem Code"
+codeLbl.Font = Enum.Font.GothamBold
+codeLbl.TextScaled = true
+codeLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+codeLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+local codeInput = Instance.new("TextBox", modal)
+codeInput.Size = UDim2.new(1, -180, 0, 50)
+codeInput.Position = UDim2.new(0, 20, 0, 320)
+codeInput.BackgroundColor3 = Color3.fromRGB(40, 25, 60)
+codeInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+codeInput.PlaceholderText = "Enter code…"
+codeInput.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+codeInput.Font = Enum.Font.Gotham
+codeInput.TextScaled = true
+codeInput.ClearTextOnFocus = false
+codeInput.Text = ""
+Instance.new("UICorner", codeInput).CornerRadius = UDim.new(0, 8)
+
+local redeemBtn = Instance.new("TextButton", modal)
+redeemBtn.Size = UDim2.new(0, 140, 0, 50)
+redeemBtn.Position = UDim2.new(1, -160, 0, 320)
+redeemBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+redeemBtn.Text = "REDEEM"
+redeemBtn.Font = Enum.Font.GothamBlack
+redeemBtn.TextScaled = true
+redeemBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", redeemBtn).CornerRadius = UDim.new(0, 8)
+redeemBtn.MouseButton1Click:Connect(function()
+    redeemBtn.Active = false
+    redeemBtn.Text = "..."
+    task.spawn(function()
+        local ok, msg = Remotes.RequestRedeemCode:InvokeServer(codeInput.Text)
+        codeInput.Text = ""
+        redeemBtn.Active = true
+        redeemBtn.Text = "REDEEM"
+    end)
+end)
+
+local helpLbl = Instance.new("TextLabel", modal)
+helpLbl.Size = UDim2.new(1, -40, 0, 60)
+helpLbl.Position = UDim2.new(0, 20, 0, 380)
+helpLbl.BackgroundTransparency = 1
+helpLbl.Text = "Try LAUNCH for a welcome gift!\nCodes are case-insensitive."
+helpLbl.Font = Enum.Font.Gotham
+helpLbl.TextScaled = true
+helpLbl.TextColor3 = Color3.fromRGB(180, 180, 180)
+helpLbl.TextWrapped = true
+
+gear.MouseButton1Click:Connect(function()
+    modal.Visible = not modal.Visible
+end)
 
 ]])
 

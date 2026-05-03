@@ -29,6 +29,13 @@ function typeof(v)
     return type(v)
 end
 
+-- Luau extensions to math
+math.clamp = math.clamp or function(n, lo, hi)
+    if n < lo then return lo elseif n > hi then return hi else return n end
+end
+math.round = math.round or function(n) return math.floor(n + 0.5) end
+math.sign = math.sign or function(n) return (n > 0 and 1) or (n < 0 and -1) or 0 end
+
 -- ============================================================================
 -- Vector3 / CFrame / Color3 / Region3 / Enum stubs
 -- ============================================================================
@@ -154,6 +161,23 @@ local function makeInstance(className, name)
         _attributes = {},
         _connections = {},
         __type = "Instance",
+        -- Sensible Part defaults so geometry math works under simulation.
+        Position = Vector3.new(0, 0, 0),
+        CFrame = CFrame.new(0, 0, 0),
+        Size = Vector3.new(1, 1, 1),
+        Color = Color3.new(0.5, 0.5, 0.5),
+        Material = Enum.Material.Plastic,
+        Transparency = 0,
+        CanCollide = true,
+        Anchored = false,
+        Massless = false,
+        AssemblyLinearVelocity = Vector3.new(0, 0, 0),
+        AssemblyAngularVelocity = Vector3.new(0, 0, 0),
+        Velocity = Vector3.new(0, 0, 0),
+        TopSurface = Enum.SurfaceType.Smooth,
+        BottomSurface = Enum.SurfaceType.Smooth,
+        BrickColor = "Medium stone grey",
+        Shape = "Block",
     }
 
     function self:GetChildren()
@@ -256,6 +280,7 @@ local function makeInstance(className, name)
     self.DescendantAdded = makeEvent()
     self.AncestryChanged = makeEvent()
     self.Changed = makeEvent()
+    self.Touched = makeEvent()
     -- Remote-specific
     self.OnServerEvent = makeEvent()
     self.OnClientEvent = makeEvent()
@@ -267,12 +292,19 @@ local function makeInstance(className, name)
     function self.InvokeClient(_, ...) end
 
     -- Metatable: __newindex registers children when Parent is set;
-    -- __index resolves child names like Roblox does (parent.ChildName).
+    -- __index resolves child names like Roblox does (parent.ChildName), but
+    -- ONLY as a fallback after rawget — otherwise members assigned via
+    -- rawset (e.g., OnServerInvoke handler functions) would be invisible.
     local mt = {
         __index = function(t, k)
-            -- Find child by name (mimics Roblox's instance.ChildName lookup)
-            for _, c in ipairs(rawget(t, "_children") or {}) do
-                if c.Name == k then return c end
+            local rv = rawget(t, k)
+            if rv ~= nil then return rv end
+            -- Fall back to child lookup
+            local children = rawget(t, "_children")
+            if children then
+                for _, c in ipairs(children) do
+                    if c.Name == k then return c end
+                end
             end
             return nil
         end,

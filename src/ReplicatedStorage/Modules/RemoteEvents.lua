@@ -23,6 +23,9 @@ local DEFINITIONS = {
   RequestClaimDaily = "Function",
   RequestSpawnCustomization = "Event",
   RequestAdminCommand = "Function",
+  RequestRedeemCode = "Function",
+  RequestSettingChange = "Function",
+  RequestQuestClaim = "Function",
   -- Server -> Client
   UpdatePlayerData = "Event",
   PrankRegistered = "Event",

@@ -26,6 +26,9 @@
         },
         "SharedUtil": {
           "$path": "src/ReplicatedStorage/Modules/SharedUtil.lua"
+        },
+        "CodeConfig": {
+          "$path": "src/ReplicatedStorage/Modules/CodeConfig.lua"
         }
       }
     },
@@ -112,6 +115,30 @@
       "StrayLighting": {
         "$path": "src/ServerScriptService/StrayLighting.server.lua"
       },
+      "LeaderstatsSystem": {
+        "$path": "src/ServerScriptService/LeaderstatsSystem.server.lua"
+      },
+      "CodeSystem": {
+        "$path": "src/ServerScriptService/CodeSystem.server.lua"
+      },
+      "SettingsSystem": {
+        "$path": "src/ServerScriptService/SettingsSystem.server.lua"
+      },
+      "KillBarrier": {
+        "$path": "src/ServerScriptService/KillBarrier.server.lua"
+      },
+      "SpawnProtection": {
+        "$path": "src/ServerScriptService/SpawnProtection.server.lua"
+      },
+      "AFKSystem": {
+        "$path": "src/ServerScriptService/AFKSystem.server.lua"
+      },
+      "CoinPickup": {
+        "$path": "src/ServerScriptService/CoinPickup.server.lua"
+      },
+      "ChatTags": {
+        "$path": "src/ServerScriptService/ChatTags.server.lua"
+      },
       "CatLifelike": {
         "$path": "src/ServerScriptService/CatLifelike.server.lua"
       }
@@ -164,6 +191,21 @@
         },
         "KillFeed": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/KillFeed.client.lua"
+        },
+        "MusicSystem": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/MusicSystem.client.lua"
+        },
+        "CelebrationFX": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/CelebrationFX.client.lua"
+        },
+        "CleanCoreGui": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/CleanCoreGui.client.lua"
+        },
+        "SettingsUI": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/SettingsUI.client.lua"
+        },
+        "CameraToggle": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/CameraToggle.client.lua"
         }
       }
     },

@@ -52,6 +52,10 @@ local function defaultData()
         suspended = false,             -- persisted ban-flag from anti-cheat
         settingsMusicOn = true,
         settingsSFXOn = true,
+        settingsMusicVolume = 0.5,
+        settingsSFXVolume = 0.7,
+        settingsCameraMode = "third",
+        redeemedCodes = {},
         purchasedDevProductIds = {},
         stats = {Speed=0, Jump=0, Luck=0, Strength=0, Agility=0},
         unspentStatPoints = 0,

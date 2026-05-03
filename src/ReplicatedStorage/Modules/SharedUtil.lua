@@ -27,8 +27,11 @@ function SharedUtil.checkRate(player, key, intervalSec)
     local userId = player.UserId
     rateLimitState[userId] = rateLimitState[userId] or {}
     local now = os.clock()
-    local last = rateLimitState[userId][key] or 0
-    if now - last < (intervalSec or 0.4) then
+    local last = rateLimitState[userId][key]
+    -- Only rate-limit if there's a prior call. The previous version used
+    -- `last or 0`, which on a freshly-started server (os.clock() < intervalSec)
+    -- caused the very first call to be rejected.
+    if last and now - last < (intervalSec or 0.4) then
         return false
     end
     rateLimitState[userId][key] = now

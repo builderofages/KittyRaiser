@@ -130,6 +130,43 @@ end
 return AssetIds
 ]])
 
+-- ReplicatedStorage/Modules/CodeConfig.lua
+W({'ReplicatedStorage','Modules','CodeConfig'}, 'ModuleScript', [[
+-- CodeConfig.lua
+-- Promotional codes redeemable by players. ADD new codes here.
+-- Each code can have an expiry timestamp (0 = never), max global uses (0 = unlimited),
+-- and a reward payload that the server applies on redemption.
+
+local CodeConfig = {}
+
+CodeConfig.Codes = {
+    LAUNCH      = {chaos = 5000,  hellTokens = 0,  expiry = 0, max = 0,
+                   message = "Welcome to KittyRaiser! +5,000 Chaos"},
+    PURRFECT    = {chaos = 10000, hellTokens = 5,  expiry = 0, max = 0,
+                   message = "+10K Chaos and 5 Hell Tokens"},
+    KITTY100K   = {chaos = 0,     hellTokens = 25, expiry = 0, max = 0,
+                   message = "100K visit milestone — 25 Hell Tokens"},
+    MEOWMEOW    = {chaos = 2500,  hellTokens = 0,  expiry = 0, max = 0,
+                   message = "+2,500 Chaos"},
+    ANVIL       = {chaos = 7500,  hellTokens = 1,  expiry = 0, max = 0,
+                   message = "Anvil drop! +7,500 Chaos +1 Hell Token"},
+}
+
+function CodeConfig.normalize(code)
+    if type(code) ~= "string" then return nil end
+    return code:upper():gsub("%s+", "")
+end
+
+function CodeConfig.get(code)
+    local k = CodeConfig.normalize(code)
+    if not k then return nil end
+    return CodeConfig.Codes[k], k
+end
+
+return CodeConfig
+
+]])
+
 -- ReplicatedStorage/Modules/CosmeticConfig.lua
 W({'ReplicatedStorage','Modules','CosmeticConfig'}, 'ModuleScript', [[
 -- CosmeticConfig.lua
@@ -612,6 +649,9 @@ local DEFINITIONS = {
   RequestClaimDaily = "Function",
   RequestSpawnCustomization = "Event",
   RequestAdminCommand = "Function",
+  RequestRedeemCode = "Function",
+  RequestSettingChange = "Function",
+  RequestQuestClaim = "Function",
   -- Server -> Client
   UpdatePlayerData = "Event",
   PrankRegistered = "Event",
@@ -688,8 +728,11 @@ function SharedUtil.checkRate(player, key, intervalSec)
     local userId = player.UserId
     rateLimitState[userId] = rateLimitState[userId] or {}
     local now = os.clock()
-    local last = rateLimitState[userId][key] or 0
-    if now - last < (intervalSec or 0.4) then
+    local last = rateLimitState[userId][key]
+    -- Only rate-limit if there's a prior call. The previous version used
+    -- `last or 0`, which on a freshly-started server (os.clock() < intervalSec)
+    -- caused the very first call to be rejected.
+    if last and now - last < (intervalSec or 0.4) then
         return false
     end
     rateLimitState[userId][key] = now
@@ -734,6 +777,86 @@ function SharedUtil.slidingExceeds(timestamps, windowSec, maxCount)
 end
 
 return SharedUtil
+
+]])
+
+-- ServerScriptService/AFKSystem.server.lua
+W({'ServerScriptService','AFKSystem'}, 'Script', [[
+-- AFKSystem.server.lua
+-- Track per-player last-active time. If no input or position change for
+-- AFK_KICK_SECONDS, kick them so the slot opens up for an active player.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+
+local AFK_WARN_SECONDS = 600   -- 10 min warning
+local AFK_KICK_SECONDS = 900   -- 15 min kick
+
+local lastActive = {}    -- userId -> os.clock()
+local lastPos = {}       -- userId -> Vector3
+
+local function bump(player)
+    lastActive[player.UserId] = os.clock()
+end
+
+Players.PlayerAdded:Connect(function(player)
+    bump(player)
+    -- Any prank/summon/emote remote bumps activity.
+    -- We hook a generic activity event via the player's chat as backup.
+    pcall(function()
+        player.Chatted:Connect(function() bump(player) end)
+    end)
+end)
+Players.PlayerRemoving:Connect(function(player)
+    lastActive[player.UserId] = nil
+    lastPos[player.UserId] = nil
+end)
+for _, p in ipairs(Players:GetPlayers()) do bump(p) end
+
+-- Bump on any of these remote-events too (active gameplay = not AFK).
+local activityHooks = {Remotes.RequestPrank, Remotes.RequestSummonHuman,
+    Remotes.RequestEmote, Remotes.RequestEatFood, Remotes.RequestDrinkWater}
+for _, r in ipairs(activityHooks) do
+    if r and r.OnServerEvent then
+        r.OnServerEvent:Connect(function(player) bump(player) end)
+    end
+end
+
+-- Position-change check every 30s. If position hasn't moved, no input either,
+-- count as AFK.
+task.spawn(function()
+    while true do
+        task.wait(30)
+        for _, p in ipairs(Players:GetPlayers()) do
+            local char = p.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local last = lastPos[p.UserId]
+                if last and (hrp.Position - last).Magnitude > 5 then
+                    bump(p)
+                end
+                lastPos[p.UserId] = hrp.Position
+            end
+            local idle = os.clock() - (lastActive[p.UserId] or os.clock())
+            if idle > AFK_KICK_SECONDS then
+                pcall(function()
+                    p:Kick("AFK for too long. Rejoin when you're back.")
+                end)
+            elseif idle > AFK_WARN_SECONDS then
+                pcall(function()
+                    Remotes.NotifyClient:FireClient(p,
+                        ("AFK warning — kicked in %ds"):format(AFK_KICK_SECONDS - math.floor(idle)),
+                        "warn")
+                end)
+            end
+        end
+    end
+end)
+
+print("[AFKSystem] online — warn at " .. AFK_WARN_SECONDS .. "s, kick at " .. AFK_KICK_SECONDS .. "s")
 
 ]])
 
@@ -1658,6 +1781,47 @@ print("[CatLifelike] ready — ear twitch, blink, breathing, tail dynamics")
 
 ]])
 
+-- ServerScriptService/ChatTags.server.lua
+W({'ServerScriptService','ChatTags'}, 'Script', [[
+-- ChatTags.server.lua
+-- Adds a [L<level>] [👑<rebirths>] tag to chat messages so players can see
+-- each other's progression in chat. Uses the modern TextChatService API.
+
+local Players = game:GetService("Players")
+local TextChatService = game:GetService("TextChatService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local SharedUtil = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("SharedUtil"))
+local DataHandler = SharedUtil.waitForGlobal("KittyRaiserData", 30)
+if not DataHandler then return end
+
+-- TextChatService may not be enabled on legacy chat games; guard.
+if not TextChatService.OnIncomingMessage then
+    print("[ChatTags] TextChatService not available; skipping (legacy chat?)")
+    return
+end
+
+TextChatService.OnIncomingMessage = function(message)
+    local props = Instance.new("TextChatMessageProperties")
+    if not message.TextSource then return props end
+    local userId = message.TextSource.UserId
+    local player = Players:GetPlayerByUserId(userId)
+    if not player then return props end
+    local d = DataHandler.getData(player)
+    if not d then return props end
+    local prefix = ("<font color=\"#%s\">[L%d %s]</font> "):format(
+        "FFD700",
+        d.level or 1,
+        ((d.rebirths or 0) > 0) and ("R" .. d.rebirths) or ""
+    )
+    props.PrefixText = prefix .. (message.PrefixText or "")
+    return props
+end
+
+print("[ChatTags] online")
+
+]])
+
 -- ServerScriptService/CityRebuild.server.lua
 W({'ServerScriptService','CityRebuild'}, 'Script', [[
 -- CityRebuild.server.lua  v5 — geometry only. Lighting lives in StrayLighting.
@@ -1892,6 +2056,134 @@ if nukedPink > 0 then
     print(("[CityRebuild v5] removed %d placeholder pink parts"):format(nukedPink))
 end
 print("[CityRebuild v5] DONE — geometry ready (lighting handled by StrayLighting)")
+
+]])
+
+-- ServerScriptService/CodeSystem.server.lua
+W({'ServerScriptService','CodeSystem'}, 'Script', [[
+-- CodeSystem.server.lua
+-- Server-authoritative promo code redemption. Uses DataHandler to track which
+-- codes a player has already used; uses a DataStore counter for global use caps.
+
+local DataStoreService = game:GetService("DataStoreService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local CodeConfig = require(ReplicatedStorage.Modules.CodeConfig)
+local SharedUtil = require(ReplicatedStorage.Modules.SharedUtil)
+
+local DataHandler = SharedUtil.waitForGlobal("KittyRaiserData", 30)
+if not DataHandler then return end
+
+local globalCounter = DataStoreService:GetDataStore("KittyRaiserCodes_v1")
+
+Remotes.RequestRedeemCode.OnServerInvoke = function(player, rawCode)
+    if not SharedUtil.checkRate(player, "redeemCode", 1.0) then
+        return false, "rate_limited"
+    end
+    if type(rawCode) ~= "string" or #rawCode > 64 then
+        return false, "bad_input"
+    end
+    local cfg, key = CodeConfig.get(rawCode)
+    if not cfg then return false, "invalid_code" end
+
+    if cfg.expiry and cfg.expiry > 0 and os.time() > cfg.expiry then
+        return false, "expired"
+    end
+
+    local data = DataHandler.getData(player)
+    if not data then return false, "no_data" end
+    data.redeemedCodes = data.redeemedCodes or {}
+    if table.find(data.redeemedCodes, key) then return false, "already_redeemed" end
+
+    -- Atomic global counter for capped codes.
+    if cfg.max and cfg.max > 0 then
+        local ok, used = pcall(function()
+            return globalCounter:UpdateAsync(key, function(old)
+                old = old or 0
+                if old >= cfg.max then return nil end  -- cap hit, abort the update
+                return old + 1
+            end)
+        end)
+        if not ok or used == nil then
+            return false, "max_redemptions_reached"
+        end
+    end
+
+    DataHandler.modify(player, function(d)
+        d.chaosPoints = (d.chaosPoints or 0) + (cfg.chaos or 0)
+        d.hellTokens = (d.hellTokens or 0) + (cfg.hellTokens or 0)
+        d.redeemedCodes = d.redeemedCodes or {}
+        table.insert(d.redeemedCodes, key)
+    end)
+
+    Remotes.NotifyClient:FireClient(player, cfg.message or "Code redeemed!", "success")
+    return true, cfg.message
+end
+
+print("[CodeSystem] online — " .. (function() local n=0; for _ in pairs(CodeConfig.Codes) do n=n+1 end; return n end)() .. " codes registered")
+
+]])
+
+-- ServerScriptService/CoinPickup.server.lua
+W({'ServerScriptService','CoinPickup'}, 'Script', [[
+-- CoinPickup.server.lua
+-- Coins spawned by RagdollOnPrank get a Touched handler that grants the
+-- toucher a small chaos bonus + plays a pickup sound. Auto-attached via
+-- DescendantAdded on Workspace, scoped to coin-shaped parts.
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local AssetIds = require(ReplicatedStorage.Modules.AssetIds)
+local SharedUtil = require(ReplicatedStorage.Modules.SharedUtil)
+
+local DataHandler = SharedUtil.waitForGlobal("KittyRaiserData", 30)
+if not DataHandler then return end
+
+local COIN_VALUE = 5
+
+local function isCoin(part)
+    return part:IsA("BasePart")
+        and part.Color == Color3.fromRGB(255, 215, 0)
+        and part.Material == Enum.Material.Neon
+        and not part:GetAttribute("Collected")
+        and part.Name == "Part"
+        and part.Shape == Enum.PartType.Cylinder
+end
+
+local function attach(part)
+    if not isCoin(part) then return end
+    local conn
+    conn = part.Touched:Connect(function(hit)
+        local model = hit and hit.Parent
+        if not model then return end
+        local player = Players:GetPlayerFromCharacter(model)
+        if not player then return end
+        if part:GetAttribute("Collected") then return end
+        part:SetAttribute("Collected", true)
+        if conn then conn:Disconnect() end
+        DataHandler.modify(player, function(d)
+            d.chaosPoints = (d.chaosPoints or 0) + COIN_VALUE
+        end)
+        -- Spawn a small pickup sound at the part's location
+        if AssetIds.coin_pickup then
+            local s = Instance.new("Sound")
+            s.SoundId = AssetIds.coin_pickup
+            s.Volume = 0.5
+            s.Parent = part
+            s:Play()
+        end
+        part:Destroy()
+    end)
+end
+
+Workspace.DescendantAdded:Connect(attach)
+for _, p in ipairs(Workspace:GetDescendants()) do attach(p) end
+
+print("[CoinPickup] online — coins worth " .. COIN_VALUE .. " chaos each")
 
 ]])
 
@@ -2189,6 +2481,10 @@ local function defaultData()
         suspended = false,             -- persisted ban-flag from anti-cheat
         settingsMusicOn = true,
         settingsSFXOn = true,
+        settingsMusicVolume = 0.5,
+        settingsSFXVolume = 0.7,
+        settingsCameraMode = "third",
+        redeemedCodes = {},
         purchasedDevProductIds = {},
         stats = {Speed=0, Jump=0, Luck=0, Strength=0, Agility=0},
         unspentStatPoints = 0,
@@ -2561,6 +2857,41 @@ return true
 
 ]])
 
+-- ServerScriptService/KillBarrier.server.lua
+W({'ServerScriptService','KillBarrier'}, 'Script', [[
+-- KillBarrier.server.lua
+-- A wide invisible CanCollide=false plate at Y=-100 that kills any humanoid
+-- that touches it, so a player who falls through the map respawns instead of
+-- falling forever. Anchored, no collision, big enough to catch from any spawn.
+
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+
+local barrier = Workspace:FindFirstChild("__KillBarrier")
+if not barrier then
+    barrier = Instance.new("Part")
+    barrier.Name = "__KillBarrier"
+    barrier.Size = Vector3.new(8000, 4, 8000)
+    barrier.Position = Vector3.new(0, -200, 0)
+    barrier.Anchored = true
+    barrier.CanCollide = false
+    barrier.Transparency = 1
+    barrier.Parent = Workspace
+end
+
+barrier.Touched:Connect(function(hit)
+    local model = hit and hit.Parent
+    if not model then return end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    if hum and hum.Health > 0 then
+        hum.Health = 0
+    end
+end)
+
+print("[KillBarrier] online at y=-200")
+
+]])
+
 -- ServerScriptService/LeaderboardHandler.server.lua
 W({'ServerScriptService','LeaderboardHandler'}, 'Script', [[
 -- LeaderboardHandler.server.lua
@@ -2628,6 +2959,96 @@ task.spawn(function()
 end)
 
 return true
+
+]])
+
+-- ServerScriptService/LeaderstatsSystem.server.lua
+W({'ServerScriptService','LeaderstatsSystem'}, 'Script', [[
+-- LeaderstatsSystem.server.lua
+-- Populates Roblox's default player-list leaderboard with Chaos / Level / Rebirths
+-- so other players see your stats when they hover over your name.
+-- Place in: ServerScriptService > LeaderstatsSystem (Script). Auto-runs.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local SharedUtil = require(ReplicatedStorage.Modules.SharedUtil)
+
+local DataHandler = SharedUtil.waitForGlobal("KittyRaiserData", 30)
+if not DataHandler then return end
+
+local function abbreviate(n)
+    n = n or 0
+    if n >= 1e9 then return string.format("%.2fB", n/1e9) end
+    if n >= 1e6 then return string.format("%.2fM", n/1e6) end
+    if n >= 1e3 then return string.format("%.1fK", n/1e3) end
+    return tostring(math.floor(n))
+end
+
+local function setupLeaderstats(player)
+    local existing = player:FindFirstChild("leaderstats")
+    if existing then existing:Destroy() end
+
+    local ls = Instance.new("Folder")
+    ls.Name = "leaderstats"
+
+    local chaos = Instance.new("StringValue")
+    chaos.Name = "Chaos"
+    chaos.Value = "0"
+    chaos.Parent = ls
+
+    local level = Instance.new("IntValue")
+    level.Name = "Level"
+    level.Value = 1
+    level.Parent = ls
+
+    local rebirths = Instance.new("IntValue")
+    rebirths.Name = "Rebirths"
+    rebirths.Value = 0
+    rebirths.Parent = ls
+
+    ls.Parent = player
+    return ls
+end
+
+local function syncFromData(player)
+    local ls = player:FindFirstChild("leaderstats") or setupLeaderstats(player)
+    local d = DataHandler.getData(player)
+    if not d then return end
+    ls.Chaos.Value = abbreviate(d.chaosPoints or 0)
+    ls.Level.Value = d.level or 1
+    ls.Rebirths.Value = d.rebirths or 0
+end
+
+Players.PlayerAdded:Connect(function(player)
+    setupLeaderstats(player)
+    -- Wait for DataHandler to populate, then sync periodically.
+    task.spawn(function()
+        for _ = 1, 60 do
+            if DataHandler.getData(player) then break end
+            task.wait(0.5)
+        end
+        syncFromData(player)
+    end)
+end)
+for _, p in ipairs(Players:GetPlayers()) do
+    setupLeaderstats(p)
+    task.spawn(syncFromData, p)
+end
+
+-- Update leaderstats whenever player data changes
+Remotes.UpdatePlayerData.OnServerEvent:Connect(function() end)  -- noop hook
+task.spawn(function()
+    while true do
+        task.wait(2)
+        for _, p in ipairs(Players:GetPlayers()) do
+            syncFromData(p)
+        end
+    end
+end)
+
+print("[LeaderstatsSystem] online")
 
 ]])
 
@@ -3622,6 +4043,48 @@ print("[SafetyGuard] watching for DataHandler / AntiCheat globals "
 
 ]])
 
+-- ServerScriptService/SettingsSystem.server.lua
+W({'ServerScriptService','SettingsSystem'}, 'Script', [[
+-- SettingsSystem.server.lua
+-- Persists per-player audio + UI settings. Client reads these on join via
+-- UpdatePlayerData.settings; can change them via RequestSettingChange.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local SharedUtil = require(ReplicatedStorage.Modules.SharedUtil)
+
+local DataHandler = SharedUtil.waitForGlobal("KittyRaiserData", 30)
+if not DataHandler then return end
+
+local ALLOWED_KEYS = {
+    settingsMusicOn = "boolean",
+    settingsSFXOn = "boolean",
+    settingsMusicVolume = "number",
+    settingsSFXVolume = "number",
+    settingsCameraMode = "string",   -- "third" or "first"
+}
+
+Remotes.RequestSettingChange.OnServerInvoke = function(player, key, value)
+    if not SharedUtil.checkRate(player, "setting:" .. tostring(key), 0.2) then
+        return false, "rate_limited"
+    end
+    local expected = ALLOWED_KEYS[key]
+    if not expected then return false, "bad_key" end
+    if type(value) ~= expected then return false, "bad_type" end
+    if expected == "number" then
+        value = math.clamp(value, 0, 1)
+    elseif expected == "string" and key == "settingsCameraMode" then
+        if value ~= "third" and value ~= "first" then return false, "bad_value" end
+    end
+    DataHandler.modify(player, function(d) d[key] = value end)
+    return true, value
+end
+
+print("[SettingsSystem] online — " .. (function() local n=0; for _ in pairs(ALLOWED_KEYS) do n=n+1 end; return n end)() .. " settings keys")
+
+]])
+
 -- ServerScriptService/SpawnEnforcer.server.lua
 W({'ServerScriptService','SpawnEnforcer'}, 'Script', [[
 -- SpawnEnforcer.server.lua  — guarantees a cat spawns for every player no matter what
@@ -3861,6 +4324,41 @@ end
 
 ]])
 
+-- ServerScriptService/SpawnProtection.server.lua
+W({'ServerScriptService','SpawnProtection'}, 'Script', [[
+-- SpawnProtection.server.lua
+-- Gives a 5-second ForceField on every character spawn to prevent
+-- spawn-camping from stealing kills / pranks before the player gets bearings.
+
+local Players = game:GetService("Players")
+
+local PROTECT_SECONDS = 5
+
+local function protect(character)
+    -- A ForceField makes the humanoid invulnerable until removed.
+    local existing = character:FindFirstChildOfClass("ForceField")
+    if existing then existing:Destroy() end
+    local ff = Instance.new("ForceField")
+    ff.Name = "SpawnProtection"
+    ff.Visible = true
+    ff.Parent = character
+    task.delay(PROTECT_SECONDS, function()
+        if ff and ff.Parent then ff:Destroy() end
+    end)
+end
+
+local function attach(player)
+    if player.Character then protect(player.Character) end
+    player.CharacterAdded:Connect(protect)
+end
+
+Players.PlayerAdded:Connect(attach)
+for _, p in ipairs(Players:GetPlayers()) do attach(p) end
+
+print("[SpawnProtection] online — " .. PROTECT_SECONDS .. "s ForceField on respawn")
+
+]])
+
 -- ServerScriptService/StrayLighting.server.lua
 W({'ServerScriptService','StrayLighting'}, 'Script', [[
 -- StrayLighting.server.lua — canonical lighting script.
@@ -4051,8 +4549,8 @@ end
 
 function SummonSystem.summon(player)
     local now = os.clock()
-    local last = lastSummonTime[player.UserId] or 0
-    if (now - last) < SUMMON_COOLDOWN then
+    local last = lastSummonTime[player.UserId]
+    if last and (now - last) < SUMMON_COOLDOWN then
         return false, "summon_cooldown"
     end
 
@@ -4137,358 +4635,6 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 return SummonSystem
-
-]])
-
--- ServerScriptService/SurvivalSystem.server.lua
-W({'ServerScriptService','SurvivalSystem'}, 'Script', [[
--- SurvivalSystem.server.lua
--- Hunger/thirst decay over time. Below 25 = slow. At 0 = ragdoll respawn.
--- Place in: ServerScriptService > SurvivalSystem (Script)
-
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
-local SharedUtil = require(ReplicatedStorage.Modules.SharedUtil)
-
-local DataHandler = SharedUtil.waitForGlobal("KittyRaiserData", 30)
-if not DataHandler then return end
-
-if not GameConfig.SURVIVAL_ENABLED then
-    print("[SurvivalSystem] Disabled in config")
-    return
-end
-
-local TICK = 5
-local hungerPerTick = (GameConfig.HUNGER_DECAY_PER_MIN / 60) * TICK
-local thirstPerTick = (GameConfig.THIRST_DECAY_PER_MIN / 60) * TICK
-
--- Stash original walkspeed per character so debuff can be reverted cleanly
-local function setBaseSpeedAttribute(character)
-    local hum = character:FindFirstChildOfClass("Humanoid")
-    if hum and not character:GetAttribute("BaseWalkSpeed") then
-        character:SetAttribute("BaseWalkSpeed", hum.WalkSpeed)
-    end
-end
-
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(setBaseSpeedAttribute)
-end)
-for _, p in ipairs(Players:GetPlayers()) do
-    if p.Character then setBaseSpeedAttribute(p.Character) end
-end
-
-task.spawn(function()
-    while true do
-        task.wait(TICK)
-        for _, player in ipairs(Players:GetPlayers()) do
-            local data = DataHandler.getData(player)
-            if data then
-                DataHandler.modify(player, function(d)
-                    -- math.max preserves the float (math.clamp truncates to int via implicit
-                    -- conversion in some places); 0.4/tick decay was being floored to 0.
-                    d.hunger = math.max(0, math.min(100, (d.hunger or 100) - hungerPerTick))
-                    d.thirst = math.max(0, math.min(100, (d.thirst or 100) - thirstPerTick))
-                end)
-                Remotes.SurvivalUpdate:FireClient(player, data.hunger, data.thirst)
-
-                local char = player.Character
-                if char then
-                    local hum = char:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        local base = char:GetAttribute("BaseWalkSpeed") or 16
-                        local lowVitals = data.hunger < GameConfig.SURVIVAL_DEBUFF_AT
-                            or data.thirst < GameConfig.SURVIVAL_DEBUFF_AT
-                        -- Set, don't subtract — old code chained subtractions making the slow permanent.
-                        hum.WalkSpeed = lowVitals and math.max(8, base * 0.5) or base
-
-                        if data.hunger <= 0 or data.thirst <= 0 then
-                            hum.Health = 0
-                            DataHandler.modify(player, function(d)
-                                d.hunger = 50
-                                d.thirst = 50
-                            end)
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
--- Food/water sources detection. Connections are tracked so we can disconnect
--- when a part is destroyed (previous code leaked connections).
-local sourceConns = {}
-local function setupFoodPart(part)
-    if not part:IsA("BasePart") then return end
-    if not part:GetAttribute("FoodSource") and not part:GetAttribute("WaterSource") then return end
-    if sourceConns[part] then return end
-
-    local touchedConn
-    touchedConn = part.Touched:Connect(function(hit)
-        local char = hit and hit.Parent
-        if not char then return end
-        local player = Players:GetPlayerFromCharacter(char)
-        if not player then return end
-        local now = os.clock()
-        local lastUse = part:GetAttribute("LastUse_"..player.UserId) or 0
-        if (now - lastUse) < 5 then return end
-        part:SetAttribute("LastUse_"..player.UserId, now)
-        DataHandler.modify(player, function(d)
-            if part:GetAttribute("FoodSource") then
-                d.hunger = math.min(100, (d.hunger or 0) + GameConfig.FOOD_RESTORE)
-            end
-            if part:GetAttribute("WaterSource") then
-                d.thirst = math.min(100, (d.thirst or 0) + GameConfig.WATER_RESTORE)
-            end
-        end)
-        Remotes.NotifyClient:FireClient(player,
-            part:GetAttribute("FoodSource") and "+Food" or "+Water", "success")
-    end)
-    local destroyConn
-    destroyConn = part.AncestryChanged:Connect(function()
-        if not part:IsDescendantOf(workspace) then
-            if touchedConn then touchedConn:Disconnect() end
-            if destroyConn then destroyConn:Disconnect() end
-            sourceConns[part] = nil
-        end
-    end)
-    sourceConns[part] = {touched = touchedConn, ancestry = destroyConn}
-end
-
-for _, p in ipairs(Workspace:GetDescendants()) do setupFoodPart(p) end
-Workspace.DescendantAdded:Connect(setupFoodPart)
-
--- Direct request remotes (used by interaction prompts). Now validate proximity
--- so the client can't eat infinitely without being near a source.
-local function nearSource(player, sourceModel, maxStuds)
-    if not sourceModel or not sourceModel.Parent then return false end
-    if not sourceModel:IsDescendantOf(workspace) then return false end
-    local char = player.Character
-    if not char or not char.PrimaryPart then return false end
-    local pivot = nil
-    if sourceModel:IsA("Model") then
-        pivot = sourceModel.PrimaryPart and sourceModel.PrimaryPart.Position
-            or sourceModel:GetPivot().Position
-    elseif sourceModel:IsA("BasePart") then
-        pivot = sourceModel.Position
-    end
-    if not pivot then return false end
-    return (char.PrimaryPart.Position - pivot).Magnitude <= maxStuds
-end
-
-Remotes.RequestEatFood.OnServerEvent:Connect(function(player, sourceModel)
-    if not SharedUtil.checkRate(player, "eat", 0.5) then return end
-    if not (sourceModel and sourceModel:GetAttribute("FoodSource")) then return end
-    if not nearSource(player, sourceModel, 12) then return end
-    DataHandler.modify(player, function(d)
-        d.hunger = math.min(100, (d.hunger or 0) + GameConfig.FOOD_RESTORE)
-    end)
-end)
-
-Remotes.RequestDrinkWater.OnServerEvent:Connect(function(player, sourceModel)
-    if not SharedUtil.checkRate(player, "drink", 0.5) then return end
-    if not (sourceModel and sourceModel:GetAttribute("WaterSource")) then return end
-    if not nearSource(player, sourceModel, 12) then return end
-    DataHandler.modify(player, function(d)
-        d.thirst = math.min(100, (d.thirst or 0) + GameConfig.WATER_RESTORE)
-    end)
-end)
-
-return true
-
-]])
-
--- ServerScriptService/WalkAnim.server.lua
-W({'ServerScriptService','WalkAnim'}, 'Script', [[
--- WalkAnim.server.lua  — applies walk/idle animation to spawned cat
--- Place in: ServerScriptService > WalkAnim. Auto-runs.
-
-local Players = game:GetService("Players")
-
-local ANIMS = {
-    walk = "rbxassetid://507777826",
-    run  = "rbxassetid://507767714",
-    idle = "rbxassetid://507766388",
-    jump = "rbxassetid://507765000",
-}
-
-local SPEED_THRESHOLD = 4  -- studs/sec; below this, idle animation plays
-
-local function setupAnim(char)
-    local hum = char:WaitForChild("Humanoid", 5)
-    if not hum then return end
-    local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
-
-    local idle = Instance.new("Animation"); idle.AnimationId = ANIMS.idle
-    local idleTrack = animator:LoadAnimation(idle)
-    idleTrack.Looped = true
-    idleTrack.Priority = Enum.AnimationPriority.Idle
-    idleTrack:Play()
-
-    local walk = Instance.new("Animation"); walk.AnimationId = ANIMS.walk
-    local walkTrack = animator:LoadAnimation(walk)
-    walkTrack.Looped = true
-    walkTrack.Priority = Enum.AnimationPriority.Movement
-
-    -- Watch hum.Running — it's the canonical Roblox signal for "moving" and
-    -- doesn't false-positive on slide physics like raw velocity does.
-    task.spawn(function()
-        while char.Parent and hum.Parent do
-            local moving = hum.MoveDirection.Magnitude > 0.1
-                or hum:GetState() == Enum.HumanoidStateType.Running
-                or (char.PrimaryPart
-                    and Vector3.new(char.PrimaryPart.AssemblyLinearVelocity.X, 0,
-                                    char.PrimaryPart.AssemblyLinearVelocity.Z).Magnitude > SPEED_THRESHOLD)
-
-            if moving then
-                if not walkTrack.IsPlaying then walkTrack:Play(0.2) end
-                if idleTrack.IsPlaying then idleTrack:Stop(0.2) end
-            else
-                if not idleTrack.IsPlaying then idleTrack:Play(0.2) end
-                if walkTrack.IsPlaying then walkTrack:Stop(0.2) end
-            end
-            task.wait(0.15)
-        end
-    end)
-
-    -- Procedural tail wag: only while moving so it doesn't conflict with
-    -- CatLifelike's idle tail dynamics.
-    local tail
-    for i = 1, 5 do
-        local seg = char:FindFirstChild("TailSeg" .. i)
-        if seg then tail = seg; break end
-    end
-    if tail and tail:IsA("BasePart") then
-        local origCF = tail.CFrame
-        task.spawn(function()
-            local t = 0
-            while char.Parent and tail.Parent do
-                local moving = (char.PrimaryPart and char.PrimaryPart.AssemblyLinearVelocity.Magnitude > SPEED_THRESHOLD)
-                if moving then
-                    t = t + 0.05
-                    local angle = math.sin(t * 3) * 0.2
-                    pcall(function() tail.CFrame = origCF * CFrame.Angles(0, angle, 0) end)
-                end
-                task.wait(0.08)
-            end
-        end)
-    end
-end
-
-local function setup(player)
-    if player.Character then setupAnim(player.Character) end
-    player.CharacterAdded:Connect(function(char)
-        task.wait(0.5)
-        setupAnim(char)
-    end)
-end
-
-Players.PlayerAdded:Connect(setup)
-for _, plr in ipairs(Players:GetPlayers()) do setup(plr) end
-
-print("[WalkAnim] cat walk/idle animations + tail wag ready")
-
-]])
-
--- ServerScriptService/WeatherSystem.server.lua
-W({'ServerScriptService','WeatherSystem'}, 'Script', [[
--- WeatherSystem.server.lua
--- Cycles Sunny / Rainy / Foggy / RedMist. Broadcasts state, applies bonuses.
--- Place in: ServerScriptService > WeatherSystem (Script)
-
-local Lighting = game:GetService("Lighting")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
-
-local CurrentWeather = "Sunny"
-local CurrentMultBonus = 1.0
-
--- Build a deterministic pickWeather that always sums to 1.0 by normalizing
--- weights on first call. Eliminates the "fall through to fallback" bias.
-local _normalized
-local function normalizedWeights()
-    if _normalized then return _normalized end
-    local sum = 0
-    for _, w in pairs(GameConfig.WEATHER_WEIGHTS) do sum = sum + w end
-    if sum <= 0 then
-        warn("[WeatherSystem] WEATHER_WEIGHTS sum non-positive; defaulting to Sunny")
-        _normalized = {Sunny = 1.0}
-        return _normalized
-    end
-    _normalized = {}
-    for k, w in pairs(GameConfig.WEATHER_WEIGHTS) do
-        _normalized[k] = w / sum
-    end
-    return _normalized
-end
-
-local function pickWeather()
-    local w = normalizedWeights()
-    local roll = math.random()
-    local cum = 0
-    for k, p in pairs(w) do
-        cum = cum + p
-        if roll <= cum then return k end
-    end
-    return "Sunny"
-end
-
-local function applyVisuals(weather)
-    if weather == "Sunny" then
-        Lighting.ClockTime = 14
-        Lighting.FogEnd = 1000
-        Lighting.FogStart = 200
-        Lighting.FogColor = Color3.fromRGB(180, 180, 200)
-    elseif weather == "Rainy" then
-        Lighting.ClockTime = 13
-        Lighting.FogEnd = 400
-        Lighting.FogStart = 50
-        Lighting.FogColor = Color3.fromRGB(100, 100, 130)
-    elseif weather == "Foggy" then
-        Lighting.ClockTime = 18
-        Lighting.FogEnd = 200
-        Lighting.FogStart = 20
-        Lighting.FogColor = Color3.fromRGB(220, 220, 220)
-    elseif weather == "RedMist" then
-        Lighting.ClockTime = 22
-        Lighting.FogEnd = 250
-        Lighting.FogStart = 30
-        Lighting.FogColor = Color3.fromRGB(180, 0, 0)
-    end
-end
-
-function _G.KittyRaiserGetWeatherMult() return CurrentMultBonus end
-
-local function setWeather(weather)
-    CurrentWeather = weather
-    CurrentMultBonus = (weather == "RedMist") and GameConfig.RED_MIST_CHAOS_MULT or 1.0
-    applyVisuals(weather)
-    -- Send the multiplier with the broadcast so clients can't lie about it.
-    Remotes.WeatherChanged:FireAllClients(weather, CurrentMultBonus)
-    Remotes.EventBroadcast:FireAllClients(
-        weather == "RedMist"
-            and ("RED MIST! 2x Chaos for " .. GameConfig.RED_MIST_DURATION_MIN .. " min!")
-            or weather:upper(),
-        weather
-    )
-end
-
-task.spawn(function()
-    while true do
-        local weather = pickWeather()
-        setWeather(weather)
-        local dur = (weather == "RedMist") and GameConfig.RED_MIST_DURATION_MIN or GameConfig.WEATHER_CYCLE_MIN
-        task.wait(dur * 60)
-    end
-end)
-
-return true
 
 ]])
 
