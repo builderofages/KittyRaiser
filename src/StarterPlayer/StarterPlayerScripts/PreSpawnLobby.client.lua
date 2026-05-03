@@ -147,51 +147,159 @@ Instance.new("UICorner", viewport).CornerRadius = UDim.new(1, 0)
 local function buildCat(color)
   if catModel then catModel:Destroy() end
   local model = Instance.new("Model")
-  local body = Instance.new("Part", model)
-  body.Size = Vector3.new(2, 1.5, 3); body.Color = color; body.Material = Enum.Material.SmoothPlastic; body.Anchored = true
-  body.CFrame = CFrame.new(0, 0, 0)
-  local head = Instance.new("Part", model)
-  head.Shape = Enum.PartType.Ball; head.Size = Vector3.new(1.6, 1.6, 1.6); head.Color = color
-  head.Material = Enum.Material.SmoothPlastic; head.Anchored = true
-  head.CFrame = body.CFrame * CFrame.new(0, 0.4, -1.8)
-  for _, off in ipairs({Vector3.new(-0.4, 0.2, -0.7), Vector3.new(0.4, 0.2, -0.7)}) do
-    local eye = Instance.new("Part", model)
-    eye.Shape = Enum.PartType.Ball; eye.Size = Vector3.new(0.35, 0.35, 0.35)
-    eye.Color = Color3.fromRGB(255, 255, 255); eye.Material = Enum.Material.Neon; eye.Anchored = true
-    eye.CFrame = head.CFrame * CFrame.new(off)
-    local pupil = Instance.new("Part", model)
-    pupil.Shape = Enum.PartType.Ball; pupil.Size = Vector3.new(0.2, 0.32, 0.2)
-    pupil.Color = Color3.fromRGB(50, 220, 100); pupil.Material = Enum.Material.Neon; pupil.Anchored = true
-    pupil.CFrame = eye.CFrame * CFrame.new(0, 0, -0.12)
+
+  local function part(props)
+    local p = Instance.new("Part")
+    p.Anchored = true
+    p.CanCollide = false
+    p.TopSurface = Enum.SurfaceType.Smooth
+    p.BottomSurface = Enum.SurfaceType.Smooth
+    p.Material = Enum.Material.SmoothPlastic
+    for k, v in pairs(props) do p[k] = v end
+    p.Parent = model
+    return p
   end
-  for _, off in ipairs({Vector3.new(-0.55, 0.85, -0.05), Vector3.new(0.55, 0.85, -0.05)}) do
-    local ear = Instance.new("Part", model)
-    ear.Size = Vector3.new(0.5, 0.7, 0.4); ear.Color = color
-    ear.Material = Enum.Material.SmoothPlastic; ear.Anchored = true
-    ear.CFrame = head.CFrame * CFrame.new(off) * CFrame.Angles(math.rad(-15), 0, 0)
+
+  -- Body — sleek oblong, slightly tapered
+  local body = part{
+    Size = Vector3.new(1.6, 1.2, 2.4),
+    Color = color,
+    CFrame = CFrame.new(0, 0, 0),
+  }
+
+  -- Chest (slightly forward bulge)
+  part{
+    Shape = Enum.PartType.Ball,
+    Size = Vector3.new(1.5, 1.3, 1.5),
+    Color = color,
+    CFrame = body.CFrame * CFrame.new(0, 0, -0.8),
+  }
+
+  -- Head — proportional, sits forward
+  local head = part{
+    Shape = Enum.PartType.Ball,
+    Size = Vector3.new(1.35, 1.3, 1.3),
+    Color = color,
+    CFrame = body.CFrame * CFrame.new(0, 0.45, -1.55),
+  }
+
+  -- Cheeks (subtle bulge for cat face)
+  for _, side in ipairs({-0.45, 0.45}) do
+    part{
+      Shape = Enum.PartType.Ball,
+      Size = Vector3.new(0.6, 0.55, 0.55),
+      Color = color,
+      CFrame = head.CFrame * CFrame.new(side, -0.15, -0.2),
+    }
   end
-  for _, lp in ipairs({Vector3.new(-0.7, -1.0, -1.0), Vector3.new(0.7, -1.0, -1.0), Vector3.new(-0.7, -1.0, 1.0), Vector3.new(0.7, -1.0, 1.0)}) do
-    local leg = Instance.new("Part", model)
-    leg.Size = Vector3.new(0.55, 1.4, 0.55); leg.Color = color
-    leg.Material = Enum.Material.SmoothPlastic; leg.Anchored = true
-    leg.CFrame = body.CFrame * CFrame.new(lp)
+
+  -- Eyes (sclera + slit pupil)
+  for _, off in ipairs({Vector3.new(-0.32, 0.1, -0.55), Vector3.new(0.32, 0.1, -0.55)}) do
+    part{
+      Shape = Enum.PartType.Ball,
+      Size = Vector3.new(0.32, 0.32, 0.32),
+      Color = Color3.fromRGB(255, 255, 255),
+      Material = Enum.Material.SmoothPlastic,
+      CFrame = head.CFrame * CFrame.new(off),
+    }
+    part{
+      Shape = Enum.PartType.Ball,
+      Size = Vector3.new(0.12, 0.26, 0.12),
+      Color = Color3.fromRGB(60, 220, 110),
+      Material = Enum.Material.Neon,
+      CFrame = head.CFrame * CFrame.new(off + Vector3.new(0, 0, -0.1)),
+    }
   end
-  for i = 1, 5 do
-    local seg = Instance.new("Part", model)
-    seg.Size = Vector3.new(0.45 - i*0.06, 0.45 - i*0.06, 0.7); seg.Color = color
-    seg.Material = Enum.Material.SmoothPlastic; seg.Anchored = true
-    local angle = math.rad(20 + i*5)
-    seg.CFrame = body.CFrame * CFrame.new(0, 0.2 + i*0.25, 1.4 + i*0.55) * CFrame.Angles(angle, 0, 0)
+
+  -- Nose
+  part{
+    Shape = Enum.PartType.Ball,
+    Size = Vector3.new(0.18, 0.14, 0.14),
+    Color = Color3.fromRGB(255, 130, 150),
+    CFrame = head.CFrame * CFrame.new(0, -0.18, -0.6),
+  }
+
+  -- Ears (outer + pink inner)
+  for _, side in ipairs({-1, 1}) do
+    local off = Vector3.new(side * 0.4, 0.7, -0.05)
+    local angle = side * math.rad(8)
+    local ear = part{
+      Size = Vector3.new(0.4, 0.6, 0.15),
+      Color = color,
+      CFrame = head.CFrame * CFrame.new(off) * CFrame.Angles(math.rad(-5), angle, 0),
+    }
+    part{
+      Size = Vector3.new(0.22, 0.38, 0.05),
+      Color = Color3.fromRGB(255, 180, 200),
+      CFrame = ear.CFrame * CFrame.new(0, 0, -0.08),
+    }
   end
+
+  -- Whiskers (thin black lines via stretched parts)
+  for _, side in ipairs({-1, 1}) do
+    for _, yOff in ipairs({-0.05, -0.18, -0.31}) do
+      part{
+        Size = Vector3.new(0.55, 0.025, 0.025),
+        Color = Color3.fromRGB(40, 40, 40),
+        CFrame = head.CFrame * CFrame.new(side * 0.65, yOff, -0.45),
+      }
+    end
+  end
+
+  -- Legs (slim cat legs)
+  for _, lp in ipairs({
+    Vector3.new(-0.45, -0.85, -0.7),
+    Vector3.new( 0.45, -0.85, -0.7),
+    Vector3.new(-0.45, -0.85,  0.85),
+    Vector3.new( 0.45, -0.85,  0.85),
+  }) do
+    part{
+      Size = Vector3.new(0.4, 1.0, 0.4),
+      Color = color,
+      CFrame = body.CFrame * CFrame.new(lp),
+    }
+    -- White paw tip (cute detail)
+    part{
+      Size = Vector3.new(0.45, 0.2, 0.5),
+      Color = Color3.fromRGB(245, 240, 230),
+      CFrame = body.CFrame * CFrame.new(lp + Vector3.new(0, -0.55, 0.05)),
+    }
+  end
+
+  -- Tail (curved arc using small segments, but offsets relative to body so it's behind cat)
+  local tailColors = {color, color, color, color, color}
+  local startCF = body.CFrame * CFrame.new(0, 0.2, 1.2)
+  local prevCF = startCF
+  local prevSize = 0.42
+  for i = 1, 6 do
+    local size = math.max(0.22, prevSize - 0.03)
+    local pitch = math.rad(-18 - i * 4)  -- arc the tail upward and back
+    local seg = part{
+      Size = Vector3.new(size, size, 0.6),
+      Color = tailColors[((i-1) % #tailColors) + 1],
+      CFrame = prevCF * CFrame.Angles(pitch, 0, 0) * CFrame.new(0, 0, 0.4),
+    }
+    prevCF = seg.CFrame
+    prevSize = size
+  end
+
+  model.PrimaryPart = body
   model.Parent = viewport
   catModel = model
 end
 
 local catCamera = Instance.new("Camera")
-catCamera.CFrame = CFrame.new(Vector3.new(0, 1.5, -7), Vector3.new(0, 0, 0))
+catCamera.CFrame = CFrame.new(Vector3.new(0, 1.2, -6.5), Vector3.new(0, 0, 0))
 catCamera.FieldOfView = 50
 catCamera.Parent = viewport
 viewport.CurrentCamera = catCamera
+
+-- Pleasant viewport lighting (pink + cyan rim light vibe)
+pcall(function()
+  viewport.Ambient = Color3.fromRGB(120, 100, 160)
+  viewport.LightColor = Color3.fromRGB(255, 220, 240)
+  viewport.LightDirection = Vector3.new(-0.3, -0.8, 0.4).Unit
+end)
 
 buildCat(FUR_OPTIONS[1].color)
 

@@ -1,36 +1,44 @@
--- StrayLighting.server.lua — Grok's exact Stray cyberpunk noir tuning
--- Place in: ServerScriptService > StrayLighting (Script). Auto-runs.
+-- StrayLighting.server.lua  v2 — single source of lighting truth.
+-- Tuned down from the previous "hazy-purple smudge" defaults so the world is
+-- readable. Cyberpunk-night vibe but with proper contrast and sane fog.
 
 local Lighting = game:GetService("Lighting")
 
 Lighting.Technology = Enum.Technology.Future
-Lighting.Brightness = 2.8
-Lighting.Ambient = Color3.fromRGB(40, 20, 80)
-Lighting.OutdoorAmbient = Color3.fromRGB(70, 40, 110)
-Lighting.EnvironmentDiffuseScale = 0.8
-Lighting.EnvironmentSpecularScale = 1.2
-Lighting.ClockTime = 19.5
+Lighting.Brightness = 2.4
+Lighting.Ambient = Color3.fromRGB(60, 50, 80)
+Lighting.OutdoorAmbient = Color3.fromRGB(110, 95, 140)
+Lighting.EnvironmentDiffuseScale = 0.55
+Lighting.EnvironmentSpecularScale = 0.65
+Lighting.ClockTime = 19.0
 Lighting.GeographicLatitude = 41.5
 Lighting.GlobalShadows = true
+Lighting.ShadowSoftness = 0.35
 
 local function ensure(cls, props)
-  local fx = Lighting:FindFirstChildOfClass(cls)
-  if not fx then fx = Instance.new(cls); fx.Parent = Lighting end
-  for k, v in pairs(props) do pcall(function() fx[k] = v end) end
-  return fx
+	local fx = Lighting:FindFirstChildOfClass(cls)
+	if not fx then fx = Instance.new(cls); fx.Parent = Lighting end
+	for k, v in pairs(props) do pcall(function() fx[k] = v end) end
+	return fx
 end
 
-ensure("BloomEffect",          {Intensity = 3.2, Size = 24, Threshold = 1.4})
-ensure("ColorCorrectionEffect",{Saturation = 0.35, Brightness = 0.08, Contrast = 0.15, TintColor = Color3.fromRGB(255, 240, 230)})
-ensure("DepthOfFieldEffect",   {FocusDistance = 60, InFocusRadius = 25, FarIntensity = 0.08, NearIntensity = 0.02})
-ensure("SunRaysEffect",        {Intensity = 0.25, Spread = 0.8})
-ensure("BlurEffect",           {Size = 0})  -- 0 by default; ramp up for cinematics
+ensure("BloomEffect",           { Intensity = 1.4, Size = 18, Threshold = 1.7 })
+ensure("ColorCorrectionEffect", { Saturation = 0.10, Brightness = 0.0, Contrast = 0.12,
+                                  TintColor = Color3.fromRGB(245, 240, 250) })
+ensure("SunRaysEffect",         { Intensity = 0.10, Spread = 0.6 })
+-- DepthOfField removed: was making the city blurry and ugly.
+-- BlurEffect removed: cinematic blur causes nausea on movement.
 
 local atm = Lighting:FindFirstChildOfClass("Atmosphere")
-if not atm then atm = Instance.new("Atmosphere", Lighting) end
-atm.Density = 0.45; atm.Offset = 0.25
-atm.Color = Color3.fromRGB(80, 30, 140)
-atm.Decay = Color3.fromRGB(50, 15, 90)
-atm.Glare = 0.55; atm.Haze = 2.0
+if not atm then atm = Instance.new("Atmosphere"); atm.Parent = Lighting end
+atm.Density = 0.20    -- was 0.45 — way too foggy
+atm.Offset  = 0.10
+atm.Color   = Color3.fromRGB(140, 130, 170)
+atm.Decay   = Color3.fromRGB(80,  60, 110)
+atm.Glare   = 0.20
+atm.Haze    = 1.0
 
-print("[StrayLighting] Grok's cyberpunk noir tuning applied")
+-- Mark Lighting as already configured so CityRebuild can skip its own pass.
+Lighting:SetAttribute("KittyLightingConfigured", true)
+
+print("[StrayLighting v2] applied")
