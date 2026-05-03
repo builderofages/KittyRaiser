@@ -671,7 +671,7 @@ function SharedUtil.waitForGlobal(name, timeoutSec)
     local deadline = os.clock() + timeoutSec
     while not _G[name] do
         if os.clock() > deadline then
-            warn(("[SharedUtil] Timed out waiting for _G.%s after %ds"):format(name, timeoutSec))
+            warn(("[SharedUtil] Timed out waiting for _G.%s after %ss"):format(name, tostring(timeoutSec)))
             return nil
         end
         task.wait(0.05)
