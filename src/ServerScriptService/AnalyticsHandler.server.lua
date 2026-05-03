@@ -27,9 +27,10 @@ local function emit(eventName, player, props)
         print(string.format("[Analytics] %s userId=%d %s",
             eventName, userId, game:GetService("HttpService"):JSONEncode(props or {})))
     end
-    -- Roblox built-in funnel tracking (when applicable)
+    -- Roblox built-in funnel tracking (when applicable). Guard against nil player
+    -- because session_start fires synchronously and player can be nil for global events.
     pcall(function()
-        if eventName == "level_up" and props and props.newLevel then
+        if player and eventName == "level_up" and props and props.newLevel then
             AnalyticsService:LogProgressionEvent(
                 player,
                 "MainProgression",
@@ -41,14 +42,16 @@ local function emit(eventName, player, props)
 end
 
 function Analytics.sessionStart(player)
-    sessionStart[player.UserId] = os.time()
+    if not player then return end
+    sessionStart[player.UserId] = os.clock()
     emit("session_start", player)
 end
 
 function Analytics.sessionEnd(player)
+    if not player then return end
     local start = sessionStart[player.UserId]
-    local duration = start and (os.time() - start) or 0
-    emit("session_end", player, {duration = duration})
+    local duration = start and (os.clock() - start) or 0
+    emit("session_end", player, {duration = math.floor(duration)})
     sessionStart[player.UserId] = nil
 end
 

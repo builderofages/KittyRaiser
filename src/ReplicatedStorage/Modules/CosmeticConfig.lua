@@ -12,10 +12,10 @@ end
 CosmeticConfig.Skins = {
     -- COMMON (free / starter)
     Default = {id="Default", displayName="Alley Cat", cost=0, currency="free", bodyColors=uniformBody(rgb(105,64,40)), chaosMultiplier=1.0, rarity="Common"},
-    Stripey = {id="Stripey", displayName="Stripey", cost=500, currency="chaos", bodyColors=uniformBody(rgb(245,165,80)), chaosMultiplier=1.05, rarity="Common"},
-    Black = {id="Black", displayName="Shadow", cost=750, currency="chaos", bodyColors=uniformBody(rgb(20,20,20)), chaosMultiplier=1.05, rarity="Common"},
-    White = {id="White", displayName="Snowball", cost=750, currency="chaos", bodyColors=uniformBody(rgb(245,245,245)), chaosMultiplier=1.05, rarity="Common"},
-    Gray = {id="Gray", displayName="Dust", cost=750, currency="chaos", bodyColors=uniformBody(rgb(140,140,140)), chaosMultiplier=1.05, rarity="Common"},
+    Stripey = {id="Stripey", displayName="Stripey", cost=500, currency="chaos", bodyColors=uniformBody(rgb(245,165,80)), chaosMultiplier=1.03, rarity="Common"},
+    Black = {id="Black", displayName="Shadow", cost=750, currency="chaos", bodyColors=uniformBody(rgb(20,20,20)), chaosMultiplier=1.06, rarity="Common"},
+    White = {id="White", displayName="Snowball", cost=750, currency="chaos", bodyColors=uniformBody(rgb(245,245,245)), chaosMultiplier=1.06, rarity="Common"},
+    Gray = {id="Gray", displayName="Dust", cost=750, currency="chaos", bodyColors=uniformBody(rgb(140,140,140)), chaosMultiplier=1.06, rarity="Common"},
 
     -- UNCOMMON (chaos)
     Calico = {id="Calico", displayName="Calico", cost=2500, currency="chaos", bodyColors={HeadColor=rgb(255,255,255), TorsoColor=rgb(40,30,25), LeftArmColor=rgb(220,130,50), RightArmColor=rgb(255,255,255), LeftLegColor=rgb(40,30,25), RightLegColor=rgb(220,130,50)}, chaosMultiplier=1.10, rarity="Uncommon"},
@@ -42,7 +42,7 @@ CosmeticConfig.Skins = {
     Hellborn = {id="Hellborn", displayName="Hellborn", cost=0, currency="robux", gamepassKey="HELLBORN_SKIN", bodyColors=uniformBody(rgb(255,40,0)), chaosMultiplier=2.5, rarity="Legendary", glowEffect=true, material=Enum.Material.Neon},
 
     -- MYTHIC (event-only / season pass — placeholders for v2)
-    GalaxyKing = {id="GalaxyKing", displayName="Galaxy King", cost=999999, currency="chaos", bodyColors=uniformBody(rgb(80,40,180)), chaosMultiplier=3.0, rarity="Mythic", glowEffect=true, material=Enum.Material.ForceField, eventOnly=true},
+    GalaxyKing = {id="GalaxyKing", displayName="Galaxy King", cost=250000, currency="chaos", bodyColors=uniformBody(rgb(80,40,180)), chaosMultiplier=3.0, rarity="Mythic", glowEffect=true, material=Enum.Material.ForceField, eventOnly=true},
     PhoenixCat = {id="PhoenixCat", displayName="Phoenix Cat", cost=500, currency="helltokens", bodyColors=uniformBody(rgb(255,120,0)), chaosMultiplier=3.0, rarity="Mythic", glowEffect=true, material=Enum.Material.Neon, eventOnly=true},
     VoidCat = {id="VoidCat", displayName="Void Cat", cost=1000, currency="helltokens", bodyColors=uniformBody(rgb(10,0,30)), chaosMultiplier=3.5, rarity="Mythic", glowEffect=true},
     KittyRaiser = {id="KittyRaiser", displayName="The KittyRaiser", cost=999, currency="helltokens", bodyColors={HeadColor=rgb(255,0,80), TorsoColor=rgb(0,0,0), LeftArmColor=rgb(255,0,80), RightArmColor=rgb(255,0,80), LeftLegColor=rgb(0,0,0), RightLegColor=rgb(0,0,0)}, chaosMultiplier=4.0, rarity="Mythic", glowEffect=true, material=Enum.Material.Neon},

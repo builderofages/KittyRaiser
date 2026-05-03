@@ -11,7 +11,7 @@ local Debris = game:GetService("Debris")
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
 local AssetIds = require(ReplicatedStorage.Modules:WaitForChild("AssetIds"))
-local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+local PrankConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PrankConfig"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -93,11 +93,20 @@ local function bumpCombo()
   end
 end
 
+-- Use Tween.Completed instead of task.wait so we don't block the caller and
+-- so subsequent pranks don't stack waits and stutter the camera.
 local function hitStop(durationMS)
   local origFov = camera.FieldOfView
-  TweenService:Create(camera, TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = origFov + 8}):Play()
-  task.wait(durationMS / 1000)
-  TweenService:Create(camera, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = origFov}):Play()
+  local up = TweenService:Create(camera,
+    TweenInfo.new((durationMS or 80) / 1000 * 0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+    {FieldOfView = origFov + 8})
+  up:Play()
+  up.Completed:Once(function()
+    TweenService:Create(camera,
+      TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+      {FieldOfView = origFov}
+    ):Play()
+  end)
 end
 
 local function screenFlash(color, intensity)
@@ -164,7 +173,7 @@ if Remotes.PrankRegistered then
     local prank = PrankConfig.Pranks[prankName]
     bumpCombo()
     if prank and prank.screenShake and prank.screenShake > 0 then
-      task.spawn(hitStop, 80)
+      hitStop(80)
     end
     -- Screen flash color per prank
     local flashColor = Color3.fromRGB(255, 255, 200)

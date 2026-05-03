@@ -23,6 +23,9 @@ local DEFINITIONS = {
   RequestClaimDaily = "Function",
   RequestSpawnCustomization = "Event",
   RequestAdminCommand = "Function",
+  RequestRedeemCode = "Function",
+  RequestSettingChange = "Function",
+  RequestQuestClaim = "Function",
   -- Server -> Client
   UpdatePlayerData = "Event",
   PrankRegistered = "Event",
@@ -32,11 +35,12 @@ local DEFINITIONS = {
   RebirthCompleted = "Event",
   NotifyClient = "Event",
   LeaderboardUpdated = "Event",
-  TutorialStep = "Event",
   WeatherChanged = "Event",
   EventBroadcast = "Event",
   SurvivalUpdate = "Event",
-  ForceSpawn = "Event",  -- NEW: force server to spawn cat
+  ErrorNotify = "Event",  -- generic error/toast channel for failed remote handlers
+  DailyAvailable = "Event",  -- server announces daily reward is claimable
+  EmoteBroadcast = "Event",  -- server fans out an emote to nearby clients
 }
 
 -- Find or create folder under ReplicatedStorage

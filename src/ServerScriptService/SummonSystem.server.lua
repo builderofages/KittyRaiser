@@ -3,21 +3,27 @@
 -- Place in: ServerScriptService > SummonSystem (Script)
 
 local Players = game:GetService("Players")
-local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
 local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local SharedUtil = require(ReplicatedStorage.Modules.SharedUtil)
 
 local SummonSystem = {}
 
-local SUMMON_COOLDOWN = 1.5
-local NPC_DESPAWN_AFTER = 25 -- seconds if not pranked
-local lastSummonTime = {}  -- [userId] = os.clock()
+-- Export to _G FIRST so dependents (PrankSystem) never deadlock if anything below errors.
+_G.KittyRaiserSummon = SummonSystem
 
--- Find or create the NPC folder in workspace
+local SUMMON_COOLDOWN = 1.5
+local NPC_DESPAWN_AFTER = 25
+local lastSummonTime = {}
+
+-- Server-side registry of legitimate NPCs. Clients can no longer pass arbitrary
+-- Workspace Models with the KittyRaiserNPC attribute spoofed.
+local registry = setmetatable({}, {__mode = "k"})  -- weak keys: cleared on GC
+
 local npcFolder = Workspace:FindFirstChild("PrankNPCs")
 if not npcFolder then
     npcFolder = Instance.new("Folder")
@@ -25,117 +31,126 @@ if not npcFolder then
     npcFolder.Parent = Workspace
 end
 
--- Get spawn pads (placed in workspace by MapBuilder)
 local function getSpawnPads()
     local pads = Workspace:FindFirstChild("SpawnPads")
     if not pads then return {} end
     return pads:GetChildren()
 end
 
--- Build a simple Robloxian-style NPC programmatically (no asset deps)
+local function isValidSpawnPosition(v)
+    if not v then return false end
+    if v.Magnitude > 10000 then return false end
+    -- guard against NaN
+    return v.X == v.X and v.Y == v.Y and v.Z == v.Z
+end
+
 local function buildHumanNPC()
     local model = Instance.new("Model")
     model.Name = "PrankTarget"
     model:SetAttribute("KittyRaiserNPC", true)
     model:SetAttribute("Pranked", false)
 
-    -- HumanoidRootPart
     local hrp = Instance.new("Part")
     hrp.Name = "HumanoidRootPart"
     hrp.Size = Vector3.new(2, 2, 1)
     hrp.Transparency = 1
-    hrp.CanCollide = false
+    hrp.CanCollide = true   -- HRP MUST collide for humanoid physics
     hrp.Anchored = false
+    hrp.Massless = true
     hrp.Parent = model
 
-    -- Torso
     local torso = Instance.new("Part")
     torso.Name = "Torso"
     torso.Size = Vector3.new(2, 2, 1)
     torso.Color = Color3.fromRGB(0, 100, 200)
+    torso.CanCollide = false
     torso.Position = hrp.Position
     torso.Parent = model
     local torsoWeld = Instance.new("WeldConstraint")
-    torsoWeld.Part0 = hrp
-    torsoWeld.Part1 = torso
-    torsoWeld.Parent = torso
+    torsoWeld.Part0, torsoWeld.Part1, torsoWeld.Parent = hrp, torso, torso
 
-    -- Head
     local head = Instance.new("Part")
     head.Name = "Head"
     head.Size = Vector3.new(1.5, 1.5, 1.5)
     head.Shape = Enum.PartType.Ball
     head.Color = Color3.fromRGB(245, 205, 160)
+    head.CanCollide = false
     head.Position = torso.Position + Vector3.new(0, 1.75, 0)
     head.Parent = model
     local headWeld = Instance.new("WeldConstraint")
-    headWeld.Part0 = torso
-    headWeld.Part1 = head
-    headWeld.Parent = head
+    headWeld.Part0, headWeld.Part1, headWeld.Parent = torso, head, head
 
-    -- Face decal (simple)
     local face = Instance.new("Decal")
     face.Texture = "rbxasset://textures/face.png"
     face.Face = Enum.NormalId.Front
     face.Parent = head
 
-    -- Legs (combined block)
     local legs = Instance.new("Part")
     legs.Name = "Legs"
     legs.Size = Vector3.new(2, 2, 1)
     legs.Color = Color3.fromRGB(40, 40, 80)
+    legs.CanCollide = false
     legs.Position = torso.Position + Vector3.new(0, -2, 0)
     legs.Parent = model
     local legWeld = Instance.new("WeldConstraint")
-    legWeld.Part0 = torso
-    legWeld.Part1 = legs
-    legWeld.Parent = legs
+    legWeld.Part0, legWeld.Part1, legWeld.Parent = torso, legs, legs
 
-    -- Humanoid for ragdoll-style animation later
     local humanoid = Instance.new("Humanoid")
-    humanoid.MaxHealth = 100
-    humanoid.Health = 100
+    humanoid.MaxHealth = math.huge   -- NPCs can't die from stray world damage
+    humanoid.Health = math.huge
     humanoid.WalkSpeed = 8
+    humanoid.JumpPower = 0
+    humanoid.HealthDisplayDistance = 0
     humanoid.Parent = model
 
     model.PrimaryPart = hrp
     return model
 end
 
--- Wander AI: NPC walks randomly until pranked or despawn
-local function wanderAI(model)
-    task.spawn(function()
-        local hum = model:FindFirstChildOfClass("Humanoid")
-        if not hum then return end
-        local startTime = os.clock()
-        while model.Parent and (os.clock() - startTime) < NPC_DESPAWN_AFTER do
-            local hrp = model.PrimaryPart
-            if not hrp then break end
-            local rand = Vector3.new(math.random(-15, 15), 0, math.random(-15, 15))
-            hum:MoveTo(hrp.Position + rand)
-            task.wait(math.random(2, 4))
-        end
-        if model.Parent and not model:GetAttribute("Pranked") then
-            model:Destroy()
-        end
+-- Despawn pranked NPC after a delay. Atomic claim semantics: returns true if
+-- THIS caller successfully marked it; false if it was already pranked.
+function SummonSystem.markPranked(npc)
+    if not npc or not npc.Parent then return false end
+    if npc:GetAttribute("Pranked") then return false end
+    npc:SetAttribute("Pranked", true)
+    task.delay(2, function()
+        if npc.Parent then npc:Destroy() end
     end)
+    return true
 end
 
--- Public: summon an NPC for a player
+function SummonSystem.isRegistered(npc)
+    return npc and registry[npc] == true
+end
+
+-- Pick a non-overlapping spawn position from a candidate set.
+local function findClearSpawn(candidatePos)
+    -- check existing NPCs in the radius and offset if too close
+    local minSpacing = 5
+    for _, existing in ipairs(npcFolder:GetChildren()) do
+        local p = existing.PrimaryPart
+        if p and (p.Position - candidatePos).Magnitude < minSpacing then
+            candidatePos = candidatePos + Vector3.new(math.random(-8, 8), 0, math.random(-8, 8))
+        end
+    end
+    return candidatePos
+end
+
 function SummonSystem.summon(player)
     local now = os.clock()
-    local last = lastSummonTime[player.UserId] or 0
-    if (now - last) < SUMMON_COOLDOWN then
+    local last = lastSummonTime[player.UserId]
+    if last and (now - last) < SUMMON_COOLDOWN then
         return false, "summon_cooldown"
     end
+
+    -- global server-wide cap so 50 players spamming summon doesn't tank perf
+    if #npcFolder:GetChildren() >= GameConfig.MAX_NPCS_ON_SERVER then
+        return false, "server_npc_cap"
+    end
+
     lastSummonTime[player.UserId] = now
 
     local pads = getSpawnPads()
-    if #pads == 0 then
-        warn("[SummonSystem] No spawn pads found - using default position")
-    end
-
-    local npc = buildHumanNPC()
     local spawnPos
     if #pads > 0 then
         local pad = pads[math.random(1, #pads)]
@@ -148,47 +163,64 @@ function SummonSystem.summon(player)
             spawnPos = Vector3.new(0, 10, 0)
         end
     end
+    if not isValidSpawnPosition(spawnPos) then
+        spawnPos = Vector3.new(0, 10, 0)
+    end
+    spawnPos = findClearSpawn(spawnPos)
 
+    local npc = buildHumanNPC()
     npc:PivotTo(CFrame.new(spawnPos))
     npc:SetAttribute("SummonedBy", player.UserId)
     npc.Parent = npcFolder
+    registry[npc] = true
 
-    -- Spawn-in animation: tween scale up
+    -- Spawn-in tween: pop from tiny scale. We fire-and-forget; tween cleanup is
+    -- automatic when the part is destroyed.
     for _, p in ipairs(npc:GetDescendants()) do
         if p:IsA("BasePart") then
             local origSize = p.Size
             p.Size = Vector3.new(0.1, 0.1, 0.1)
-            TweenService:Create(p, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = origSize}):Play()
+            local tween = TweenService:Create(
+                p, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+                {Size = origSize}
+            )
+            pcall(function() tween:Play() end)
         end
     end
 
-    wanderAI(npc)
+    -- Wander AI scoped to this NPC
+    task.spawn(function()
+        local hum = npc:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+        local startTime = os.clock()
+        while npc.Parent == npcFolder and (os.clock() - startTime) < NPC_DESPAWN_AFTER do
+            local hrp = npc.PrimaryPart
+            if not hrp then break end
+            local rand = Vector3.new(math.random(-15, 15), 0, math.random(-15, 15))
+            hum:MoveTo(hrp.Position + rand)
+            task.wait(math.random(2, 4))
+        end
+        if npc.Parent and not npc:GetAttribute("Pranked") then
+            registry[npc] = nil
+            npc:Destroy()
+        end
+    end)
     return true, npc
 end
 
--- Despawn pranked NPC after a delay
-function SummonSystem.markPranked(npc)
-    if not npc then return end
-    npc:SetAttribute("Pranked", true)
-    task.delay(2, function()
-        if npc.Parent then npc:Destroy() end
-    end)
-end
-
--- Wire remote
 Remotes.RequestSummonHuman.OnServerEvent:Connect(function(player)
+    if not SharedUtil.checkRate(player, "summon", 0.6) then return end
     SummonSystem.summon(player)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
     lastSummonTime[player.UserId] = nil
-    -- Despawn this player's NPCs
     for _, npc in ipairs(npcFolder:GetChildren()) do
         if npc:GetAttribute("SummonedBy") == player.UserId then
+            registry[npc] = nil
             npc:Destroy()
         end
     end
 end)
 
-_G.KittyRaiserSummon = SummonSystem
 return SummonSystem

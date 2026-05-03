@@ -9,9 +9,9 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
-local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local PrankConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PrankConfig"))
+local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -54,11 +54,11 @@ local function spawnParticleBurst(cf, color, count)
     Debris:AddItem(emitterPart, 2)
 end
 
-local function playSound(soundId, parent)
-    if not soundId or soundId == "" then return end
+local function playSound(soundId, parent, volume)
+    if not soundId or soundId == "" or soundId == 0 or soundId == "rbxassetid://0" then return end
     local s = Instance.new("Sound")
-    s.SoundId = soundId
-    s.Volume = 1
+    s.SoundId = tostring(soundId)
+    s.Volume = math.clamp(volume or 1, 0, 1)
     s.Parent = parent or SoundService
     s:Play()
     Debris:AddItem(s, 5)
@@ -90,8 +90,15 @@ local function chaosFlyUp(amount, atCFrame)
     lbl.TextScaled = true
     lbl.Parent = b
 
-    TweenService:Create(p, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = atCFrame * CFrame.new(0, 6, 0)}):Play()
-    TweenService:Create(lbl, TweenInfo.new(1.2), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+    local moveTween = TweenService:Create(p, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = atCFrame * CFrame.new(0, 6, 0)})
+    local fadeTween = TweenService:Create(lbl, TweenInfo.new(1.2), {TextTransparency = 1, TextStrokeTransparency = 1})
+    moveTween:Play(); fadeTween:Play()
+    p.AncestryChanged:Connect(function()
+        if not p.Parent then
+            pcall(function() moveTween:Cancel() end)
+            pcall(function() fadeTween:Cancel() end)
+        end
+    end)
     Debris:AddItem(p, 1.5)
 end
 

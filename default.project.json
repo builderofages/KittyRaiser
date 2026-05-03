@@ -23,6 +23,18 @@
         },
         "AssetIds": {
           "$path": "src/ReplicatedStorage/Modules/AssetIds.lua"
+        },
+        "SharedUtil": {
+          "$path": "src/ReplicatedStorage/Modules/SharedUtil.lua"
+        },
+        "CodeConfig": {
+          "$path": "src/ReplicatedStorage/Modules/CodeConfig.lua"
+        },
+        "QuestConfig": {
+          "$path": "src/ReplicatedStorage/Modules/QuestConfig.lua"
+        },
+        "BadgeConfig": {
+          "$path": "src/ReplicatedStorage/Modules/BadgeConfig.lua"
         }
       }
     },
@@ -109,6 +121,36 @@
       "StrayLighting": {
         "$path": "src/ServerScriptService/StrayLighting.server.lua"
       },
+      "LeaderstatsSystem": {
+        "$path": "src/ServerScriptService/LeaderstatsSystem.server.lua"
+      },
+      "CodeSystem": {
+        "$path": "src/ServerScriptService/CodeSystem.server.lua"
+      },
+      "SettingsSystem": {
+        "$path": "src/ServerScriptService/SettingsSystem.server.lua"
+      },
+      "KillBarrier": {
+        "$path": "src/ServerScriptService/KillBarrier.server.lua"
+      },
+      "SpawnProtection": {
+        "$path": "src/ServerScriptService/SpawnProtection.server.lua"
+      },
+      "AFKSystem": {
+        "$path": "src/ServerScriptService/AFKSystem.server.lua"
+      },
+      "CoinPickup": {
+        "$path": "src/ServerScriptService/CoinPickup.server.lua"
+      },
+      "ChatTags": {
+        "$path": "src/ServerScriptService/ChatTags.server.lua"
+      },
+      "QuestSystem": {
+        "$path": "src/ServerScriptService/QuestSystem.server.lua"
+      },
+      "BadgeSystem": {
+        "$path": "src/ServerScriptService/BadgeSystem.server.lua"
+      },
       "CatLifelike": {
         "$path": "src/ServerScriptService/CatLifelike.server.lua"
       }
@@ -144,20 +186,11 @@
         "EmoteWheel": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/EmoteWheel.client.lua"
         },
-        "DailyRewardUI": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/DailyRewardUI.client.lua"
-        },
         "WeatherClient": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/WeatherClient.client.lua"
         },
-        "HUDPolish": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/HUDPolish.client.lua"
-        },
         "PreSpawnLobby": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/PreSpawnLobby.client.lua"
-        },
-        "TutorialFlow": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/TutorialFlow.client.lua"
         },
         "DailyRewardPopup": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/DailyRewardPopup.client.lua"
@@ -171,27 +204,55 @@
         "KillFeed": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/KillFeed.client.lua"
         },
-        "OnboardingFlow": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/OnboardingFlow.client.lua"
+        "MusicSystem": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/MusicSystem.client.lua"
+        },
+        "CelebrationFX": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/CelebrationFX.client.lua"
+        },
+        "CleanCoreGui": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/CleanCoreGui.client.lua"
+        },
+        "SettingsUI": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/SettingsUI.client.lua"
+        },
+        "CameraToggle": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/CameraToggle.client.lua"
+        },
+        "QuestUI": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/QuestUI.client.lua"
+        },
+        "IntroSplash": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/IntroSplash.client.lua"
+        },
+        "PatchNotesUI": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/PatchNotesUI.client.lua"
+        },
+        "PawTrailFX": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/PawTrailFX.client.lua"
+        },
+        "SocialLink": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/SocialLink.client.lua"
+        },
+        "GraphicsQuality": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/GraphicsQuality.client.lua"
+        },
+        "TooltipSystem": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/TooltipSystem.client.lua"
+        },
+        "SpectateSystem": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/SpectateSystem.client.lua"
+        },
+        "SkinPreviewer": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/SkinPreviewer.client.lua"
         }
       }
     },
     "Workspace": {
-      "$className": "Workspace",
-      "$properties": {
-        "Gravity": 196.2
-      }
+      "$className": "Workspace"
     },
     "Lighting": {
-      "$className": "Lighting",
-      "$properties": {
-        "Technology": "Future",
-        "Ambient": [
-          0.15,
-          0.08,
-          0.2
-        ]
-      }
+      "$className": "Lighting"
     }
   }
 }
