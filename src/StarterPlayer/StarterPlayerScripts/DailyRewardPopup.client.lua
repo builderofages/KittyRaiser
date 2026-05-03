@@ -6,6 +6,11 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local UIUtil  = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
+
+local function bound(lbl, mn, mx)
+  UIUtil.boundText(lbl, mn, mx); return lbl
+end
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -31,7 +36,7 @@ local popup = Instance.new("ScreenGui")
 popup.Name = "DailyRewardPopup"
 popup.IgnoreGuiInset = true
 popup.ResetOnSpawn = false
-popup.DisplayOrder = 80
+popup.DisplayOrder = UIUtil.DisplayOrder.DailyReward
 popup.Parent = playerGui
 
 local dim = Instance.new("Frame")
@@ -67,6 +72,7 @@ title.Font = Enum.Font.GothamBlack
 title.TextScaled = true
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Parent = card
+bound(title, 20, 36)
 
 -- Streak display
 local streakLabel = Instance.new("TextLabel")
@@ -78,6 +84,7 @@ streakLabel.Font = Enum.Font.GothamBold
 streakLabel.TextScaled = true
 streakLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
 streakLabel.Parent = card
+bound(streakLabel, 14, 22)
 
 -- 7-day strip
 local strip = Instance.new("Frame")
@@ -117,6 +124,7 @@ for i = 1, 7 do
   dl.Font = Enum.Font.GothamBold
   dl.TextScaled = true
   dl.TextColor3 = Color3.fromRGB(255, 255, 255)
+  bound(dl, 12, 18)
   local rl = Instance.new("TextLabel", box)
   rl.Size = UDim2.fromScale(1, 0.6)
   rl.Position = UDim2.fromScale(0, 0.4)
@@ -125,6 +133,7 @@ for i = 1, 7 do
   rl.Font = Enum.Font.Gotham
   rl.TextScaled = true
   rl.TextColor3 = Color3.fromRGB(255, 230, 200)
+  bound(rl, 11, 16)
 end
 
 -- Today's reward big text
@@ -137,6 +146,7 @@ rewardText.Font = Enum.Font.GothamBlack
 rewardText.TextScaled = true
 rewardText.TextColor3 = Color3.fromRGB(255, 230, 100)
 rewardText.Parent = card
+bound(rewardText, 14, 28)
 
 -- CLAIM button
 local claimBtn = Instance.new("TextButton")
@@ -148,6 +158,7 @@ claimBtn.Font = Enum.Font.GothamBlack
 claimBtn.TextScaled = true
 claimBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 claimBtn.Parent = card
+bound(claimBtn, 18, 28)
 Instance.new("UICorner", claimBtn).CornerRadius = UDim.new(0, 12)
 local cs = Instance.new("UIStroke", claimBtn); cs.Thickness = 3; cs.Color = Color3.fromRGB(0, 80, 40)
 

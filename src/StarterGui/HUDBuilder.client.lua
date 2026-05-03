@@ -9,6 +9,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
 local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
+local UIUtil      = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
+
+-- Shared text-size bounds: TextScaled is great until it isn't.
+local function bind(label, minSz, maxSz)
+    UIUtil.boundText(label, minSz, maxSz)
+    return label
+end
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -24,6 +31,7 @@ screenGui.Name = "MainHUD"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.DisplayOrder = UIUtil.DisplayOrder.HUD
 screenGui.Parent = playerGui
 
 -- ===== Helpers =====
@@ -78,7 +86,7 @@ stroke.Thickness = 2
 stroke.Color = GameConfig.HUD_PRIMARY_COLOR
 stroke.Parent = topBar
 
-makeLabel({
+bind(makeLabel({
     Name = "ChaosLabel",
     Size = UDim2.new(0.3, 0, 0.7, 0),
     Position = UDim2.new(0.01, 0, 0.15, 0),
@@ -86,7 +94,7 @@ makeLabel({
     TextColor3 = GameConfig.HUD_ACCENT_COLOR,
     TextXAlignment = Enum.TextXAlignment.Left,
     Parent = topBar,
-}).Parent = topBar
+}), 14, 32)
 
 local levelContainer = makeFrame({
     Name = "LevelContainer",
@@ -95,13 +103,13 @@ local levelContainer = makeFrame({
     BackgroundTransparency = 1,
     Parent = topBar,
 })
-makeLabel({
+bind(makeLabel({
     Name = "LevelLabel",
     Size = UDim2.new(1, 0, 0.5, 0),
     Position = UDim2.new(0, 0, 0, 0),
     Text = "Level 1",
     Parent = levelContainer,
-})
+}), 14, 28)
 local xpBarBg = makeFrame({
     Name = "XPBarBG",
     Size = UDim2.new(0.9, 0, 0.3, 0),
@@ -120,17 +128,17 @@ local xpBarFill = makeFrame({
 })
 Instance.new("UICorner", xpBarFill).CornerRadius = UDim.new(1, 0)
 
-makeLabel({
+bind(makeLabel({
     Name = "RebirthLabel",
     Size = UDim2.new(0.3, 0, 0.7, 0),
     Position = UDim2.new(0.69, 0, 0.15, 0),
     Text = "👑 0",
     TextXAlignment = Enum.TextXAlignment.Right,
     Parent = topBar,
-})
+}), 14, 32)
 
 -- ===== CENTER BOTTOM: SUMMON BUTTON =====
-local summonSize = IS_MOBILE and 180 or 140
+local summonSize = IS_MOBILE and 150 or 120
 local summonBtn = makeButton({
     Name = "SummonButton",
     Size = UDim2.new(0, summonSize, 0, summonSize),
@@ -139,6 +147,10 @@ local summonBtn = makeButton({
     Text = "SUMMON\nHUMAN",
     Parent = screenGui,
 })
+-- Make summon button a circle
+local sCorner = summonBtn:FindFirstChildOfClass("UICorner")
+if sCorner then sCorner.CornerRadius = UDim.new(1, 0) end
+bind(summonBtn, 14, 22)
 
 -- ===== RIGHT SIDE: PRANK BUTTONS =====
 local prankColumn = makeFrame({
@@ -169,18 +181,22 @@ for i, prankName in ipairs(PrankConfig.Order) do
     btn:SetAttribute("PrankName", prankName)
     btn:SetAttribute("Locked", true)
     btn:SetAttribute("UnlockLevel", prank.unlockLevel)
+    -- Bind the prank icon text size
+    bind(btn, 18, 36)
     -- Locked overlay
     local lock = makeLabel({
         Name = "LockOverlay",
         Size = UDim2.new(1, 0, 1, 0),
         Position = UDim2.new(0, 0, 0, 0),
         BackgroundColor3 = Color3.new(0,0,0),
-        BackgroundTransparency = 0.5,
+        BackgroundTransparency = 0.55,
         Text = "🔒\nLv " .. prank.unlockLevel,
-        TextSize = 18,
+        TextSize = 16,
+        TextScaled = false,
     })
-    lock.BackgroundTransparency = 0.5
     lock.Parent = btn
+    -- Round the lock overlay so it fits the button corner
+    Instance.new("UICorner", lock).CornerRadius = UDim.new(0, 12)
     -- Cooldown overlay
     local cd = makeFrame({
         Name = "CooldownOverlay",
@@ -211,15 +227,17 @@ botLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 botLayout.Parent = bottomBar
 
 local function bottomButton(name, text, color, layoutOrder)
-    return makeButton({
+    local btn = makeButton({
         Name = name,
-        Size = UDim2.new(0, IS_MOBILE and 80 or 70, 0, IS_MOBILE and 56 or 44),
+        Size = UDim2.new(0, IS_MOBILE and 84 or 74, 0, IS_MOBILE and 60 or 48),
         BackgroundColor3 = color,
         Text = text,
-        TextSize = IS_MOBILE and 18 or 14,
         LayoutOrder = layoutOrder,
         Parent = bottomBar,
     })
+    -- Bound text instead of fixed sizes that go awful on different screens
+    bind(btn, 13, 22)
+    return btn
 end
 
 bottomButton("ShopButton", "SHOP", Color3.fromRGB(0, 200, 100), 1)
@@ -254,14 +272,14 @@ shopStroke.Thickness = 3
 shopStroke.Color = GameConfig.HUD_PRIMARY_COLOR
 shopStroke.Parent = shopModal
 
-makeLabel({
+bind(makeLabel({
     Name = "ShopTitle",
     Size = UDim2.new(1, -20, 0, 50),
     Position = UDim2.new(0, 10, 0, 10),
     Text = "COSMETIC SHOP",
     TextColor3 = GameConfig.HUD_ACCENT_COLOR,
     Parent = shopModal,
-})
+}), 18, 36)
 
 local shopClose = makeButton({
     Name = "CloseButton",
@@ -304,14 +322,14 @@ lbStroke.Thickness = 3
 lbStroke.Color = GameConfig.HUD_ACCENT_COLOR
 lbStroke.Parent = lbModal
 
-makeLabel({
+bind(makeLabel({
     Name = "LBTitle",
     Size = UDim2.new(1, -20, 0, 50),
     Position = UDim2.new(0, 10, 0, 10),
     Text = "TOP CHAOS",
     TextColor3 = GameConfig.HUD_ACCENT_COLOR,
     Parent = lbModal,
-})
+}), 18, 36)
 local lbClose = makeButton({
     Name = "CloseButton",
     Size = UDim2.new(0, 40, 0, 40),
@@ -343,14 +361,14 @@ local tutorial = makeFrame({
     Parent = screenGui,
 })
 Instance.new("UICorner", tutorial).CornerRadius = UDim.new(0, 12)
-local tutLabel = makeLabel({
+local tutLabel = bind(makeLabel({
     Name = "Text",
     Size = UDim2.new(1, -20, 1, -20),
     Position = UDim2.new(0, 10, 0, 10),
     Text = "",
     TextColor3 = Color3.fromRGB(255, 255, 255),
     Parent = tutorial,
-})
+}), 14, 26)
 
 print("[HUDBuilder] MainHUD constructed")
 

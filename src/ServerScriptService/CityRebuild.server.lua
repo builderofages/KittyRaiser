@@ -140,35 +140,37 @@ task.spawn(function()
         b.TopSurface = Enum.SurfaceType.Smooth
         b.Parent = cityFolder
 
-        -- Window grid via SurfaceGui per side
+        -- Window grid via SurfaceGui per side: chunky cells visible from distance.
         for _, face in ipairs({Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right}) do
+          local faceW = (face == Enum.NormalId.Front or face == Enum.NormalId.Back) and w or d
+          local cols = math.max(3, math.floor(faceW / 8))
+          local rows = math.max(4, math.floor(h / 10))
           local sg = Instance.new("SurfaceGui")
           sg.Face = face
-          sg.PixelsPerStud = 6
+          sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+          sg.PixelsPerStud = 4
           sg.LightInfluence = 0
-          sg.AlwaysOnTop = false
           sg.Parent = b
-          -- Window grid using UIGridLayout
           local container = Instance.new("Frame")
           container.Size = UDim2.fromScale(1, 1)
           container.BackgroundTransparency = 1
           container.Parent = sg
+          local pad = Instance.new("UIPadding", container)
+          pad.PaddingLeft = UDim.new(0.04, 0); pad.PaddingRight = UDim.new(0.04, 0)
+          pad.PaddingTop = UDim.new(0.05, 0); pad.PaddingBottom = UDim.new(0.05, 0)
           local grid = Instance.new("UIGridLayout", container)
-          grid.CellSize = UDim2.new(0, 18, 0, 22)
-          grid.CellPadding = UDim2.new(0, 12, 0, 14)
+          grid.CellSize = UDim2.new(1/cols - 0.02, 0, 1/rows - 0.02, 0)
+          grid.CellPadding = UDim2.new(0.02, 0, 0.02, 0)
           grid.SortOrder = Enum.SortOrder.LayoutOrder
-          local cols = math.floor(((face == Enum.NormalId.Front or face == Enum.NormalId.Back) and w or d) / 4)
-          local rows = math.floor(h / 4)
-          for i = 1, cols * rows do
+          for _ = 1, cols * rows do
             local win = Instance.new("Frame")
-            local lit = rng:NextNumber() < 0.45
+            local lit = rng:NextNumber() < 0.50
             if lit then
-              local litColor = (rng:NextNumber() < 0.6)
-                  and Color3.fromRGB(255, 220, 130)
+              win.BackgroundColor3 = (rng:NextNumber() < 0.65)
+                  and Color3.fromRGB(255, 220, 140)
                   or Color3.fromRGB(120, 200, 255)
-              win.BackgroundColor3 = litColor
             else
-              win.BackgroundColor3 = Color3.fromRGB(15, 18, 28)
+              win.BackgroundColor3 = Color3.fromRGB(10, 12, 22)
             end
             win.BorderSizePixel = 0
             win.Parent = container
@@ -257,15 +259,21 @@ sign.Material = Enum.Material.Neon
 sign.Color = Color3.fromRGB(255, 80, 200)
 local sg = Instance.new("SurfaceGui", sign); sg.Face = Enum.NormalId.Front
 sg.LightInfluence = 0
-sg.PixelsPerStud = 50
+sg.PixelsPerStud = 20
+sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 local stl = Instance.new("TextLabel", sg)
-stl.Size = UDim2.fromScale(1, 1); stl.BackgroundTransparency = 1
+stl.AnchorPoint = Vector2.new(0.5, 0.5)
+stl.Position = UDim2.fromScale(0.5, 0.5)
+stl.Size = UDim2.new(0.94, 0, 0.7, 0)  -- give margin so text doesn't crash sign edges
+stl.BackgroundTransparency = 1
 stl.Text = "WELCOME TO KITTYRAISER"
 stl.Font = Enum.Font.GothamBlack
 stl.TextScaled = true
 stl.TextColor3 = Color3.fromRGB(255, 240, 250)
-stl.TextStrokeTransparency = 0.5
+stl.TextStrokeTransparency = 0.4
 stl.TextStrokeColor3 = Color3.fromRGB(120, 30, 90)
+local stc = Instance.new("UITextSizeConstraint", stl)
+stc.MinTextSize = 60; stc.MaxTextSize = 220
 
 -- Pink + cyan flood lights on the sign
 for _, side in ipairs({-30, 30}) do

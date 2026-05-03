@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+local UIUtil = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -13,6 +14,7 @@ local feed = Instance.new("ScreenGui")
 feed.Name = "KillFeed"
 feed.IgnoreGuiInset = false
 feed.ResetOnSpawn = false
+feed.DisplayOrder = UIUtil.DisplayOrder.KillFeed
 feed.Parent = playerGui
 
 local container = Instance.new("Frame")
@@ -55,6 +57,7 @@ local function addEntry(text, color)
   label.TextStrokeTransparency = 0
   label.TextStrokeColor3 = Color3.new(0, 0, 0)
   label.TextXAlignment = Enum.TextXAlignment.Left
+  UIUtil.boundText(label, 13, 18)
   -- Slide in
   row.Position = UDim2.new(0, 350, 0, row.Position.Y.Offset)
   TweenService:Create(row, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()

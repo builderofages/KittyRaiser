@@ -37,6 +37,8 @@ title.TextColor3 = Color3.fromRGB(150, 50, 200)
 title.Font = Enum.Font.GothamBlack
 title.TextScaled = true
 title.Parent = wheel
+local titleC = Instance.new("UITextSizeConstraint", title)
+titleC.MinTextSize = 14; titleC.MaxTextSize = 22
 
 local center = Vector2.new(180, 180)
 for i, emoteName in ipairs(GameConfig.EMOTES) do
@@ -54,6 +56,8 @@ for i, emoteName in ipairs(GameConfig.EMOTES) do
     btn.TextScaled = true
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
     btn.Parent = wheel
+    local btnC = Instance.new("UITextSizeConstraint", btn)
+    btnC.MinTextSize = 12; btnC.MaxTextSize = 18
     btn.MouseButton1Click:Connect(function()
         Remotes.RequestEmote:FireServer(emoteName)
         wheel.Visible = false
@@ -76,8 +80,8 @@ Remotes.EmoteBroadcast.OnClientEvent:Connect(function(userId, emoteName)
     local head = target.Character:FindFirstChild("Head")
     if not head then return end
     local b = Instance.new("BillboardGui")
-    b.Size = UDim2.new(0, 100, 0, 36)
-    b.StudsOffset = Vector3.new(0, 3, 0)
+    b.Size = UDim2.new(0, 110, 0, 30)
+    b.StudsOffset = Vector3.new(0, 1.6, 0)
     b.AlwaysOnTop = true
     b.Parent = head
     local lbl = Instance.new("TextLabel")
@@ -90,6 +94,8 @@ Remotes.EmoteBroadcast.OnClientEvent:Connect(function(userId, emoteName)
     lbl.TextScaled = true
     Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 8)
     lbl.Parent = b
+    local c = Instance.new("UITextSizeConstraint", lbl)
+    c.MinTextSize = 12; c.MaxTextSize = 22
     task.delay(2, function() b:Destroy() end)
 end)
 

@@ -8,6 +8,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
 
+local UIUtil = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
+
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -32,7 +34,7 @@ local overlay = Instance.new("ScreenGui")
 overlay.Name = "OnboardingOverlay"
 overlay.IgnoreGuiInset = true
 overlay.ResetOnSpawn = false
-overlay.DisplayOrder = 90
+overlay.DisplayOrder = UIUtil.DisplayOrder.Onboarding
 overlay.Parent = playerGui
 
 local function showStep(text, anchorRect)
@@ -60,6 +62,7 @@ local function showStep(text, anchorRect)
   label.TextScaled = true
   label.TextColor3 = PALETTE.white
   label.TextXAlignment = Enum.TextXAlignment.Center
+  UIUtil.boundText(label, 16, 24)
 
   if anchorRect then
     box.Position = UDim2.fromOffset(anchorRect.X + anchorRect.Width/2 - 190, anchorRect.Y - 130)
@@ -119,8 +122,9 @@ local function massivePayoff()
   TweenService:Create(burst, TweenInfo.new(0.8), {BackgroundTransparency = 1}):Play()
 
   local big = Instance.new("TextLabel", overlay)
-  big.Size = UDim2.new(0, 800, 0, 200)
-  big.Position = UDim2.new(0.5, -400, 0.4, 0)
+  big.Size = UDim2.new(0.7, 0, 0.25, 0)
+  big.AnchorPoint = Vector2.new(0.5, 0.5)
+  big.Position = UDim2.new(0.5, 0, 0.4, 0)
   big.BackgroundTransparency = 1
   big.Text = "+500 CHAOS\n🎉 LEVEL 2! 🎉"
   big.Font = Enum.Font.GothamBlack
@@ -129,8 +133,10 @@ local function massivePayoff()
   big.TextStrokeTransparency = 0
   big.TextStrokeColor3 = Color3.new(0, 0, 0)
   big.Rotation = -8
+  UIUtil.boundText(big, 28, 80)
 
-  TweenService:Create(big, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Rotation = 0, Size = UDim2.new(0, 900, 0, 240)}):Play()
+  TweenService:Create(big, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+    {Rotation = 0, Size = UDim2.new(0.85, 0, 0.32, 0)}):Play()
 
   -- Confetti particles (frame dots)
   for i = 1, 60 do

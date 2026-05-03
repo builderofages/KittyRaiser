@@ -23,6 +23,9 @@
         },
         "AssetIds": {
           "$path": "src/ReplicatedStorage/Modules/AssetIds.lua"
+        },
+        "UIUtil": {
+          "$path": "src/ReplicatedStorage/Modules/UIUtil.lua"
         }
       }
     },

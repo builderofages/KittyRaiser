@@ -16,19 +16,28 @@ local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
+-- Camera position shake — applied via local offset on a refresh-safe loop.
+-- We *additively* nudge the camera each frame and then return it to baseline,
+-- so we don't fight other camera scripts (CombatFeel's FOV pulse, etc.) and
+-- we never persistently bias the camera position.
 local function shake(intensity)
     if intensity <= 0 then return end
     task.spawn(function()
-        local steps = 10
+        local steps = 8
+        local lastOff = Vector3.new()
         for i = 1, steps do
-            local off = CFrame.new(
-                (math.random()-0.5) * intensity * 0.1,
-                (math.random()-0.5) * intensity * 0.1,
-                0
-            )
-            camera.CFrame = camera.CFrame * off
-            task.wait(0.02)
+            local mag = (1 - i / steps) * intensity * 0.06
+            local newOff = Vector3.new(
+                (math.random() - 0.5) * mag,
+                (math.random() - 0.5) * mag,
+                0)
+            -- Undo last frame's offset, apply this frame's
+            camera.CFrame = camera.CFrame * CFrame.new(-lastOff) * CFrame.new(newOff)
+            lastOff = newOff
+            task.wait(0.025)
         end
+        -- Restore baseline
+        camera.CFrame = camera.CFrame * CFrame.new(-lastOff)
     end)
 end
 
@@ -75,40 +84,44 @@ local function spawnParticleBurst(cf, color, count, opts)
 end
 
 local function buildAnvilModel(parent)
-    -- Real anvil shape (top horn + body + base)
+    -- Cartoon anvil shape, sized to be ~ humanoid head height (1.5–2 studs total).
     local model = Instance.new("Model")
     model.Name = "AnvilFX"
 
+    -- Top "table"
     local body = Instance.new("Part")
     body.Anchored = true; body.CanCollide = false
-    body.Size = Vector3.new(2.4, 1.4, 4.0)
+    body.Size = Vector3.new(1.6, 0.55, 2.4)
     body.Material = Enum.Material.Metal
-    body.Color = Color3.fromRGB(50, 50, 60)
-    body.Reflectance = 0.05
+    body.Color = Color3.fromRGB(40, 40, 50)
+    body.Reflectance = 0.06
     body.Parent = model
 
+    -- Horn (tapered front)
     local horn = Instance.new("Part")
     horn.Anchored = true; horn.CanCollide = false
-    horn.Size = Vector3.new(1.2, 1.2, 2.0)
+    horn.Size = Vector3.new(0.7, 0.5, 1.2)
     horn.Material = Enum.Material.Metal
-    horn.Color = Color3.fromRGB(60, 60, 70)
-    horn.CFrame = body.CFrame * CFrame.new(0, 0.3, -2.6)
+    horn.Color = Color3.fromRGB(50, 50, 60)
+    horn.CFrame = body.CFrame * CFrame.new(0, 0, -1.7)
     horn.Parent = model
 
+    -- Waist (thinner middle)
     local waist = Instance.new("Part")
     waist.Anchored = true; waist.CanCollide = false
-    waist.Size = Vector3.new(1.6, 1.4, 2.4)
+    waist.Size = Vector3.new(0.95, 0.55, 1.5)
     waist.Material = Enum.Material.Metal
-    waist.Color = Color3.fromRGB(40, 40, 50)
-    waist.CFrame = body.CFrame * CFrame.new(0, -1.2, 0)
+    waist.Color = Color3.fromRGB(35, 35, 45)
+    waist.CFrame = body.CFrame * CFrame.new(0, -0.5, 0)
     waist.Parent = model
 
+    -- Base (wide foot)
     local base = Instance.new("Part")
     base.Anchored = true; base.CanCollide = false
-    base.Size = Vector3.new(2.8, 0.8, 3.2)
+    base.Size = Vector3.new(1.7, 0.45, 1.9)
     base.Material = Enum.Material.Metal
-    base.Color = Color3.fromRGB(35, 35, 45)
-    base.CFrame = body.CFrame * CFrame.new(0, -2.2, 0)
+    base.Color = Color3.fromRGB(28, 28, 38)
+    base.CFrame = body.CFrame * CFrame.new(0, -1.0, 0)
     base.Parent = model
 
     model.PrimaryPart = body
@@ -131,8 +144,7 @@ local function chaosFlyUp(amount, atCFrame)
     local b = Instance.new("BillboardGui")
     b.Size = UDim2.new(0, 120, 0, 50)
     b.AlwaysOnTop = true
-    b.StudsOffset = Vector3.new(0, 4, 0)
-    -- attach to a temp part
+    b.StudsOffset = Vector3.new(0, 1.6, 0)  -- keep close to head, not way above
     local p = Instance.new("Part")
     p.Anchored = true
     p.CanCollide = false
@@ -151,9 +163,13 @@ local function chaosFlyUp(amount, atCFrame)
     lbl.Font = Enum.Font.GothamBlack
     lbl.TextScaled = true
     lbl.Parent = b
+    local c = Instance.new("UITextSizeConstraint", lbl)
+    c.MinTextSize = 14; c.MaxTextSize = 32
 
-    TweenService:Create(p, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = atCFrame * CFrame.new(0, 6, 0)}):Play()
-    TweenService:Create(lbl, TweenInfo.new(1.2), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+    TweenService:Create(p, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {CFrame = atCFrame * CFrame.new(0, 5, 0)}):Play()
+    TweenService:Create(lbl, TweenInfo.new(1.2),
+        {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
     Debris:AddItem(p, 1.5)
 end
 

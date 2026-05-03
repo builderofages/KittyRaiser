@@ -11,11 +11,28 @@ local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("
 local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
 local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
 local CosmeticConfig = require(ReplicatedStorage.Modules.CosmeticConfig)
+local UIUtil       = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local hud = playerGui:WaitForChild("MainHUD", 30)
 if not hud then warn("[HUDController] No HUD found"); return end
+
+-- Stack of active toasts so they don't pile on top of each other
+local function spawnToast(text, color, duration)
+    local toastFrame = hud:FindFirstChild("ToastFrame")
+    if not toastFrame then return end
+    local existing = 0
+    for _, c in ipairs(toastFrame:GetChildren()) do
+        if c:IsA("Frame") then existing = existing + 1 end
+    end
+    local t = UIUtil.makeToast(toastFrame, text, color, duration or 2.5)
+    t.Position = UDim2.new(0.5, 0, 0, existing * 56 - 60)
+    task.delay(0.05, function()
+        TweenService:Create(t, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {Position = UDim2.new(0.5, 0, 0, existing * 56)}):Play()
+    end)
+end
 
 local topBar = hud:WaitForChild("TopBar")
 local chaosLabel = topBar:WaitForChild("ChaosLabel")
@@ -64,69 +81,24 @@ Remotes.UpdatePlayerData.OnClientEvent:Connect(function(data)
 end)
 
 Remotes.LevelUp.OnClientEvent:Connect(function(newLevel, unlocked)
-    -- Toast
-    local toast = hud:FindFirstChild("ToastFrame")
-    if toast then
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.BackgroundTransparency = 0.2
-        label.BackgroundColor3 = GameConfig.HUD_ACCENT_COLOR
-        label.TextColor3 = Color3.new(0,0,0)
-        label.TextScaled = true
-        label.Font = Enum.Font.GothamBlack
-        label.Text = "LEVEL UP! " .. newLevel
-        Instance.new("UICorner", label).CornerRadius = UDim.new(0, 12)
-        label.Parent = toast
-        task.delay(2.5, function()
-            TweenService:Create(label, TweenInfo.new(0.5), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
-            task.wait(0.6)
-            label:Destroy()
-        end)
-    end
+    spawnToast("LEVEL UP!  " .. newLevel, Color3.fromRGB(50, 220, 100), 2.5)
     if unlocked and #unlocked > 0 then
         for _, prankName in ipairs(unlocked) do
-            print("[HUDController] Unlocked prank:", prankName)
+            spawnToast("🔓 NEW PRANK: " .. prankName, Color3.fromRGB(255, 200, 0), 3.5)
         end
     end
 end)
 
 Remotes.NotifyClient.OnClientEvent:Connect(function(message, severity)
-    local toast = hud:FindFirstChild("ToastFrame")
-    if not toast then return end
-    local color = severity == "success" and GameConfig.HUD_ACCENT_COLOR or
-                  severity == "warn" and Color3.fromRGB(255, 200, 0) or
-                  Color3.fromRGB(255, 100, 100)
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, 0, 1, 0)
-    lbl.BackgroundTransparency = 0.2
-    lbl.BackgroundColor3 = color
-    lbl.TextColor3 = Color3.new(0,0,0)
-    lbl.TextScaled = true
-    lbl.Font = Enum.Font.GothamBlack
-    lbl.Text = message
-    Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 12)
-    lbl.Parent = toast
-    task.delay(2.0, function()
-        TweenService:Create(lbl, TweenInfo.new(0.5), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
-        task.wait(0.6)
-        lbl:Destroy()
-    end)
+    local color = severity == "success" and Color3.fromRGB(50, 200, 100) or
+                  severity == "warn"    and Color3.fromRGB(255, 200, 0)   or
+                                           Color3.fromRGB(255, 90, 100)
+    spawnToast(message, color, 2.0)
 end)
 
 Remotes.RebirthCompleted.OnClientEvent:Connect(function(newRebirths, newMult)
-    local toast = hud:FindFirstChild("ToastFrame")
-    if toast then
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, 0, 1, 0)
-        lbl.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
-        lbl.TextColor3 = Color3.new(0,0,0)
-        lbl.TextScaled = true
-        lbl.Font = Enum.Font.GothamBlack
-        lbl.Text = "REBIRTH! 👑 " .. newRebirths .. "  x" .. string.format("%.2f", newMult)
-        Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 12)
-        lbl.Parent = toast
-        task.delay(3, function() lbl:Destroy() end)
-    end
+    spawnToast("REBIRTH! 👑 " .. newRebirths .. "  x" .. string.format("%.2f", newMult),
+               Color3.fromRGB(255, 200, 0), 3.0)
 end)
 
 Remotes.LeaderboardUpdated.OnClientEvent:Connect(function(top)
@@ -143,7 +115,7 @@ Remotes.LeaderboardUpdated.OnClientEvent:Connect(function(top)
         local row = Instance.new("TextLabel")
         row.Size = UDim2.new(1, 0, 0, 32)
         row.BackgroundColor3 = i == 1 and Color3.fromRGB(255, 200, 0)
-                              or i == 2 and Color3.fromRGB(180, 180, 180)
+                              or i == 2 and Color3.fromRGB(190, 190, 195)
                               or i == 3 and Color3.fromRGB(180, 100, 50)
                               or Color3.fromRGB(40, 30, 60)
         row.TextColor3 = i <= 3 and Color3.new(0,0,0) or Color3.new(1,1,1)
@@ -153,6 +125,7 @@ Remotes.LeaderboardUpdated.OnClientEvent:Connect(function(top)
         row.Text = string.format("%d. %s — %s", i, entry.name, formatNum(entry.chaos))
         Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
         row.Parent = list
+        UIUtil.boundText(row, 14, 20)
     end
 end)
 
@@ -223,6 +196,7 @@ function buildShopList(inventoryMode)
             nameLabel.TextScaled = true
             nameLabel.TextXAlignment = Enum.TextXAlignment.Left
             nameLabel.Parent = row
+            UIUtil.boundText(nameLabel, 14, 22)
 
             local rarityLabel = Instance.new("TextLabel")
             rarityLabel.Size = UDim2.new(0.4, 0, 0.5, 0)
@@ -237,6 +211,7 @@ function buildShopList(inventoryMode)
             rarityLabel.TextScaled = true
             rarityLabel.TextXAlignment = Enum.TextXAlignment.Left
             rarityLabel.Parent = row
+            UIUtil.boundText(rarityLabel, 12, 18)
 
             local btn = Instance.new("TextButton")
             btn.Size = UDim2.new(0.35, 0, 0.8, 0)

@@ -34,16 +34,41 @@ end
 
 local function spawnCoinLoot(pos, count)
     for i = 1, count do
+        -- Cylinder long-axis is X; rotating 90° around Z makes it stand vertically
+        -- with flat faces front/back — that's our "coin face the camera" look.
         local c = Instance.new("Part")
         c.Shape = Enum.PartType.Cylinder
-        c.Size = Vector3.new(0.4, 1.2, 1.2)
+        c.Size = Vector3.new(0.18, 1.0, 1.0)  -- thin disc, 1 stud diameter
         c.Material = Enum.Material.Neon
         c.Color = Color3.fromRGB(255, 215, 0)
-        c.CFrame = CFrame.new(pos + Vector3.new(math.random()*4-2, 4, math.random()*4-2)) * CFrame.Angles(0, 0, math.rad(90))
-        c.AssemblyLinearVelocity = Vector3.new((math.random()-0.5)*30, math.random()*20+10, (math.random()-0.5)*30)
+        c.Reflectance = 0.15
         c.CanCollide = false
+        c.CFrame = CFrame.new(pos + Vector3.new(math.random()*4-2, 4, math.random()*4-2))
+            * CFrame.Angles(0, 0, math.rad(90))
+        c.AssemblyLinearVelocity = Vector3.new((math.random()-0.5)*22, math.random()*16+12, (math.random()-0.5)*22)
+        -- Spin around Y axis (vertical) so the coin tumbles like a real coin
+        c.AssemblyAngularVelocity = Vector3.new(0, math.random(8, 14), 0)
         c.Parent = Workspace
+
+        -- Outline — second cylinder slightly larger and dark
+        local outline = Instance.new("Part")
+        outline.Shape = Enum.PartType.Cylinder
+        outline.Size = Vector3.new(0.16, 1.05, 1.05)
+        outline.Material = Enum.Material.SmoothPlastic
+        outline.Color = Color3.fromRGB(180, 130, 0)
+        outline.CanCollide = false
+        outline.Massless = true
+        outline.CFrame = c.CFrame
+        outline.Parent = Workspace
+        local w = Instance.new("WeldConstraint"); w.Part0 = c; w.Part1 = outline; w.Parent = outline
+
+        -- Glow trail for shine
+        local light = Instance.new("PointLight", c)
+        light.Color = Color3.fromRGB(255, 230, 130)
+        light.Range = 6; light.Brightness = 1.5
+
         Debris:AddItem(c, 4)
+        Debris:AddItem(outline, 4)
     end
 end
 
@@ -53,10 +78,10 @@ local function spawnChaosNumber(pos, amount)
     part.CanCollide = false
     part.Transparency = 1
     part.Size = Vector3.new(1, 1, 1)
-    part.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
+    part.CFrame = CFrame.new(pos + Vector3.new(0, 2.5, 0))  -- closer to head
     part.Parent = Workspace
     local g = Instance.new("BillboardGui")
-    g.Size = UDim2.new(0, 200, 0, 80)
+    g.Size = UDim2.new(0, 160, 0, 60)
     g.AlwaysOnTop = true
     g.Parent = part
     local l = Instance.new("TextLabel")
@@ -69,6 +94,8 @@ local function spawnChaosNumber(pos, amount)
     l.TextStrokeTransparency = 0
     l.TextStrokeColor3 = Color3.new(0, 0, 0)
     l.Parent = g
+    local c = Instance.new("UITextSizeConstraint", l)
+    c.MinTextSize = 14; c.MaxTextSize = 32
     -- Float up + fade
     task.spawn(function()
         for i = 1, 30 do
