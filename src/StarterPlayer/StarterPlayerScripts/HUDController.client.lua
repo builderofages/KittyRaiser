@@ -56,7 +56,9 @@ local hellWrap       = topBar:WaitForChild("HellWrap")
 local hellLabel      = hellWrap:WaitForChild("HellLabel")
 local levelContainer = topBar:WaitForChild("LevelContainer")
 local levelLabel     = levelContainer:WaitForChild("LevelLabel")
-local xpFill         = levelContainer:WaitForChild("XPBarBG"):WaitForChild("XPBarFill")
+local xpBarBg        = levelContainer:WaitForChild("XPBarBG")
+local xpFill         = xpBarBg:WaitForChild("XPBarFill")
+local xpText         = xpBarBg:WaitForChild("XPText")
 local rebirthWrap    = topBar:WaitForChild("RebirthWrap")
 local rebirthLabel   = rebirthWrap:WaitForChild("RebirthLabel")
 
@@ -78,11 +80,13 @@ local function refresh()
     hellLabel.Text    = formatNum(CurrentData.hellTokens or 0)
     levelLabel.Text   = "Level " .. (CurrentData.level or 1)
     rebirthLabel.Text = tostring(CurrentData.rebirths or 0)
-    -- XP bar fill
+    -- XP bar fill + numeric overlay
     local lvl = CurrentData.level or 1
+    local xp  = CurrentData.xp or 0
     local xpReq = GameConfig.xpRequired(lvl)
-    local pct = math.clamp((CurrentData.xp or 0) / xpReq, 0, 1)
+    local pct = math.clamp(xp / xpReq, 0, 1)
     TweenService:Create(xpFill, TweenInfo.new(0.3), {Size = UDim2.new(pct, 0, 1, 0)}):Play()
+    xpText.Text = ("Lv %d  -  %s / %s XP"):format(lvl, formatNum(xp), formatNum(xpReq))
     -- Prank locks
     for _, btn in ipairs(prankCol:GetChildren()) do
         if btn:IsA("TextButton") and btn:GetAttribute("PrankName") then

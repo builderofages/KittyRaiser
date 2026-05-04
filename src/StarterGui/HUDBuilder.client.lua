@@ -206,6 +206,23 @@ xpGrad.Color = ColorSequence.new{
 }
 xpGrad.Rotation = 90
 
+-- XP numeric overlay centered on the bar: "Lv 1  -  0 / 100 XP"
+local xpText = Instance.new("TextLabel", xpBarBg)
+xpText.Name = "XPText"
+xpText.AnchorPoint = Vector2.new(0.5, 0.5)
+xpText.Position = UDim2.new(0.5, 0, 0.5, 0)
+xpText.Size = UDim2.new(1, -8, 1, 0)
+xpText.BackgroundTransparency = 1
+xpText.Text = "Lv 1  -  0 / 100 XP"
+xpText.TextColor3 = Color3.fromRGB(255, 255, 255)
+xpText.TextStrokeTransparency = 0
+xpText.TextStrokeColor3 = UIUtil.Palette.stroke
+xpText.Font = UIUtil.Token.fontHeader
+xpText.TextScaled = true
+xpText.TextXAlignment = Enum.TextXAlignment.Center
+xpText.ZIndex = 2  -- above the fill so the text is readable
+bind(xpText, 10, 14)
+
 -- Rebirth counter: trophy icon + count.
 -- Right-anchored backplate so the trophy circle sits at the RIGHT edge of
 -- the wrap, with the rebirth count to its left. Always-visible colored
