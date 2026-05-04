@@ -32,6 +32,9 @@
         },
         "AudioGroups": {
           "$path": "src/ReplicatedStorage/Modules/AudioGroups.lua"
+        },
+        "AchievementConfig": {
+          "$path": "src/ReplicatedStorage/Modules/AchievementConfig.lua"
         }
       }
     },
@@ -135,6 +138,9 @@
       },
       "LifecycleSystem": {
         "$path": "src/ServerScriptService/LifecycleSystem.server.lua"
+      },
+      "AchievementSystem": {
+        "$path": "src/ServerScriptService/AchievementSystem.server.lua"
       }
     },
     "StarterGui": {

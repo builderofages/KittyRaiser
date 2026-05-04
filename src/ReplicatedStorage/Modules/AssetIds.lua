@@ -98,6 +98,17 @@ AssetIds.anim_cat_run             = "rbxassetid://0"
 AssetIds.anim_cat_jump            = "rbxassetid://0"
 AssetIds.anim_cat_fall            = "rbxassetid://0"
 
+-- ===== BADGES — TODO create in Creator Hub > Badges, paste IDs here.
+-- AchievementSystem.server only awards if AssetIds.has() returns true. =====
+AssetIds.badge_first_prank        = "rbxassetid://0"
+AssetIds.badge_level_10           = "rbxassetid://0"
+AssetIds.badge_level_25           = "rbxassetid://0"
+AssetIds.badge_level_50           = "rbxassetid://0"
+AssetIds.badge_level_100          = "rbxassetid://0"
+AssetIds.badge_first_rebirth      = "rbxassetid://0"
+AssetIds.badge_boss_defeat        = "rbxassetid://0"
+AssetIds.badge_ticketed           = "rbxassetid://0"
+
 -- ===== MARKETING =====
 AssetIds.game_icon                = "rbxassetid://112119672948925"
 AssetIds.game_icon_small          = "rbxassetid://127301758963300"

@@ -1,5 +1,8 @@
--- DailyRewardSystem.server.lua
--- Daily login reward with 7-day streak cycle.
+-- DailyRewardSystem.server.lua  v2
+-- Daily login reward with 7-day streak cycle PLUS milestone mega-rewards at
+-- absolute streak day 14, 30, 60, 100. The 7-day cycle keeps casual players
+-- engaged; the milestones reward dedicated returners.
+--
 -- Place in: ServerScriptService > DailyRewardSystem (Script)
 
 local Players = game:GetService("Players")
@@ -11,15 +14,23 @@ local DataHandler = waitFor("KittyRaiserData")
 
 local DAY_SECONDS = 86400
 
--- 7-day streak rewards
-local REWARDS = {
-    [1] = {chaos = 500, hellTokens = 0, msg = "Day 1: 500 Chaos"},
-    [2] = {chaos = 1500, hellTokens = 0, msg = "Day 2: 1.5K Chaos"},
-    [3] = {chaos = 3000, hellTokens = 1, msg = "Day 3: 3K Chaos + 1 Hell Token"},
-    [4] = {chaos = 5000, hellTokens = 0, msg = "Day 4: 5K Chaos"},
-    [5] = {chaos = 7500, hellTokens = 2, msg = "Day 5: 7.5K Chaos + 2 Hell Tokens"},
-    [6] = {chaos = 10000, hellTokens = 0, msg = "Day 6: 10K Chaos"},
-    [7] = {chaos = 25000, hellTokens = 5, msg = "Day 7  -  25K Chaos + 5 Hell Tokens"},
+-- 7-day cycle rewards (repeating)
+local CYCLE_REWARDS = {
+    [1] = {chaos = 500,   hellTokens = 0, msg = "Day 1: +500 chaos"},
+    [2] = {chaos = 1500,  hellTokens = 0, msg = "Day 2: +1.5K chaos"},
+    [3] = {chaos = 3000,  hellTokens = 1, msg = "Day 3: +3K chaos + 1 hell token"},
+    [4] = {chaos = 5000,  hellTokens = 0, msg = "Day 4: +5K chaos"},
+    [5] = {chaos = 7500,  hellTokens = 2, msg = "Day 5: +7.5K chaos + 2 hell tokens"},
+    [6] = {chaos = 10000, hellTokens = 0, msg = "Day 6: +10K chaos"},
+    [7] = {chaos = 25000, hellTokens = 5, msg = "Day 7: +25K chaos + 5 hell tokens"},
+}
+
+-- ABSOLUTE-streak milestone rewards (one-time, on top of the cycle reward)
+local MEGA = {
+    [14]  = {chaos =  60000, hellTokens = 15, msg = "MEGA: 14-day streak  +60K chaos + 15 hell tokens"},
+    [30]  = {chaos = 200000, hellTokens = 50, msg = "MEGA: 30-day streak  +200K chaos + 50 hell tokens"},
+    [60]  = {chaos = 500000, hellTokens = 100, msg = "MEGA: 60-day streak  +500K chaos + 100 hell tokens"},
+    [100] = {chaos = 1500000,hellTokens = 250, msg = "MEGA: 100-day streak  +1.5M chaos + 250 hell tokens"},
 }
 
 local function isAvailable(data)
@@ -39,29 +50,32 @@ Remotes.RequestClaimDaily.OnServerInvoke = function(player)
         local nextAt = (data.lastDailyClaim or 0) + DAY_SECONDS
         return false, "wait", nextAt - os.time()
     end
-    local newStreak
-    if streakBroken(data) then newStreak = 1
-    else newStreak = ((data.dailyStreak or 0) % 7) + 1 end
-    local reward = REWARDS[newStreak]
+
+    -- Absolute streak: never resets unless broken (>2d gap). Used for milestone
+    -- rewards. Cycle position is ((absoluteStreak - 1) % 7) + 1.
+    local newAbs
+    if streakBroken(data) then newAbs = 1
+    else newAbs = (data.dailyStreak or 0) + 1 end
+    local cycleDay = ((newAbs - 1) % 7) + 1
+    local reward = CYCLE_REWARDS[cycleDay]
+
+    -- Mega bonus if absolute streak hits a milestone
+    local mega = MEGA[newAbs]
+
     DataHandler.modify(player, function(d)
-        d.chaosPoints = (d.chaosPoints or 0) + reward.chaos
-        d.hellTokens = (d.hellTokens or 0) + reward.hellTokens
-        d.dailyStreak = newStreak
+        d.chaosPoints = (d.chaosPoints or 0) + reward.chaos + (mega and mega.chaos or 0)
+        d.hellTokens  = (d.hellTokens  or 0) + reward.hellTokens + (mega and mega.hellTokens or 0)
+        d.dailyStreak = newAbs
         d.lastDailyClaim = os.time()
     end)
-    Remotes.NotifyClient:FireClient(player, reward.msg, "success")
-    return true, newStreak
-end
 
-Players.PlayerAdded:Connect(function(player)
-    task.wait(3)
-    local data = DataHandler.getData(player)
-    if data and isAvailable(data) then
-        local nextStreak
-        if streakBroken(data) then nextStreak = 1
-        else nextStreak = ((data.dailyStreak or 0) % 7) + 1 end
-        Remotes.DailyAvailable:FireClient(player, nextStreak, REWARDS[nextStreak])
+    Remotes.NotifyClient:FireClient(player, reward.msg, "success")
+    if mega then
+        task.delay(0.6, function()
+            Remotes.NotifyClient:FireClient(player, mega.msg, "success")
+        end)
     end
-end)
+    return true, newAbs
+end
 
 return true
