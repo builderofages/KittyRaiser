@@ -81,18 +81,28 @@ local function spawnChaosNumber(pos, amount)
     part.CFrame = CFrame.new(pos + Vector3.new(0, 2.5, 0))  -- closer to head
     part.Parent = Workspace
     local g = Instance.new("BillboardGui")
-    g.Size = UDim2.new(0, 160, 0, 60)
+    g.Size = UDim2.new(0, 180, 0, 60)
     g.AlwaysOnTop = true
     g.Parent = part
+    -- Coin icon on the left, +amount text on the right
+    if AssetIds.has("coin") then
+        local ic = Instance.new("ImageLabel", g)
+        ic.Size = UDim2.new(0, 40, 0, 40)
+        ic.Position = UDim2.new(0, 4, 0.5, -20)
+        ic.BackgroundTransparency = 1
+        ic.Image = AssetIds.coin
+    end
     local l = Instance.new("TextLabel")
-    l.Size = UDim2.fromScale(1, 1)
+    l.Size = UDim2.new(1, -50, 1, 0)
+    l.Position = UDim2.new(0, 50, 0, 0)
     l.BackgroundTransparency = 1
-    l.Text = "+" .. amount .. " 💚"
+    l.Text = "+" .. amount
     l.Font = Enum.Font.GothamBlack
     l.TextScaled = true
-    l.TextColor3 = Color3.fromRGB(0, 255, 100)
+    l.TextColor3 = Color3.fromRGB(255, 220, 80)
     l.TextStrokeTransparency = 0
     l.TextStrokeColor3 = Color3.new(0, 0, 0)
+    l.TextXAlignment = Enum.TextXAlignment.Left
     l.Parent = g
     local c = Instance.new("UITextSizeConstraint", l)
     c.MinTextSize = 14; c.MaxTextSize = 32

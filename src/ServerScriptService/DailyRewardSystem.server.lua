@@ -19,7 +19,7 @@ local REWARDS = {
     [4] = {chaos = 5000, hellTokens = 0, msg = "Day 4: 5K Chaos"},
     [5] = {chaos = 7500, hellTokens = 2, msg = "Day 5: 7.5K Chaos + 2 Hell Tokens"},
     [6] = {chaos = 10000, hellTokens = 0, msg = "Day 6: 10K Chaos"},
-    [7] = {chaos = 25000, hellTokens = 5, msg = "Day 7: 25K Chaos + 5 Hell Tokens! 🎉"},
+    [7] = {chaos = 25000, hellTokens = 5, msg = "Day 7  -  25K Chaos + 5 Hell Tokens"},
 }
 
 local function isAvailable(data)

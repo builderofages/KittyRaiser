@@ -100,7 +100,7 @@ Remotes.LevelUp.OnClientEvent:Connect(function(newLevel, unlocked)
     playSoundIfHas("level_up", 0.8)
     if unlocked and #unlocked > 0 then
         for _, prankName in ipairs(unlocked) do
-            spawnToast("🔓 NEW PRANK: " .. prankName, Color3.fromRGB(255, 200, 0), 3.5)
+            spawnToast("NEW PRANK UNLOCKED:  " .. prankName, Color3.fromRGB(255, 200, 0), 3.5)
         end
     end
 end)
@@ -113,7 +113,7 @@ Remotes.NotifyClient.OnClientEvent:Connect(function(message, severity)
 end)
 
 Remotes.RebirthCompleted.OnClientEvent:Connect(function(newRebirths, newMult)
-    spawnToast("REBIRTH! 👑 " .. newRebirths .. "  x" .. string.format("%.2f", newMult),
+    spawnToast("REBIRTH  ·  " .. newRebirths .. "  ·  x" .. string.format("%.2f", newMult),
                Color3.fromRGB(255, 200, 0), 3.0)
 end)
 
@@ -252,8 +252,17 @@ function buildShopList(inventoryMode)
                 end
             else
                 if skin.currency == "chaos" then
-                    btn.Text = "💚 " .. formatNum(skin.cost)
+                    btn.Text = formatNum(skin.cost) .. "  CHAOS"
                     btn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+                    -- Coin icon inside the button
+                    if AssetIds.has("coin") then
+                        local ic = Instance.new("ImageLabel")
+                        ic.Size = UDim2.new(0, 22, 0, 22)
+                        ic.Position = UDim2.new(0, 6, 0.5, -11)
+                        ic.BackgroundTransparency = 1
+                        ic.Image = AssetIds.coin
+                        ic.Parent = btn
+                    end
                     btn.MouseButton1Click:Connect(function()
                         local ok, err = Remotes.RequestPurchaseSkinChaos:InvokeServer(skinId)
                         if not ok then

@@ -185,27 +185,38 @@ end
 
 local function chaosFlyUp(amount, atCFrame)
     if amount <= 0 then return end
-    local b = Instance.new("BillboardGui")
-    b.Size = UDim2.new(0, 120, 0, 50)
-    b.AlwaysOnTop = true
-    b.StudsOffset = Vector3.new(0, 1.6, 0)  -- keep close to head, not way above
     local p = Instance.new("Part")
-    p.Anchored = true
-    p.CanCollide = false
-    p.Transparency = 1
-    p.Size = Vector3.new(0.1,0.1,0.1)
+    p.Anchored = true; p.CanCollide = false; p.Transparency = 1
+    p.Size = Vector3.new(0.1, 0.1, 0.1)
     p.CFrame = atCFrame
     p.Parent = Workspace
+
+    local b = Instance.new("BillboardGui")
+    b.Size = UDim2.new(0, 140, 0, 48)
+    b.AlwaysOnTop = true
+    b.StudsOffset = Vector3.new(0, 1.6, 0)
     b.Parent = p
 
+    -- Coin icon left, +amount text right
+    local ic
+    if AssetIds.has("coin") then
+        ic = Instance.new("ImageLabel", b)
+        ic.Size = UDim2.new(0, 32, 0, 32)
+        ic.Position = UDim2.new(0, 4, 0.5, -16)
+        ic.BackgroundTransparency = 1
+        ic.Image = AssetIds.coin
+    end
     local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.Size = UDim2.new(1, -42, 1, 0)
+    lbl.Position = UDim2.new(0, 42, 0, 0)
     lbl.BackgroundTransparency = 1
-    lbl.Text = "+" .. amount .. " 💚"
-    lbl.TextColor3 = GameConfig.HUD_ACCENT_COLOR
+    lbl.Text = "+" .. amount
+    lbl.TextColor3 = Color3.fromRGB(255, 220, 80)
     lbl.TextStrokeTransparency = 0
+    lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
     lbl.Font = Enum.Font.GothamBlack
     lbl.TextScaled = true
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Parent = b
     local c = Instance.new("UITextSizeConstraint", lbl)
     c.MinTextSize = 14; c.MaxTextSize = 32
@@ -214,6 +225,9 @@ local function chaosFlyUp(amount, atCFrame)
         {CFrame = atCFrame * CFrame.new(0, 5, 0)}):Play()
     TweenService:Create(lbl, TweenInfo.new(1.2),
         {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+    if ic then
+        TweenService:Create(ic, TweenInfo.new(1.2), {ImageTransparency = 1}):Play()
+    end
     Debris:AddItem(p, 1.5)
 end
 

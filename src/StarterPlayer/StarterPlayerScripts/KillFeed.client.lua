@@ -88,16 +88,16 @@ if Remotes.PrankRegistered then
     elseif prankName == "LaserEyes" then color = Color3.fromRGB(255, 80, 80)
     elseif prankName == "Purrgatory" then color = Color3.fromRGB(180, 80, 220)
     end
-    addEntry(player.DisplayName .. " " .. prankName .. " ✦ +" .. chaos, color)
+    addEntry(player.DisplayName .. "  ·  " .. prankName .. "  ·  +" .. chaos, color)
   end)
 end
 
 if Remotes.LevelUp then
   Remotes.LevelUp.OnClientEvent:Connect(function(newLevel, unlocked)
-    addEntry("⭐ LEVEL UP! → " .. newLevel, Color3.fromRGB(50, 220, 100))
+    addEntry("LEVEL UP  >  " .. newLevel, Color3.fromRGB(50, 220, 100))
     if unlocked then
       for _, name in ipairs(unlocked) do
-        addEntry("🔓 NEW PRANK: " .. name, Color3.fromRGB(255, 215, 0))
+        addEntry("NEW PRANK  >  " .. name, Color3.fromRGB(255, 215, 0))
       end
     end
   end)

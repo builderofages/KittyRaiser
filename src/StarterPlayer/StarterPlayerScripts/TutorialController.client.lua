@@ -29,7 +29,7 @@ end
 -- Initial step
 task.delay(2, function()
     if not seenSummon then
-        show("Tap SUMMON HUMAN to spawn your first victim 😈")
+        show("Tap SUMMON HUMAN to spawn your first victim.")
     end
 end)
 
@@ -57,7 +57,7 @@ task.spawn(function()
             for _, m in ipairs(folder:GetChildren()) do
                 if m:GetAttribute("SummonedBy") == player.UserId then
                     seenSummon = true
-                    show("Walk close, then tap PIE 🥧 to throw a pie!", 6000)
+                    show("Walk close, then tap a PRANK to attack.", 6000)
                     return
                 end
             end

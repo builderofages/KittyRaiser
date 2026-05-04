@@ -236,7 +236,7 @@ for i, prankName in ipairs(PrankConfig.Order) do
     btn:SetAttribute("Locked", true)
     btn:SetAttribute("UnlockLevel", prank.unlockLevel)
 
-    -- Use a real icon asset if we have one
+    -- Use a real icon asset if we have one; otherwise an abbreviated text label.
     local iconKey = PRANK_ICON[prankName]
     if iconKey and AssetIds.has(iconKey) then
         local img = Instance.new("ImageLabel")
@@ -248,28 +248,33 @@ for i, prankName in ipairs(PrankConfig.Order) do
         img.ScaleType = Enum.ScaleType.Fit
         img.Parent = btn
     else
-        -- Fallback emoji
-        btn.Text = prankName == "Pie" and "🥧"
-            or prankName == "Anvil" and "🔨"
-            or prankName == "FartCloud" and "💨"
-            or "👁️"
+        -- No-emoji fallback: 3-letter prank abbreviation
+        local short = (prankName:upper()):sub(1, 3)
+        btn.Text = short
         btn.TextScaled = true
-        bind(btn, 18, 36)
+        bind(btn, 16, 28)
     end
-    -- Locked overlay
-    local lock = makeLabel({
+    -- Locked overlay: dark scrim + bold "Lv N" text (no padlock emoji)
+    local lock = makeFrame({
         Name = "LockOverlay",
         Size = UDim2.new(1, 0, 1, 0),
         Position = UDim2.new(0, 0, 0, 0),
-        BackgroundColor3 = Color3.new(0,0,0),
-        BackgroundTransparency = 0.55,
-        Text = "🔒\nLv " .. prank.unlockLevel,
-        TextSize = 16,
-        TextScaled = false,
+        BackgroundColor3 = Color3.fromRGB(20, 14, 8),
+        BackgroundTransparency = 0.45,
+        BorderSizePixel = 0,
     })
-    lock.Parent = btn
-    -- Round the lock overlay so it fits the button corner
     Instance.new("UICorner", lock).CornerRadius = UDim.new(0, 12)
+    lock.Parent = btn
+    local lockLbl = Instance.new("TextLabel", lock)
+    lockLbl.Size = UDim2.fromScale(1, 1)
+    lockLbl.BackgroundTransparency = 1
+    lockLbl.Text = "LV " .. prank.unlockLevel
+    lockLbl.Font = Enum.Font.GothamBlack
+    lockLbl.TextColor3 = Color3.fromRGB(255, 230, 180)
+    lockLbl.TextStrokeTransparency = 0
+    lockLbl.TextStrokeColor3 = Color3.fromRGB(40, 25, 15)
+    lockLbl.TextScaled = true
+    bind(lockLbl, 12, 22)
     -- Cooldown overlay
     local cd = makeFrame({
         Name = "CooldownOverlay",

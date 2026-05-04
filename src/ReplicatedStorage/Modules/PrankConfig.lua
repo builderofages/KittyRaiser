@@ -16,7 +16,7 @@ PrankConfig.Pranks = {
         particleColor = Color3.fromRGB(255, 220, 220),
         screenShake = 1,
         animation = "claw_swipe",
-        icon = "✊",
+        icon = "scratch",
     },
     Pie = {
         name = "Pie",
@@ -29,7 +29,7 @@ PrankConfig.Pranks = {
         particleColor = Color3.fromRGB(255, 240, 180),
         screenShake = 0,
         animation = "throw_pie",
-        icon = "🥧",
+        icon = "pie",
     },
     Hairball = {
         name = "Hairball",
@@ -42,7 +42,7 @@ PrankConfig.Pranks = {
         particleColor = Color3.fromRGB(180, 140, 100),
         screenShake = 2,
         animation = "hairball_pop",
-        icon = "🦴",
+        icon = "fish",
     },
     Anvil = {
         name = "Anvil",
@@ -55,7 +55,7 @@ PrankConfig.Pranks = {
         particleColor = Color3.fromRGB(120, 120, 120),
         screenShake = 4,
         animation = "anvil_drop",
-        icon = "🔨",
+        icon = "anvil",
     },
     FartCloud = {
         name = "FartCloud",
@@ -69,7 +69,7 @@ PrankConfig.Pranks = {
         particleColor = Color3.fromRGB(140, 200, 80),
         screenShake = 2,
         animation = "fart_butt",
-        icon = "💨",
+        icon = "tp",
     },
     LaserEyes = {
         name = "LaserEyes",
@@ -82,7 +82,7 @@ PrankConfig.Pranks = {
         particleColor = Color3.fromRGB(255, 50, 50),
         screenShake = 8,
         animation = "laser_glare",
-        icon = "👁️",
+        icon = "wings",
     },
     Whip = {
         name = "Whip",
@@ -95,7 +95,7 @@ PrankConfig.Pranks = {
         particleColor = Color3.fromRGB(200, 100, 255),
         screenShake = 4,
         animation = "tail_whip",
-        icon = "🌀",
+        icon = "paw",
     },
     Purrgatory = {
         name = "Purrgatory",
@@ -109,7 +109,7 @@ PrankConfig.Pranks = {
         particleColor = Color3.fromRGB(255, 0, 200),
         screenShake = 12,
         animation = "soul_stare",
-        icon = "👻",
+        icon = "skull",
     },
 }
 

@@ -7,6 +7,7 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
 local UIUtil  = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
+local AssetIds = require(ReplicatedStorage.Modules:WaitForChild("AssetIds"))
 
 local function bound(lbl, mn, mx)
   UIUtil.boundText(lbl, mn, mx); return lbl
@@ -25,7 +26,7 @@ local DAY_REWARDS = {
   {day=4, chaos=5000, hellTokens=10, label="5,000 Chaos + 10 Hell Tokens"},
   {day=5, chaos=10000, hellTokens=25, label="10K Chaos + 25 HT"},
   {day=6, chaos=25000, hellTokens=50, label="25K Chaos + 50 HT"},
-  {day=7, chaos=100000, hellTokens=200, label="🎁 100K Chaos + 200 HT + EPIC SKIN"},
+  {day=7, chaos=100000, hellTokens=200, label="100K Chaos + 200 HT + EPIC SKIN"},
 }
 
 local streak = (player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("DailyStreak") and player.leaderstats.DailyStreak.Value) or 1
@@ -62,16 +63,30 @@ cardGrad.Color = ColorSequence.new{
 }
 cardGrad.Rotation = 90
 
--- Title
+-- Title (with real gift icon if available)
+local titleRow = Instance.new("Frame")
+titleRow.Size = UDim2.new(1, -40, 0, 44)
+titleRow.Position = UDim2.new(0, 20, 0, 14)
+titleRow.BackgroundTransparency = 1
+titleRow.Parent = card
+if AssetIds.has("gift") then
+  local g = Instance.new("ImageLabel")
+  g.Size = UDim2.new(0, 36, 0, 36)
+  g.Position = UDim2.new(0, 0, 0.5, -18)
+  g.BackgroundTransparency = 1
+  g.Image = AssetIds.gift
+  g.Parent = titleRow
+end
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -40, 0, 40)
-title.Position = UDim2.new(0, 20, 0, 14)
+title.Size = UDim2.new(1, -50, 1, 0)
+title.Position = UDim2.new(0, 50, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎁 DAILY REWARD"
+title.Text = "DAILY REWARD"
 title.Font = Enum.Font.GothamBlack
 title.TextScaled = true
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
-title.Parent = card
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = titleRow
 bound(title, 20, 36)
 
 -- Streak display
@@ -79,7 +94,7 @@ local streakLabel = Instance.new("TextLabel")
 streakLabel.Size = UDim2.new(1, -40, 0, 30)
 streakLabel.Position = UDim2.new(0, 20, 0, 60)
 streakLabel.BackgroundTransparency = 1
-streakLabel.Text = "STREAK: " .. streak .. " day" .. (streak == 1 and "" or "s") .. " 🔥"
+streakLabel.Text = "STREAK  ·  " .. streak .. " day" .. (streak == 1 and "" or "s")
 streakLabel.Font = Enum.Font.GothamBold
 streakLabel.TextScaled = true
 streakLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
@@ -153,7 +168,7 @@ local claimBtn = Instance.new("TextButton")
 claimBtn.Size = UDim2.new(0, 280, 0, 60)
 claimBtn.Position = UDim2.new(0.5, -140, 0, 280)
 claimBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
-claimBtn.Text = "✨ CLAIM ✨"
+claimBtn.Text = "CLAIM REWARD"
 claimBtn.Font = Enum.Font.GothamBlack
 claimBtn.TextScaled = true
 claimBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -178,7 +193,7 @@ local x = Instance.new("TextButton")
 x.Size = UDim2.new(0, 36, 0, 36)
 x.Position = UDim2.new(1, -42, 0, 6)
 x.BackgroundTransparency = 1
-x.Text = "✕"
+x.Text = "X"
 x.Font = Enum.Font.GothamBold
 x.TextScaled = true
 x.TextColor3 = Color3.fromRGB(255, 200, 200)

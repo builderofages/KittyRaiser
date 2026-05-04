@@ -126,7 +126,7 @@ local function massivePayoff()
   big.AnchorPoint = Vector2.new(0.5, 0.5)
   big.Position = UDim2.new(0.5, 0, 0.4, 0)
   big.BackgroundTransparency = 1
-  big.Text = "+500 CHAOS\n🎉 LEVEL 2! 🎉"
+  big.Text = "+500 CHAOS\nLEVEL 2"
   big.Font = Enum.Font.GothamBlack
   big.TextScaled = true
   big.TextColor3 = PALETTE.gold
@@ -166,7 +166,7 @@ end
 ----------------------------------------------------------------
 -- Step 1: Welcome + spotlight on SUMMON HUMAN button
 ----------------------------------------------------------------
-local welcome = showStep("Welcome to Chaos City!\nSpawn your first VICTIM →")
+local welcome = showStep("Welcome.  Tap SUMMON HUMAN\nto spawn your first victim.")
 local summonBtn = findHudButton("SUMMON") or findHudButton("Summon")
 local ring1
 if summonBtn then
@@ -179,7 +179,7 @@ if summonBtn then
     if ring1 then ring1:Destroy() end
     -- Step 2 after delay
     task.wait(1.5)
-    local step2 = showStep("👇 NOW PRANK them!\nClick a glowing prank →")
+    local step2 = showStep("NOW PRANK THEM\nTap a glowing prank")
     -- Find prank column
     local prankBtn
     local col = hud:FindFirstChild("PrankColumn", true)
