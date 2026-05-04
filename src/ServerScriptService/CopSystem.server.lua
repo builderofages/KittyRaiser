@@ -250,6 +250,9 @@ local function spawnCop(targetPlayer)
                     end)
                     Remotes.NotifyClient:FireClient(target, "TICKETED  -  -" .. TICKET_PENALTY .. " CHAOS", "warn")
                     pcall(playTicketBuzz, target)
+                    -- Tag so LifecycleSystem skips respawn-at-last (player goes to spawn instead)
+                    target:SetAttribute("RecentlyTicketed", true)
+                    task.delay(8, function() target:SetAttribute("RecentlyTicketed", false) end)
                     -- Brief stun: drop walk speed
                     if tchar then
                         local thum = tchar:FindFirstChildOfClass("Humanoid")

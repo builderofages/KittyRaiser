@@ -132,6 +132,9 @@
       },
       "CatAnimations": {
         "$path": "src/ServerScriptService/CatAnimations.server.lua"
+      },
+      "LifecycleSystem": {
+        "$path": "src/ServerScriptService/LifecycleSystem.server.lua"
       }
     },
     "StarterGui": {

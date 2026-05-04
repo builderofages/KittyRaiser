@@ -269,18 +269,21 @@ end
 
 -- Looping background ambient music. Created ONCE per server in SoundService
 -- so all players hear the same loop. Routed to Music channel.
+-- Starts at volume 0 and fades up over 2s so it doesn't punch the player.
 local function ensureCityAmbient()
 	local SoundService = game:GetService("SoundService")
+	local TweenService = game:GetService("TweenService")
 	if SoundService:FindFirstChild("CityAmbient") then return end
 	if not AssetIds.has("city_ambient") then return end
 	local s = Instance.new("Sound")
 	s.Name = "CityAmbient"
 	s.SoundId = AssetIds.city_ambient
 	s.Looped = true
-	s.Volume = 0.6
+	s.Volume = 0  -- start silent
 	if AudioGroups then AudioGroups.assign(s, "Music") end
 	s.Parent = SoundService
 	s:Play()
+	TweenService:Create(s, TweenInfo.new(2.0, Enum.EasingStyle.Quad), {Volume = 0.6}):Play()
 end
 task.spawn(ensureCityAmbient)
 

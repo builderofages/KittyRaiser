@@ -382,12 +382,15 @@ Remotes.PrankRegistered.OnClientEvent:Connect(function(prankName, target, chaosG
     local cf = fxPayload and fxPayload.targetCFrame or (target and target.PrimaryPart and target.PrimaryPart.CFrame) or CFrame.new()
     effectFor(prankName, cf, prank.particleColor)
     playSound(prank.soundId)
+    -- Duck music briefly so SFX punches through (only for the player who
+    -- triggered the prank — chaosGained > 0 means it's their hit, not a
+    -- nearby-viewer broadcast)
     if chaosGained and chaosGained > 0 then
         chaosFlyUp(chaosGained, cf)
-        -- Respect player's "Motion FX" setting from SettingsMenu
         if player:GetAttribute("MotionShake") ~= false then
             shake(prank.screenShake or 0)
         end
+        pcall(function() AudioGroups.duckMusic(0.2, 0.5, 0.8) end)
     end
 end)
 
