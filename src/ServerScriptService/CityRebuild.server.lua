@@ -264,7 +264,10 @@ task.spawn(function()
 end)
 
 -- =====================================================================
--- STREET PROPS  (taxi / hydrant / mailbox / trashcan)
+-- STREET PROPS  — taxi/hydrant/mailbox/trashcan + zone-aware extras:
+--   downtown: streetlamps + manhole covers + occasional fire trucks
+--   suburbs:  oak trees + park benches
+--   harbor:   palm trees + park benches
 -- =====================================================================
 task.spawn(function()
 	for _ = 1, 30 do
@@ -272,42 +275,91 @@ task.spawn(function()
 		task.wait(0.5)
 	end
 	local rng = Random.new(91)
+	-- Generic everywhere
 	local taxiMesh   = getMesh("mesh_taxi")
 	local hydrantMesh = getMesh("mesh_hydrant")
 	local mailMesh   = getMesh("mesh_mailbox")
 	local trashMesh  = getMesh("mesh_trashcan")
+	-- Zone-specific
+	local lampMesh   = getMesh("mesh_streetlamp")
+	local benchMesh  = getMesh("mesh_park_bench")
+	local oakMesh    = getMesh("mesh_oak_tree")
+	local palmMesh   = getMesh("mesh_palm_tree")
+	local manholeMesh = getMesh("mesh_manhole")
+	local fireMesh   = getMesh("mesh_fire_truck")
 
-	-- Place props at intersections / sidewalks of the grid
+	local function zoneFor(x, z)
+		if x >= 0 and z >= 0 then return "downtown" end
+		if x <  0 and z <  0 then return "harbor"   end
+		return "suburbs"
+	end
+
+	local function place(mesh, x, y, z, sizeY, color, material, rotDeg)
+		if not mesh then return false end
+		local p = mesh:Clone()
+		p.Anchored = true; p.CanCollide = true
+		p.Size = Vector3.new(sizeY, sizeY, sizeY)
+		p.Color = color
+		p.Material = material or Enum.Material.SmoothPlastic
+		p:PivotTo(CFrame.new(x, y, z) * CFrame.Angles(0, math.rad(rotDeg or rng:NextInteger(0, 359)), 0))
+		p.Parent = cityFolder
+		return true
+	end
+
+	-- Generic props (60 across the map)
 	local PROP_COUNT = 60
 	local placed = 0
 	for _ = 1, PROP_COUNT do
 		local px = rng:NextInteger(-700, 700)
 		local pz = rng:NextInteger(-700, 700)
-		-- Don't crash into the spawn area
 		if math.sqrt(px * px + (pz - 24)^2) < 24 then continue end
 		local pick = rng:NextNumber()
-		local mesh, sizeY, color
 		if pick < 0.18 and taxiMesh then
-			mesh = taxiMesh; sizeY = 3.5; color = Color3.fromRGB(255, 200, 0)  -- yellow taxi
+			if place(taxiMesh, px, 3.5/2, pz, 3.5, Color3.fromRGB(255, 200, 0)) then placed = placed + 1 end
 		elseif pick < 0.50 and hydrantMesh then
-			mesh = hydrantMesh; sizeY = 2.0; color = Color3.fromRGB(200, 50, 40) -- red hydrant
+			if place(hydrantMesh, px, 1, pz, 2.0, Color3.fromRGB(200, 50, 40)) then placed = placed + 1 end
 		elseif pick < 0.75 and mailMesh then
-			mesh = mailMesh; sizeY = 2.4; color = Color3.fromRGB(50, 90, 160)   -- blue mailbox
+			if place(mailMesh, px, 1.2, pz, 2.4, Color3.fromRGB(50, 90, 160)) then placed = placed + 1 end
 		elseif trashMesh then
-			mesh = trashMesh; sizeY = 2.4; color = Color3.fromRGB(60, 70, 60)   -- olive trashcan
-		end
-		if mesh then
-			local p = mesh:Clone()
-			p.Anchored = true; p.CanCollide = true
-			p.Size = Vector3.new(sizeY, sizeY, sizeY)
-			p.Color = color
-			p.Material = Enum.Material.SmoothPlastic
-			p:PivotTo(CFrame.new(px, sizeY/2, pz) * CFrame.Angles(0, math.rad(rng:NextInteger(0, 359)), 0))
-			p.Parent = cityFolder
-			placed = placed + 1
+			if place(trashMesh, px, 1.2, pz, 2.4, Color3.fromRGB(60, 70, 60)) then placed = placed + 1 end
 		end
 	end
-	print("[CityRebuild v6] street props placed:", placed)
+
+	-- Zone-specific props (40 across the map, zone-biased)
+	local ZONE_COUNT = 40
+	local zonePlaced = 0
+	for _ = 1, ZONE_COUNT do
+		local px = rng:NextInteger(-700, 700)
+		local pz = rng:NextInteger(-700, 700)
+		if math.sqrt(px * px + (pz - 24)^2) < 24 then continue end
+		local zone = zoneFor(px, pz)
+		if zone == "downtown" then
+			local pick = rng:NextNumber()
+			if pick < 0.5 and lampMesh then
+				if place(lampMesh, px, 4.5/2, pz, 4.5, Color3.fromRGB(40, 35, 30), Enum.Material.Metal) then zonePlaced = zonePlaced + 1 end
+			elseif pick < 0.85 and manholeMesh then
+				if place(manholeMesh, px, 0.05, pz, 2.0, Color3.fromRGB(45, 45, 50), Enum.Material.Metal) then zonePlaced = zonePlaced + 1 end
+			elseif fireMesh then
+				if place(fireMesh, px, 3, pz, 6.0, Color3.fromRGB(200, 40, 30)) then zonePlaced = zonePlaced + 1 end
+			end
+		elseif zone == "suburbs" then
+			local pick = rng:NextNumber()
+			if pick < 0.65 and oakMesh then
+				if place(oakMesh, px, 5, pz, 9.0, Color3.fromRGB(110, 80, 55), Enum.Material.Wood) then zonePlaced = zonePlaced + 1 end
+			elseif benchMesh then
+				if place(benchMesh, px, 0.6, pz, 2.2, Color3.fromRGB(95, 65, 40), Enum.Material.Wood) then zonePlaced = zonePlaced + 1 end
+			end
+		else  -- harbor
+			local pick = rng:NextNumber()
+			if pick < 0.65 and palmMesh then
+				if place(palmMesh, px, 5, pz, 8.5, Color3.fromRGB(115, 175, 95), Enum.Material.Grass) then zonePlaced = zonePlaced + 1 end
+			elseif benchMesh then
+				if place(benchMesh, px, 0.6, pz, 2.2, Color3.fromRGB(95, 65, 40), Enum.Material.Wood) then zonePlaced = zonePlaced + 1 end
+			end
+		end
+	end
+
+	print("[CityRebuild v8] generic props:", placed, " zone props:", zonePlaced)
 end)
 
 -- =====================================================================

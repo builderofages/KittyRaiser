@@ -54,6 +54,9 @@ local function defaultData()
         customSpawnSkin = nil,
         -- Tutorial flags
         seenTutorial = false,
+        -- DAILY_DOUBLE dev product: timestamp when the next claim's reward is doubled.
+        -- nil if not active; cleared after the next claim.
+        dailyDoubleUntil = nil,
         -- User settings (also mirrored to player attributes for client read)
         settings = {
             masterVolume    = 0.8,

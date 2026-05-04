@@ -61,10 +61,10 @@ local FUR_OPTIONS = {
   {name = "Midnight Velvet",color = Color3.fromRGB(35, 30, 50),    rarity = "epic"},
   {name = "Sapphire",       color = Color3.fromRGB(80, 130, 195),  rarity = "epic"},
   {name = "Rose Champagne", color = Color3.fromRGB(230, 175, 165), rarity = "epic"},
-  -- ROBUX (3)
-  {name = "Gold",           color = Color3.fromRGB(225, 175, 75),  rarity = "robux"},
-  {name = "Pearl",          color = Color3.fromRGB(235, 230, 240), rarity = "robux"},
-  {name = "Ember",          color = Color3.fromRGB(220, 95, 50),   rarity = "robux"},
+  -- ROBUX (3) — gated below by ownership check; promptPurchase if not owned.
+  {name = "Gold",           color = Color3.fromRGB(225, 175, 75),  rarity = "robux", gamepassKey = "GOLD_SKIN"},
+  {name = "Pearl",          color = Color3.fromRGB(235, 230, 240), rarity = "robux", gamepassKey = "PEARL_SKIN"},
+  {name = "Ember",          color = Color3.fromRGB(220, 95, 50),   rarity = "robux", gamepassKey = "EMBER_SKIN"},
 }
 local RARITY_COLOR = {
   common = Color3.fromRGB(150, 145, 135),
@@ -481,11 +481,44 @@ task.spawn(function()
   end
 end)
 
+-- Cached gamepass ownership lookup (so the spawn click is fast).
+local MarketplaceService = game:GetService("MarketplaceService")
+local GameConfig
+do
+  local mods = ReplicatedStorage:WaitForChild("Modules", 5)
+  local gc = mods and mods:WaitForChild("GameConfig", 5)
+  if gc then local ok, mod = pcall(require, gc); if ok then GameConfig = mod end end
+end
+local function ownsGamepass(gamepassKey)
+  if not GameConfig or not GameConfig.GAMEPASS_IDS then return false end
+  local id = GameConfig.GAMEPASS_IDS[gamepassKey]
+  if not id or id == 0 then return false end
+  local ok, owns = pcall(function()
+    return MarketplaceService:UserOwnsGamePassAsync(player.UserId, id)
+  end)
+  return ok and owns
+end
+
 spawnBtn.MouseButton1Click:Connect(function()
+  local opt = FUR_OPTIONS[selectedIndex]
+
+  -- Robux-tier furs: gate behind gamepass ownership. If not owned, prompt
+  -- purchase and DON'T spawn yet — the player can re-click after buying.
+  if opt.rarity == "robux" and opt.gamepassKey then
+    if not ownsGamepass(opt.gamepassKey) then
+      local id = GameConfig and GameConfig.GAMEPASS_IDS[opt.gamepassKey]
+      if id and id ~= 0 then
+        pcall(function() MarketplaceService:PromptGamePassPurchase(player, id) end)
+      end
+      -- Reset spawn button so they can pick a different fur or buy and retry
+      spawnBtn.Text = "SPAWN"
+      return
+    end
+  end
+
   spawnBtn.Active = false
   spawnBtn.Text = "SPAWNING..."
   print("[PreSpawnLobby] SPAWN clicked, sending RequestSpawnCustomization")
-  local opt = FUR_OPTIONS[selectedIndex]
   if requestSpawn then
     requestSpawn:FireServer({
       furColor = {math.floor(opt.color.R*255), math.floor(opt.color.G*255), math.floor(opt.color.B*255)},

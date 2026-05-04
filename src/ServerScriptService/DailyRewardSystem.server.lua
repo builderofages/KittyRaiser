@@ -71,14 +71,24 @@ Remotes.RequestClaimDaily.OnServerInvoke = function(player)
     -- Mega bonus if absolute streak hits a milestone
     local mega = MEGA[newAbs]
 
+    -- Daily-Double dev product: if active, multiply the cycle reward by 2.
+    -- Mega rewards are NOT doubled (they're already very generous).
+    local doubled = data.dailyDoubleUntil and data.dailyDoubleUntil > os.time()
+    local cycleChaos      = reward.chaos      * (doubled and 2 or 1)
+    local cycleHellTokens = reward.hellTokens * (doubled and 2 or 1)
+
     DataHandler.modify(player, function(d)
-        d.chaosPoints = (d.chaosPoints or 0) + reward.chaos + (mega and mega.chaos or 0)
-        d.hellTokens  = (d.hellTokens  or 0) + reward.hellTokens + (mega and mega.hellTokens or 0)
+        d.chaosPoints = (d.chaosPoints or 0) + cycleChaos + (mega and mega.chaos or 0)
+        d.hellTokens  = (d.hellTokens  or 0) + cycleHellTokens + (mega and mega.hellTokens or 0)
         d.dailyStreak = newAbs
         d.lastDailyClaim = os.time()
+        -- Daily Double consumed if it was active
+        if doubled then d.dailyDoubleUntil = nil end
     end)
 
-    Remotes.NotifyClient:FireClient(player, reward.msg, "success")
+    local msg = reward.msg
+    if doubled then msg = msg .. "  (2x DOUBLE)" end
+    Remotes.NotifyClient:FireClient(player, msg, "success")
     if mega then
         task.delay(0.6, function()
             Remotes.NotifyClient:FireClient(player, mega.msg, "success")

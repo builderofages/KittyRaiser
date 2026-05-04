@@ -97,6 +97,15 @@ local function tintCat(character, furColor)
 		end
 	end
 
+	-- If a multi-color skin is equipped (Calico/Tuxedo/etc), CosmeticHandler
+	-- already set BodyColors per-limb. Don't overwrite with single-color tint.
+	-- (CosmeticHandler sets MultiColorSkin attribute when it applies one.)
+	if character:GetAttribute("MultiColorSkin") then
+		-- Still strip clothing + tint accessories below, but skip the
+		-- per-part .Color overwrite that would flatten the multi-color look.
+		return
+	end
+
 	-- BodyColors (legacy) for any R6 fallback
 	local bc = character:FindFirstChildOfClass("BodyColors") or Instance.new("BodyColors")
 	bc.Parent = character
@@ -194,6 +203,12 @@ local function buildFace(head)
 	-- Strip any prior CatFaceGui from older versions
 	local oldGui = head:FindFirstChild("CatFaceGui")
 	if oldGui then oldGui:Destroy() end
+	-- Strip any prior face-feature welded parts (defensive — prevents orphan
+	-- duplicates if buildFace runs more than once on the same character).
+	local PRIOR_NAMES = { CatEye=true, CatPupil=true, CatNose=true, CatMouth=true, CatWhisker=true }
+	for _, c in ipairs(head:GetChildren()) do
+		if PRIOR_NAMES[c.Name] then c:Destroy() end
+	end
 
 	-- Pull head size for relative placement
 	local headHalfZ = head.Size.Z * 0.5

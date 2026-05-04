@@ -63,12 +63,35 @@ local function applySkinToCharacter(character, skinId)
 end
 
 local function applyOnRespawn(player, character)
-    local data = DataHandler.getData(player)
-    if not data then return end
-    -- wait for body parts
+    -- Wait for DataHandler to finish loading (race-safe). It returns nil
+    -- during the load window. Retry up to 3s before giving up.
+    local data
+    for _ = 1, 30 do
+        data = DataHandler.getData(player)
+        if data then break end
+        task.wait(0.1)
+    end
+    if not data then
+        warn("[CosmeticHandler] DataHandler.getData still nil after 3s for " .. player.Name)
+        return
+    end
+    -- Wait for body parts
     character:WaitForChild("Humanoid")
     task.wait(0.1)
     applySkinToCharacter(character, data.equippedSkin or "Default")
+    -- Tell CatCharacterBuilder which multi-color skin (if any) is equipped so
+    -- it can skip the single-fur-color tint that would otherwise overwrite us.
+    local skin = CosmeticConfig.getSkin(data.equippedSkin or "Default")
+    if skin and skin.bodyColors then
+        local c = skin.bodyColors
+        local multiColor =
+            c.HeadColor   and c.TorsoColor   and c.LeftArmColor and
+            c.RightArmColor and c.LeftLegColor and c.RightLegColor
+            and not (c.HeadColor == c.TorsoColor and c.TorsoColor == c.LeftArmColor)
+        character:SetAttribute("MultiColorSkin", multiColor or false)
+    else
+        character:SetAttribute("MultiColorSkin", false)
+    end
 end
 
 local function setupPlayer(player)
