@@ -100,6 +100,20 @@ local function buildPed()
     hum.WalkSpeed = math.random(8, 14)
     hum.MaxHealth = 100; hum.Health = 100
     hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+    -- Cartoon proportions: short body, big head, chunky.
+    -- Each named scale must be set on the NumberValue child.
+    local scales = {
+      BodyDepthScale  = 0.95,
+      BodyWidthScale  = 1.20,   -- wider/thicker body
+      BodyHeightScale = 0.75,   -- shorter overall
+      HeadScale       = 1.55,   -- BIG cartoon head
+      BodyTypeScale   = 0.0,
+      ProportionScale = 0.10,
+    }
+    for sname, sval in pairs(scales) do
+      local nv = hum:FindFirstChild(sname)
+      if nv and nv:IsA("NumberValue") then nv.Value = sval end
+    end
   end
 
   return m

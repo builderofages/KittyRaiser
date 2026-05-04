@@ -9,9 +9,32 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local Remotes     = require(ReplicatedStorage.Modules.RemoteEvents)
 local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local GameConfig  = require(ReplicatedStorage.Modules.GameConfig)
+local AssetIds    = require(ReplicatedStorage.Modules:WaitForChild("AssetIds"))
+
+-- Helper: clone a real mesh (uploaded via Open Cloud) into the workspace by
+-- looking it up via InsertService at runtime. Falls back to nil if the asset
+-- can't be loaded — caller can then build a primitive fallback.
+local InsertService = game:GetService("InsertService")
+local meshCache = {}
+local function loadMesh(name)
+	if meshCache[name] then return meshCache[name]:Clone() end
+	if not AssetIds.has(name) then return nil end
+	local id = tonumber(string.match(tostring(AssetIds[name]), "%d+"))
+	if not id then return nil end
+	local ok, model = pcall(function() return InsertService:LoadAsset(id) end)
+	if not ok or not model then return nil end
+	local mp
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("MeshPart") then mp = d; break end
+	end
+	model:Destroy()
+	if not mp then return nil end
+	meshCache[name] = mp
+	return mp:Clone()
+end
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -84,11 +107,26 @@ local function spawnParticleBurst(cf, color, count, opts)
 end
 
 local function buildAnvilModel(parent)
-    -- Cartoon anvil shape, sized to be ~ humanoid head height (1.5–2 studs total).
+    -- Use the real mesh_anvil if it loaded; fall back to welded primitives.
+    local mesh = loadMesh("mesh_anvil")
+    if mesh then
+        mesh.Anchored = true; mesh.CanCollide = false
+        mesh.Size = Vector3.new(2.4, 1.8, 2.4)
+        mesh.Material = Enum.Material.Metal
+        mesh.Color = Color3.fromRGB(50, 50, 60)
+        mesh.Reflectance = 0.06
+        mesh.Parent = parent
+        local m = Instance.new("Model")
+        m.Name = "AnvilFX"
+        mesh.Parent = m
+        m.PrimaryPart = mesh
+        m.Parent = parent
+        return m
+    end
+
+    -- Fallback: cartoon primitive anvil (body + horn + waist + base)
     local model = Instance.new("Model")
     model.Name = "AnvilFX"
-
-    -- Top "table"
     local body = Instance.new("Part")
     body.Anchored = true; body.CanCollide = false
     body.Size = Vector3.new(1.6, 0.55, 2.4)
@@ -96,8 +134,6 @@ local function buildAnvilModel(parent)
     body.Color = Color3.fromRGB(40, 40, 50)
     body.Reflectance = 0.06
     body.Parent = model
-
-    -- Horn (tapered front)
     local horn = Instance.new("Part")
     horn.Anchored = true; horn.CanCollide = false
     horn.Size = Vector3.new(0.7, 0.5, 1.2)
@@ -105,8 +141,6 @@ local function buildAnvilModel(parent)
     horn.Color = Color3.fromRGB(50, 50, 60)
     horn.CFrame = body.CFrame * CFrame.new(0, 0, -1.7)
     horn.Parent = model
-
-    -- Waist (thinner middle)
     local waist = Instance.new("Part")
     waist.Anchored = true; waist.CanCollide = false
     waist.Size = Vector3.new(0.95, 0.55, 1.5)
@@ -114,8 +148,6 @@ local function buildAnvilModel(parent)
     waist.Color = Color3.fromRGB(35, 35, 45)
     waist.CFrame = body.CFrame * CFrame.new(0, -0.5, 0)
     waist.Parent = model
-
-    -- Base (wide foot)
     local base = Instance.new("Part")
     base.Anchored = true; base.CanCollide = false
     base.Size = Vector3.new(1.7, 0.45, 1.9)
@@ -123,10 +155,22 @@ local function buildAnvilModel(parent)
     base.Color = Color3.fromRGB(28, 28, 38)
     base.CFrame = body.CFrame * CFrame.new(0, -1.0, 0)
     base.Parent = model
-
     model.PrimaryPart = body
     model.Parent = parent
     return model
+end
+
+local function buildPieMesh(cf, parent)
+    -- Real mesh_pie if loaded; otherwise just a flat splat handled inline.
+    local mesh = loadMesh("mesh_pie")
+    if not mesh then return nil end
+    mesh.Anchored = true; mesh.CanCollide = false
+    mesh.Size = Vector3.new(2.2, 0.8, 2.2)
+    mesh.Material = Enum.Material.SmoothPlastic
+    mesh.Color = Color3.fromRGB(255, 240, 220)
+    mesh.CFrame = cf
+    mesh.Parent = parent
+    return mesh
 end
 
 local function playSound(soundId, parent)
@@ -179,20 +223,31 @@ local SPARKLE_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
 
 local function effectFor(prankName, cf, color)
     if prankName == "Pie" then
-        -- Cream splat: thick white blob + cream particles
-        local splat = Instance.new("Part")
-        splat.Anchored = true; splat.CanCollide = false
-        splat.Shape = Enum.PartType.Ball
-        splat.Size = Vector3.new(0.5, 0.5, 0.5)
-        splat.Material = Enum.Material.SmoothPlastic
-        splat.Color = Color3.fromRGB(255, 250, 235)
-        splat.CFrame = cf
-        splat.Parent = Workspace
-        TweenService:Create(splat, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-            {Size = Vector3.new(3.4, 3.4, 3.4)}):Play()
-        TweenService:Create(splat, TweenInfo.new(1.2),
-            {Transparency = 1}):Play()
-        Debris:AddItem(splat, 1.4)
+        -- Real pie mesh that drops in + splatters into cream particles.
+        local pie = buildPieMesh(cf * CFrame.new(0, 8, 0), Workspace)
+        if pie then
+            TweenService:Create(pie, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.In),
+                {CFrame = cf * CFrame.new(0, 0.5, 0)}):Play()
+            task.delay(0.18, function()
+                TweenService:Create(pie, TweenInfo.new(0.6),
+                    {Transparency = 1, Size = pie.Size * 1.6}):Play()
+            end)
+            Debris:AddItem(pie, 1.4)
+        else
+            -- Fallback splat
+            local splat = Instance.new("Part")
+            splat.Anchored = true; splat.CanCollide = false
+            splat.Shape = Enum.PartType.Ball
+            splat.Size = Vector3.new(0.5, 0.5, 0.5)
+            splat.Material = Enum.Material.SmoothPlastic
+            splat.Color = Color3.fromRGB(255, 250, 235)
+            splat.CFrame = cf
+            splat.Parent = Workspace
+            TweenService:Create(splat, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+                {Size = Vector3.new(3.4, 3.4, 3.4)}):Play()
+            TweenService:Create(splat, TweenInfo.new(1.2), {Transparency = 1}):Play()
+            Debris:AddItem(splat, 1.4)
+        end
         spawnParticleBurst(cf, Color3.fromRGB(255, 245, 220), 45, {
             speed = NumberRange.new(10, 20),
             size = NumberSequence.new(2.2, 0.4),

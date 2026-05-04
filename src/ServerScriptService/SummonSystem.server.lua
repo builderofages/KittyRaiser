@@ -131,6 +131,19 @@ local function buildHumanNPC()
 		hum.MaxHealth = 100
 		hum.Health = 100
 		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		-- Cartoon proportions so victims look like Pixar civilians, not blocky Robloxians.
+		local scales = {
+			BodyDepthScale  = 0.95,
+			BodyWidthScale  = 1.20,
+			BodyHeightScale = 0.75,
+			HeadScale       = 1.55,
+			BodyTypeScale   = 0.0,
+			ProportionScale = 0.10,
+		}
+		for sname, sval in pairs(scales) do
+			local nv = hum:FindFirstChild(sname)
+			if nv and nv:IsA("NumberValue") then nv.Value = sval end
+		end
 	end
 
 	return model

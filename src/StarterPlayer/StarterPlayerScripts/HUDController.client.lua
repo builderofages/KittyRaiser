@@ -12,6 +12,19 @@ local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
 local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
 local CosmeticConfig = require(ReplicatedStorage.Modules.CosmeticConfig)
 local UIUtil       = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
+local AssetIds     = require(ReplicatedStorage.Modules:WaitForChild("AssetIds"))
+local SoundService = game:GetService("SoundService")
+local Debris       = game:GetService("Debris")
+
+local function playSoundIfHas(name, vol)
+    if not AssetIds.has(name) then return end
+    local s = Instance.new("Sound")
+    s.SoundId = AssetIds[name]
+    s.Volume = vol or 0.7
+    s.Parent = SoundService
+    s:Play()
+    Debris:AddItem(s, 4)
+end
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -34,12 +47,14 @@ local function spawnToast(text, color, duration)
     end)
 end
 
-local topBar = hud:WaitForChild("TopBar")
-local chaosLabel = topBar:WaitForChild("ChaosLabel")
+local topBar         = hud:WaitForChild("TopBar")
+local chaosWrap      = topBar:WaitForChild("ChaosWrap")
+local chaosLabel     = chaosWrap:WaitForChild("ChaosLabel")
 local levelContainer = topBar:WaitForChild("LevelContainer")
-local levelLabel = levelContainer:WaitForChild("LevelLabel")
-local xpFill = levelContainer:WaitForChild("XPBarBG"):WaitForChild("XPBarFill")
-local rebirthLabel = topBar:WaitForChild("RebirthLabel")
+local levelLabel     = levelContainer:WaitForChild("LevelLabel")
+local xpFill         = levelContainer:WaitForChild("XPBarBG"):WaitForChild("XPBarFill")
+local rebirthWrap    = topBar:WaitForChild("RebirthWrap")
+local rebirthLabel   = rebirthWrap:WaitForChild("RebirthLabel")
 
 local prankCol = hud:WaitForChild("PrankColumn")
 
@@ -55,9 +70,9 @@ end
 
 local function refresh()
     if not CurrentData then return end
-    chaosLabel.Text = "💚 " .. formatNum(CurrentData.chaosPoints or 0)
+    chaosLabel.Text = formatNum(CurrentData.chaosPoints or 0)
     levelLabel.Text = "Level " .. (CurrentData.level or 1)
-    rebirthLabel.Text = "👑 " .. (CurrentData.rebirths or 0)
+    rebirthLabel.Text = tostring(CurrentData.rebirths or 0)
     -- XP bar fill
     local lvl = CurrentData.level or 1
     local xpReq = GameConfig.xpRequired(lvl)
@@ -82,6 +97,7 @@ end)
 
 Remotes.LevelUp.OnClientEvent:Connect(function(newLevel, unlocked)
     spawnToast("LEVEL UP!  " .. newLevel, Color3.fromRGB(50, 220, 100), 2.5)
+    playSoundIfHas("level_up", 0.8)
     if unlocked and #unlocked > 0 then
         for _, prankName in ipairs(unlocked) do
             spawnToast("🔓 NEW PRANK: " .. prankName, Color3.fromRGB(255, 200, 0), 3.5)

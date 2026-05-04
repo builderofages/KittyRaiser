@@ -17,24 +17,24 @@ if not requestSpawn then
 end
 
 local FUR_OPTIONS = {
-  {name = "Orange Tabby",  color = Color3.fromRGB(220, 130, 50),  rarity = "common"},
-  {name = "Brown",          color = Color3.fromRGB(80, 60, 50),    rarity = "common"},
-  {name = "Black",          color = Color3.fromRGB(40, 40, 40),    rarity = "common"},
-  {name = "White",          color = Color3.fromRGB(220, 220, 215), rarity = "common"},
-  {name = "Grey Tabby",     color = Color3.fromRGB(140, 130, 120), rarity = "common"},
-  {name = "Cream",          color = Color3.fromRGB(255, 200, 180), rarity = "common"},
-  {name = "Demon Pink",     color = Color3.fromRGB(255, 80, 180),  rarity = "rare"},
-  {name = "Cyber Cyan",     color = Color3.fromRGB(80, 220, 255),  rarity = "rare"},
-  {name = "Neon Lime",      color = Color3.fromRGB(150, 255, 80),  rarity = "rare"},
-  {name = "Hellfire Red",   color = Color3.fromRGB(255, 60, 40),   rarity = "epic"},
-  {name = "Void Purple",    color = Color3.fromRGB(140, 40, 220),  rarity = "epic"},
-  {name = "Gold (Robux)",   color = Color3.fromRGB(255, 215, 0),   rarity = "robux"},
+  {name = "Orange Tabby", color = Color3.fromRGB(220, 130, 50),  rarity = "common"},
+  {name = "Brown",         color = Color3.fromRGB(105, 75, 55),   rarity = "common"},
+  {name = "Black",         color = Color3.fromRGB(45, 40, 40),    rarity = "common"},
+  {name = "White",         color = Color3.fromRGB(225, 220, 210), rarity = "common"},
+  {name = "Grey Tabby",    color = Color3.fromRGB(150, 140, 130), rarity = "common"},
+  {name = "Cream",         color = Color3.fromRGB(245, 215, 175), rarity = "common"},
+  {name = "Calico",        color = Color3.fromRGB(225, 165, 95),  rarity = "rare"},
+  {name = "Russian Blue",  color = Color3.fromRGB(140, 160, 175), rarity = "rare"},
+  {name = "Tortoiseshell", color = Color3.fromRGB(95, 65, 40),    rarity = "rare"},
+  {name = "Sunset Ginger", color = Color3.fromRGB(235, 110, 55),  rarity = "epic"},
+  {name = "Snow Bengal",   color = Color3.fromRGB(245, 230, 195), rarity = "epic"},
+  {name = "Gold (Robux)",  color = Color3.fromRGB(225, 175, 75),  rarity = "robux"},
 }
 local RARITY_COLOR = {
-  common = Color3.fromRGB(150, 150, 150),
-  rare   = Color3.fromRGB(50, 200, 100),
-  epic   = Color3.fromRGB(180, 80, 220),
-  robux  = Color3.fromRGB(255, 215, 0),
+  common = Color3.fromRGB(150, 145, 135),
+  rare   = Color3.fromRGB(110, 165, 95),
+  epic   = Color3.fromRGB(195, 130, 75),
+  robux  = Color3.fromRGB(225, 175, 75),
 }
 
 local selectedIndex = 1
@@ -47,96 +47,111 @@ lobby.ResetOnSpawn = false
 lobby.DisplayOrder = 50
 lobby.Parent = playerGui
 
+-- Sunny daytime sky background (gradient)
 local bg = Instance.new("Frame")
 bg.Size = UDim2.fromScale(1, 1)
-bg.BackgroundColor3 = Color3.fromRGB(10, 5, 25)
+bg.BackgroundColor3 = Color3.fromRGB(170, 215, 240)
 bg.Parent = lobby
 local bgGrad = Instance.new("UIGradient", bg)
 bgGrad.Color = ColorSequence.new{
-  ColorSequenceKeypoint.new(0,   Color3.fromRGB(80, 30, 130)),
-  ColorSequenceKeypoint.new(0.4, Color3.fromRGB(45, 20, 90)),
-  ColorSequenceKeypoint.new(1,   Color3.fromRGB(8, 4, 20)),
+  ColorSequenceKeypoint.new(0,   Color3.fromRGB(220, 240, 255)),  -- pale top
+  ColorSequenceKeypoint.new(0.55, Color3.fromRGB(150, 200, 235)), -- mid sky
+  ColorSequenceKeypoint.new(1,   Color3.fromRGB(255, 220, 170)),  -- warm horizon
 }
 bgGrad.Rotation = 90
 
--- Skyline
+-- Cartoon clouds drifting across
+local cloudLayer = Instance.new("Frame")
+cloudLayer.Size = UDim2.fromScale(1, 0.6)
+cloudLayer.BackgroundTransparency = 1
+cloudLayer.Parent = lobby
+local rng = Random.new(13)
+for i = 1, 8 do
+  local cloud = Instance.new("Frame", cloudLayer)
+  local cw = rng:NextInteger(120, 220)
+  local ch = rng:NextInteger(40, 60)
+  cloud.Size = UDim2.fromOffset(cw, ch)
+  cloud.Position = UDim2.new(rng:NextNumber(), 0, rng:NextNumber() * 0.7, 0)
+  cloud.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+  cloud.BackgroundTransparency = 0.15
+  cloud.BorderSizePixel = 0
+  Instance.new("UICorner", cloud).CornerRadius = UDim.new(1, 0)
+end
+
+-- Cartoon city silhouette at the bottom (warm browns + ochres, NOT cyberpunk)
 local skyline = Instance.new("Frame")
-skyline.Size = UDim2.new(1, 0, 0.55, 0)
-skyline.Position = UDim2.new(0, 0, 0.45, 0)
+skyline.Size = UDim2.new(1, 0, 0.32, 0)
+skyline.Position = UDim2.new(0, 0, 0.68, 0)
 skyline.BackgroundTransparency = 1
 skyline.Parent = lobby
-local rng = Random.new(7)
-for i = 1, 18 do
+for i = 1, 14 do
   local b = Instance.new("Frame")
-  local h = rng:NextInteger(40, 95)
-  local w = rng:NextInteger(40, 110)
-  local x = (i - 0.5) / 18
-  b.Size = UDim2.new(0, w, 0, h * 5)
-  b.Position = UDim2.new(x, -w/2, 1, -h * 5 + 30)
-  b.BackgroundColor3 = Color3.fromRGB(rng:NextInteger(15, 35), rng:NextInteger(8, 25), rng:NextInteger(35, 70))
+  local h = rng:NextInteger(60, 140)
+  local w = rng:NextInteger(50, 120)
+  local x = (i - 0.5) / 14
+  b.Size = UDim2.new(0, w, 0, h * 2)
+  b.Position = UDim2.new(x, -w/2, 1, -h * 2 + 20)
+  -- Warm brick / sandstone palette
+  local palette = {
+    Color3.fromRGB(170, 110, 80),
+    Color3.fromRGB(190, 175, 150),
+    Color3.fromRGB(140, 100, 75),
+    Color3.fromRGB(210, 195, 175),
+  }
+  b.BackgroundColor3 = palette[rng:NextInteger(1, #palette)]
   b.BorderSizePixel = 0
   b.Parent = skyline
-  for w_y = 1, math.floor(h / 8) do
-    for w_x = 1, math.floor(w / 12) do
-      if rng:NextNumber() < 0.35 then
+  -- Window grid (warm yellow, no neon)
+  for w_y = 1, math.floor(h / 10) do
+    for w_x = 1, math.floor(w / 14) do
+      if rng:NextNumber() < 0.65 then
         local win = Instance.new("Frame", b)
-        win.Size = UDim2.new(0, 4, 0, 6)
-        win.Position = UDim2.new(0, w_x * 12, 0, w_y * 8 + 5)
-        win.BackgroundColor3 = (rng:NextNumber() < 0.5) and Color3.fromRGB(255, 220, 120) or Color3.fromRGB(180, 220, 255)
+        win.Size = UDim2.new(0, 6, 0, 8)
+        win.Position = UDim2.new(0, w_x * 14, 0, w_y * 12 + 5)
+        win.BackgroundColor3 = Color3.fromRGB(255, 220, 140)
         win.BorderSizePixel = 0
       end
     end
   end
-  if rng:NextNumber() < 0.25 then
-    local neon = Instance.new("Frame", b)
-    neon.Size = UDim2.new(0, w * 0.7, 0, 4)
-    neon.Position = UDim2.new(0.15, 0, 0, -2)
-    local neonColors = {Color3.fromRGB(255,80,200), Color3.fromRGB(80,200,255), Color3.fromRGB(255,200,80)}
-    neon.BackgroundColor3 = neonColors[rng:NextInteger(1, #neonColors)]
-    neon.BorderSizePixel = 0
-    Instance.new("UICorner", neon).CornerRadius = UDim.new(0, 2)
-  end
 end
 
--- Title
+-- Title — wood-stained "KITTYRAISER" sign vibe
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 130)
 title.Position = UDim2.new(0, 0, 0.04, 0)
 title.BackgroundTransparency = 1
 title.Text = "KITTYRAISER"
-title.Font = Enum.Font.GothamBlack
+title.Font = Enum.Font.LuckiestGuy
 title.TextScaled = true
-title.TextColor3 = Color3.fromRGB(255, 100, 200)
-title.TextStrokeTransparency = 0
-title.TextStrokeColor3 = Color3.fromRGB(80, 0, 60)
+title.TextColor3 = Color3.fromRGB(80, 40, 20)
+title.TextStrokeTransparency = 0.3
+title.TextStrokeColor3 = Color3.fromRGB(255, 240, 200)
 title.Parent = lobby
-local titleGrad = Instance.new("UIGradient", title)
-titleGrad.Color = ColorSequence.new{
-  ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 220)),
-  ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 220, 255)),
-}
-titleGrad.Rotation = 90
+local titleC = Instance.new("UITextSizeConstraint", title)
+titleC.MinTextSize = 50; titleC.MaxTextSize = 110
 
 local subtitle = Instance.new("TextLabel")
-subtitle.Size = UDim2.new(1, 0, 0, 30)
+subtitle.Size = UDim2.new(1, 0, 0, 28)
 subtitle.Position = UDim2.new(0, 0, 0.16, 0)
 subtitle.BackgroundTransparency = 1
-subtitle.Text = "▸ CHAOS CITY ◂"
-subtitle.Font = Enum.Font.GothamBold
+subtitle.Text = "a sunny day for chaos"
+subtitle.Font = Enum.Font.LuckiestGuy
 subtitle.TextScaled = true
-subtitle.TextColor3 = Color3.fromRGB(180, 150, 220)
+subtitle.TextColor3 = Color3.fromRGB(120, 70, 40)
 subtitle.Parent = lobby
+local subC = Instance.new("UITextSizeConstraint", subtitle)
+subC.MinTextSize = 14; subC.MaxTextSize = 24
 
 -- 3D viewport
 local previewFrame = Instance.new("Frame")
 previewFrame.Size = UDim2.new(0, 320, 0, 320)
 previewFrame.Position = UDim2.new(0.5, -160, 0.24, 0)
-previewFrame.BackgroundColor3 = Color3.fromRGB(15, 10, 30)
+previewFrame.BackgroundColor3 = Color3.fromRGB(245, 230, 200)  -- warm cream
 previewFrame.BorderSizePixel = 0
 previewFrame.Parent = lobby
 Instance.new("UICorner", previewFrame).CornerRadius = UDim.new(1, 0)
 local previewStroke = Instance.new("UIStroke", previewFrame)
-previewStroke.Thickness = 4; previewStroke.Color = Color3.fromRGB(255, 100, 220)
+previewStroke.Thickness = 5; previewStroke.Color = Color3.fromRGB(110, 75, 40)  -- wood frame
 
 local viewport = Instance.new("ViewportFrame")
 viewport.Size = UDim2.fromScale(1, 1)
@@ -317,12 +332,14 @@ nameLabel.Size = UDim2.new(0, 360, 0, 32)
 nameLabel.Position = UDim2.new(0.5, -180, 0.61, 0)
 nameLabel.BackgroundTransparency = 1
 nameLabel.Text = FUR_OPTIONS[1].name
-nameLabel.Font = Enum.Font.GothamBlack
+nameLabel.Font = Enum.Font.LuckiestGuy
 nameLabel.TextScaled = true
-nameLabel.TextColor3 = Color3.fromRGB(255, 240, 220)
-nameLabel.TextStrokeTransparency = 0
-nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+nameLabel.TextColor3 = Color3.fromRGB(80, 40, 20)
+nameLabel.TextStrokeTransparency = 0.4
+nameLabel.TextStrokeColor3 = Color3.fromRGB(255, 240, 200)
 nameLabel.Parent = lobby
+local nameC = Instance.new("UITextSizeConstraint", nameLabel)
+nameC.MinTextSize = 16; nameC.MaxTextSize = 28
 
 local rarityBadge = Instance.new("TextLabel")
 rarityBadge.Size = UDim2.new(0, 120, 0, 22)
@@ -394,25 +411,27 @@ for i, opt in ipairs(FUR_OPTIONS) do
   end)
 end
 
--- SPAWN button
+-- SPAWN button — wooden plank style
 local spawnBtn = Instance.new("TextButton")
 spawnBtn.Size = UDim2.new(0, 360, 0, 80)
 spawnBtn.Position = UDim2.new(0.5, -180, 0.86, 0)
-spawnBtn.BackgroundColor3 = Color3.fromRGB(50, 220, 110)
-spawnBtn.Text = "▶ SPAWN INTO CHAOS"
-spawnBtn.Font = Enum.Font.GothamBlack
+spawnBtn.BackgroundColor3 = Color3.fromRGB(220, 150, 60)
+spawnBtn.Text = "▶  SPAWN  ◀"
+spawnBtn.Font = Enum.Font.LuckiestGuy
 spawnBtn.TextScaled = true
-spawnBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-spawnBtn.TextStrokeTransparency = 0
-spawnBtn.TextStrokeColor3 = Color3.fromRGB(0, 60, 30)
+spawnBtn.TextColor3 = Color3.fromRGB(255, 250, 235)
+spawnBtn.TextStrokeTransparency = 0.3
+spawnBtn.TextStrokeColor3 = Color3.fromRGB(80, 40, 20)
 spawnBtn.Parent = lobby
+local spawnC = Instance.new("UITextSizeConstraint", spawnBtn)
+spawnC.MinTextSize = 24; spawnC.MaxTextSize = 44
 Instance.new("UICorner", spawnBtn).CornerRadius = UDim.new(0, 14)
 local btnStroke = Instance.new("UIStroke", spawnBtn)
-btnStroke.Thickness = 3; btnStroke.Color = Color3.fromRGB(255, 255, 255)
+btnStroke.Thickness = 4; btnStroke.Color = Color3.fromRGB(110, 75, 40)
 local spawnGrad = Instance.new("UIGradient", spawnBtn)
 spawnGrad.Color = ColorSequence.new{
-  ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 255, 160)),
-  ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 180, 90)),
+  ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 195, 100)),
+  ColorSequenceKeypoint.new(1, Color3.fromRGB(190, 125, 50)),
 }
 spawnGrad.Rotation = 90
 
@@ -445,13 +464,15 @@ spawnBtn.MouseButton1Click:Connect(function()
 end)
 
 local hint = Instance.new("TextLabel")
-hint.Size = UDim2.new(1, 0, 0, 30)
-hint.Position = UDim2.new(0, 0, 0.96, -30)
+hint.Size = UDim2.new(1, 0, 0, 26)
+hint.Position = UDim2.new(0, 0, 0.96, -28)
 hint.BackgroundTransparency = 1
-hint.Text = "✦ Cat RP   ✦ 8 Pranks   ✦ Gangs   ✦ 100 Levels   ✦ 75 Skins   ✦ Real Cat Physics ✦"
+hint.Text = "Cat RP  •  8 Pranks  •  100 Levels  •  75 Skins"
 hint.Font = Enum.Font.GothamBold
 hint.TextScaled = true
-hint.TextColor3 = Color3.fromRGB(180, 150, 220)
+hint.TextColor3 = Color3.fromRGB(120, 70, 40)
 hint.Parent = lobby
+local hintC = Instance.new("UITextSizeConstraint", hint)
+hintC.MinTextSize = 12; hintC.MaxTextSize = 18
 
 print("[PreSpawnLobby v3 grokfix] ready, requestSpawn = " .. tostring(requestSpawn))

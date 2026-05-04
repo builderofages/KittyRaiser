@@ -50,29 +50,29 @@ local function polishOne(inst)
 	if not (inst:IsA("Frame") or inst:IsA("TextButton") or inst:IsA("ImageButton")) then return end
 
 	if POLISH_BARS[inst.Name] then
-		-- Top/bottom dark gradient bar with a thin pink edge
+		-- Warm wood-stained bar with subtle amber edge
 		ensureGradient(inst,
-			Color3.fromRGB(28, 18, 42),
-			Color3.fromRGB(14, 10, 24), 90)
-		ensureStroke(inst, Color3.fromRGB(255, 100, 200), 1, 0.4)
+			Color3.fromRGB(85, 60, 40),
+			Color3.fromRGB(50, 35, 25), 90)
+		ensureStroke(inst, Color3.fromRGB(255, 200, 120), 1, 0.4)
 		return
 	end
 
 	if POLISH_BUTTONS[inst.Name] then
-		-- Bright primary button: lift its existing color into a glossy gradient
+		-- Glossy variant of existing color
 		ensureGradient(inst,
 			Color3.fromRGB(255, 255, 255):Lerp(inst.BackgroundColor3, 0.35),
 			inst.BackgroundColor3, 90)
-		ensureStroke(inst, Color3.fromRGB(0, 0, 0), 2, 0.3)
+		ensureStroke(inst, Color3.fromRGB(80, 50, 25), 2, 0.3)
 		return
 	end
 
 	if isPrankBtn(inst) then
-		-- Prank icon buttons get a subtle dark gradient + pink stroke
+		-- Prank icon buttons: warm leather/wood gradient
 		ensureGradient(inst,
-			Color3.fromRGB(80, 40, 130),
-			Color3.fromRGB(40, 20, 80), 90)
-		ensureStroke(inst, Color3.fromRGB(255, 120, 220), 2, 0.2)
+			Color3.fromRGB(95, 70, 50),
+			Color3.fromRGB(60, 45, 30), 90)
+		ensureStroke(inst, Color3.fromRGB(220, 150, 80), 2, 0.2)
 		return
 	end
 end

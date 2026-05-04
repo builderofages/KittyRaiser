@@ -10,6 +10,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameConfig"))
 local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
 local UIUtil      = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
+local AssetIds    = require(ReplicatedStorage.Modules:WaitForChild("AssetIds"))
+
+-- Daytime/cartoon palette (overrides GameConfig HUD colors which were neon)
+local PALETTE_BG       = Color3.fromRGB(80, 55, 40)   -- warm wood-stained brown
+local PALETTE_PRIMARY  = Color3.fromRGB(255, 200, 80)
+local PALETTE_ACCENT   = Color3.fromRGB(120, 200, 80)
+local PALETTE_DANGER   = Color3.fromRGB(220, 80, 70)
 
 -- Shared text-size bounds: TextScaled is great until it isn't.
 local function bind(label, minSz, maxSz)
@@ -76,24 +83,42 @@ local topBar = makeFrame({
     Name = "TopBar",
     Size = UDim2.new(1, 0, 0, IS_MOBILE and 80 or 70),
     Position = UDim2.new(0, 0, 0, 0),
-    BackgroundColor3 = Color3.fromRGB(20, 10, 30),
-    BackgroundTransparency = 0.15,
+    BackgroundColor3 = PALETTE_BG,
+    BackgroundTransparency = 0.1,
     BorderSizePixel = 0,
     Parent = screenGui,
 })
 local stroke = Instance.new("UIStroke")
 stroke.Thickness = 2
-stroke.Color = GameConfig.HUD_PRIMARY_COLOR
+stroke.Color = PALETTE_PRIMARY
 stroke.Parent = topBar
 
-bind(makeLabel({
-    Name = "ChaosLabel",
+-- Chaos counter: real coin icon + amount label.
+local chaosWrap = makeFrame({
+    Name = "ChaosWrap",
     Size = UDim2.new(0.3, 0, 0.7, 0),
     Position = UDim2.new(0.01, 0, 0.15, 0),
-    Text = "💚 0",
-    TextColor3 = GameConfig.HUD_ACCENT_COLOR,
-    TextXAlignment = Enum.TextXAlignment.Left,
+    BackgroundTransparency = 1,
     Parent = topBar,
+})
+if AssetIds.has("coin") then
+    local icon = Instance.new("ImageLabel")
+    icon.Name = "ChaosIcon"
+    icon.BackgroundTransparency = 1
+    icon.Size = UDim2.new(0, 36, 0, 36)
+    icon.Position = UDim2.new(0, 0, 0.5, -18)
+    icon.Image = AssetIds.coin
+    icon.ImageColor3 = PALETTE_ACCENT
+    icon.Parent = chaosWrap
+end
+bind(makeLabel({
+    Name = "ChaosLabel",
+    Size = UDim2.new(1, -44, 1, 0),
+    Position = UDim2.new(0, 44, 0, 0),
+    Text = "0",
+    TextColor3 = PALETTE_ACCENT,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    Parent = chaosWrap,
 }), 14, 32)
 
 local levelContainer = makeFrame({
@@ -114,7 +139,7 @@ local xpBarBg = makeFrame({
     Name = "XPBarBG",
     Size = UDim2.new(0.9, 0, 0.3, 0),
     Position = UDim2.new(0.05, 0, 0.6, 0),
-    BackgroundColor3 = Color3.fromRGB(40, 20, 60),
+    BackgroundColor3 = Color3.fromRGB(60, 40, 25),
     BorderSizePixel = 0,
     Parent = levelContainer,
 })
@@ -122,19 +147,37 @@ Instance.new("UICorner", xpBarBg).CornerRadius = UDim.new(1, 0)
 local xpBarFill = makeFrame({
     Name = "XPBarFill",
     Size = UDim2.new(0, 0, 1, 0),
-    BackgroundColor3 = GameConfig.HUD_ACCENT_COLOR,
+    BackgroundColor3 = PALETTE_PRIMARY,
     BorderSizePixel = 0,
     Parent = xpBarBg,
 })
 Instance.new("UICorner", xpBarFill).CornerRadius = UDim.new(1, 0)
 
-bind(makeLabel({
-    Name = "RebirthLabel",
+-- Rebirth counter: trophy icon + count
+local rebirthWrap = makeFrame({
+    Name = "RebirthWrap",
     Size = UDim2.new(0.3, 0, 0.7, 0),
     Position = UDim2.new(0.69, 0, 0.15, 0),
-    Text = "👑 0",
-    TextXAlignment = Enum.TextXAlignment.Right,
+    BackgroundTransparency = 1,
     Parent = topBar,
+})
+if AssetIds.has("trophy") then
+    local icon = Instance.new("ImageLabel")
+    icon.Name = "RebirthIcon"
+    icon.BackgroundTransparency = 1
+    icon.Size = UDim2.new(0, 36, 0, 36)
+    icon.Position = UDim2.new(1, -36, 0.5, -18)
+    icon.Image = AssetIds.trophy
+    icon.ImageColor3 = PALETTE_PRIMARY
+    icon.Parent = rebirthWrap
+end
+bind(makeLabel({
+    Name = "RebirthLabel",
+    Size = UDim2.new(1, -44, 1, 0),
+    Position = UDim2.new(0, 0, 0, 0),
+    Text = "0",
+    TextXAlignment = Enum.TextXAlignment.Right,
+    Parent = rebirthWrap,
 }), 14, 32)
 
 -- ===== CENTER BOTTOM: SUMMON BUTTON =====
@@ -143,7 +186,7 @@ local summonBtn = makeButton({
     Name = "SummonButton",
     Size = UDim2.new(0, summonSize, 0, summonSize),
     Position = UDim2.new(0.5, -summonSize/2, 1, -(summonSize + 30)),
-    BackgroundColor3 = GameConfig.HUD_DANGER_COLOR,
+    BackgroundColor3 = PALETTE_DANGER,
     Text = "SUMMON\nHUMAN",
     Parent = screenGui,
 })
@@ -167,22 +210,52 @@ listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Parent = prankColumn
 
+-- Map prank name -> uploaded icon asset key
+local PRANK_ICON = {
+    Pie        = "pie",
+    Anvil      = "anvil",
+    FartCloud  = "tp",      -- toilet-paper-roll fits the goofy vibe
+    LaserEyes  = "wings",
+    CatScratch = "scratch",
+    Hairball   = "fish",
+    Whip       = "paw",
+    Purrgatory = "skull",
+}
+
 for i, prankName in ipairs(PrankConfig.Order) do
     local prank = PrankConfig.Pranks[prankName]
     local btn = makeButton({
         Name = "Prank_" .. prankName,
-        Size = UDim2.new(0, IS_MOBILE and 70 or 60, 0, IS_MOBILE and 70 or 60),
-        BackgroundColor3 = Color3.fromRGB(60, 30, 90),
-        Text = prankName == "Pie" and "🥧" or prankName == "Anvil" and "🔨" or prankName == "FartCloud" and "💨" or "👁️",
-        TextSize = 36,
+        Size = UDim2.new(0, IS_MOBILE and 72 or 64, 0, IS_MOBILE and 72 or 64),
+        BackgroundColor3 = Color3.fromRGB(70, 50, 35),
+        Text = "",
         LayoutOrder = i,
         Parent = prankColumn,
     })
     btn:SetAttribute("PrankName", prankName)
     btn:SetAttribute("Locked", true)
     btn:SetAttribute("UnlockLevel", prank.unlockLevel)
-    -- Bind the prank icon text size
-    bind(btn, 18, 36)
+
+    -- Use a real icon asset if we have one
+    local iconKey = PRANK_ICON[prankName]
+    if iconKey and AssetIds.has(iconKey) then
+        local img = Instance.new("ImageLabel")
+        img.Name = "PrankIcon"
+        img.BackgroundTransparency = 1
+        img.Size = UDim2.new(1, -16, 1, -16)
+        img.Position = UDim2.fromOffset(8, 8)
+        img.Image = AssetIds[iconKey]
+        img.ScaleType = Enum.ScaleType.Fit
+        img.Parent = btn
+    else
+        -- Fallback emoji
+        btn.Text = prankName == "Pie" and "🥧"
+            or prankName == "Anvil" and "🔨"
+            or prankName == "FartCloud" and "💨"
+            or "👁️"
+        btn.TextScaled = true
+        bind(btn, 18, 36)
+    end
     -- Locked overlay
     local lock = makeLabel({
         Name = "LockOverlay",
@@ -240,10 +313,10 @@ local function bottomButton(name, text, color, layoutOrder)
     return btn
 end
 
-bottomButton("ShopButton", "SHOP", Color3.fromRGB(0, 200, 100), 1)
-bottomButton("InventoryButton", "INV", Color3.fromRGB(80, 60, 200), 2)
-bottomButton("RebirthButton", "REBIRTH", Color3.fromRGB(255, 150, 0), 3)
-bottomButton("LeaderboardButton", "TOP", Color3.fromRGB(0, 150, 255), 4)
+bottomButton("ShopButton",        "SHOP",     Color3.fromRGB(95, 165, 80),  1)  -- moss green
+bottomButton("InventoryButton",   "INV",      Color3.fromRGB(140, 95, 60),  2)  -- chestnut
+bottomButton("RebirthButton",     "REBIRTH",  Color3.fromRGB(220, 150, 60), 3)  -- amber
+bottomButton("LeaderboardButton", "TOP",      Color3.fromRGB(85, 130, 175), 4)  -- soft blue
 
 -- ===== NOTIFICATION TOAST AREA =====
 local toastFrame = makeFrame({
@@ -261,7 +334,7 @@ local shopModal = makeFrame({
     Size = UDim2.new(0, 600, 0, 500),
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.new(0.5, 0, 0.5, 0),
-    BackgroundColor3 = Color3.fromRGB(20, 10, 30),
+    BackgroundColor3 = Color3.fromRGB(50, 35, 25),
     BorderSizePixel = 0,
     Visible = false,
     Parent = screenGui,
@@ -311,7 +384,7 @@ local lbModal = makeFrame({
     Size = UDim2.new(0, 360, 0, 480),
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.new(0.5, 0, 0.5, 0),
-    BackgroundColor3 = Color3.fromRGB(20, 10, 30),
+    BackgroundColor3 = Color3.fromRGB(50, 35, 25),
     BorderSizePixel = 0,
     Visible = false,
     Parent = screenGui,

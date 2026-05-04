@@ -1,19 +1,25 @@
--- StrayLighting.server.lua  v2 — single source of lighting truth.
--- Tuned down from the previous "hazy-purple smudge" defaults so the world is
--- readable. Cyberpunk-night vibe but with proper contrast and sane fog.
+-- StrayLighting.server.lua  v3 — sunny cartoon-city daytime.
+-- The previous neon-cyberpunk-noir theme was actively disliked. This is now a
+-- warm, bright, friendly Saturday-morning-cartoon city: clear blue sky, golden
+-- sunlight, soft shadows, a hint of haze. No purple, no DOF, no fog smudge.
 
 local Lighting = game:GetService("Lighting")
 
 Lighting.Technology = Enum.Technology.Future
-Lighting.Brightness = 2.4
-Lighting.Ambient = Color3.fromRGB(60, 50, 80)
-Lighting.OutdoorAmbient = Color3.fromRGB(110, 95, 140)
-Lighting.EnvironmentDiffuseScale = 0.55
-Lighting.EnvironmentSpecularScale = 0.65
-Lighting.ClockTime = 19.0
-Lighting.GeographicLatitude = 41.5
+Lighting.Brightness = 2.6
+Lighting.Ambient = Color3.fromRGB(140, 130, 110)        -- warm light gray
+Lighting.OutdoorAmbient = Color3.fromRGB(180, 175, 160) -- bright daylight
+Lighting.EnvironmentDiffuseScale = 0.65
+Lighting.EnvironmentSpecularScale = 0.50
+Lighting.ClockTime = 13.0          -- early afternoon sun, high overhead
+Lighting.GeographicLatitude = 25
 Lighting.GlobalShadows = true
-Lighting.ShadowSoftness = 0.35
+Lighting.ShadowSoftness = 0.30
+Lighting.ColorShift_Top    = Color3.fromRGB(255, 240, 220)  -- warm sun tint
+Lighting.ColorShift_Bottom = Color3.fromRGB(190, 200, 220)  -- cool sky bounce
+Lighting.FogColor = Color3.fromRGB(220, 230, 240)
+Lighting.FogStart = 600
+Lighting.FogEnd = 2400
 
 local function ensure(cls, props)
 	local fx = Lighting:FindFirstChildOfClass(cls)
@@ -22,23 +28,43 @@ local function ensure(cls, props)
 	return fx
 end
 
-ensure("BloomEffect",           { Intensity = 1.4, Size = 18, Threshold = 1.7 })
-ensure("ColorCorrectionEffect", { Saturation = 0.10, Brightness = 0.0, Contrast = 0.12,
-                                  TintColor = Color3.fromRGB(245, 240, 250) })
-ensure("SunRaysEffect",         { Intensity = 0.10, Spread = 0.6 })
--- DepthOfField removed: was making the city blurry and ugly.
--- BlurEffect removed: cinematic blur causes nausea on movement.
+-- Subtle bloom for highlights (sunshine catching white surfaces)
+ensure("BloomEffect", { Intensity = 0.5, Size = 18, Threshold = 1.85 })
+-- Light color correction toward warm summer
+ensure("ColorCorrectionEffect", {
+	Saturation = 0.10,
+	Brightness = 0.02,
+	Contrast   = 0.06,
+	TintColor  = Color3.fromRGB(255, 248, 235),
+})
+-- Sun rays at low intensity (bright day, not dramatic)
+ensure("SunRaysEffect", { Intensity = 0.15, Spread = 0.4 })
 
+-- Atmosphere: light haze for depth, NOT fog
 local atm = Lighting:FindFirstChildOfClass("Atmosphere")
 if not atm then atm = Instance.new("Atmosphere"); atm.Parent = Lighting end
-atm.Density = 0.20    -- was 0.45 — way too foggy
-atm.Offset  = 0.10
-atm.Color   = Color3.fromRGB(140, 130, 170)
-atm.Decay   = Color3.fromRGB(80,  60, 110)
-atm.Glare   = 0.20
-atm.Haze    = 1.0
+atm.Density = 0.12
+atm.Offset  = 0.05
+atm.Color   = Color3.fromRGB(220, 225, 230)
+atm.Decay   = Color3.fromRGB(150, 175, 200)
+atm.Glare   = 0.05
+atm.Haze    = 0.5
 
--- Mark Lighting as already configured so CityRebuild can skip its own pass.
+-- Optional sky (force a clear blue cartoon sky)
+local sky = Lighting:FindFirstChildOfClass("Sky")
+if not sky then sky = Instance.new("Sky"); sky.Parent = Lighting end
+-- Use Roblox's default daytime sky textures (built-in, no asset id needed)
+sky.SkyboxBk = "rbxasset://textures/sky/sky512_bk.tex"
+sky.SkyboxDn = "rbxasset://textures/sky/sky512_dn.tex"
+sky.SkyboxFt = "rbxasset://textures/sky/sky512_ft.tex"
+sky.SkyboxLf = "rbxasset://textures/sky/sky512_lf.tex"
+sky.SkyboxRt = "rbxasset://textures/sky/sky512_rt.tex"
+sky.SkyboxUp = "rbxasset://textures/sky/sky512_up.tex"
+sky.SunAngularSize = 8
+sky.MoonAngularSize = 0
+sky.StarCount = 0
+sky.CelestialBodiesShown = true
+
 Lighting:SetAttribute("KittyLightingConfigured", true)
 
-print("[StrayLighting v2] applied")
+print("[StrayLighting v3] sunny daytime cartoon-city theme applied")

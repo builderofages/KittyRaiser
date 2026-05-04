@@ -1,298 +1,363 @@
--- CityRebuild.server.lua  v4 — Grok-tuned cinematic lighting + Toolbox city kit insertion
--- Runs on server boot. No manual paste needed.
+-- CityRebuild.server.lua  v6 — sunny daytime cartoon city.
+-- Uses the real uploaded meshes (mesh_skyscraper, mesh_brownstone, mesh_taxi,
+-- mesh_hydrant, mesh_trashcan, mesh_mailbox) to populate the world. Texture
+-- assets (asphalt, brick, concrete, grass) decorate ground + buildings. NO neon.
 
-local Workspace = game:GetService("Workspace")
-local Lighting  = game:GetService("Lighting")
-local Players   = game:GetService("Players")
-local InsertService = game:GetService("InsertService")
+local Workspace        = game:GetService("Workspace")
+local Lighting         = game:GetService("Lighting")
+local InsertService    = game:GetService("InsertService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-print("[CityRebuild v4] booting...")
+print("[CityRebuild v6] booting...")
 
--- 0. AssetIds (graceful fallback)
 local AssetIds
 do
-  local mods = ReplicatedStorage:FindFirstChild("Modules")
-  local m = mods and mods:FindFirstChild("AssetIds")
-  if m then
-    local ok, mod = pcall(require, m)
-    if ok then AssetIds = mod end
-  end
-  if not AssetIds then
-    AssetIds = setmetatable({}, {__index = function() return "rbxassetid://0" end})
-    AssetIds.has = function() return false end
-  end
+	local mods = ReplicatedStorage:FindFirstChild("Modules")
+	local m = mods and mods:FindFirstChild("AssetIds")
+	if m then local ok, mod = pcall(require, m); if ok then AssetIds = mod end end
+	if not AssetIds then
+		AssetIds = setmetatable({}, {__index = function() return "rbxassetid://0" end})
+		AssetIds.has = function() return false end
+	end
 end
 
--- 1. LIGHTING: defer to StrayLighting (single source of truth).
--- If StrayLighting hasn't run yet, give it a moment, then leave it alone.
-if not Lighting:GetAttribute("KittyLightingConfigured") then
-  task.wait(0.5)
-end
+-- Defer lighting to StrayLighting (single source of truth).
+if not Lighting:GetAttribute("KittyLightingConfigured") then task.wait(0.5) end
 
--- 2. NUKE BROKEN ASSETS
-local function isPink(c)
-  if not c then return false end
-  return c.R > 0.75 and c.B > 0.55 and c.G < 0.45
+-- =====================================================================
+-- KILL OLD CYBERPUNK ASSETS
+-- =====================================================================
+for _, name in ipairs({"CyberpunkCity", "CyberCity", "ToolboxCity", "Lowpoly", "LowPoly", "CityTiles"}) do
+	local o = Workspace:FindFirstChild(name)
+	while o do o:Destroy(); o = Workspace:FindFirstChild(name) end
 end
-local nukedPink = 0
 for _, p in ipairs(Workspace:GetDescendants()) do
-  if p:IsA("BasePart") and isPink(p.Color) and (p.Size.X > 6 or p.Size.Z > 6) then
-    p:Destroy(); nukedPink = nukedPink + 1
-  end
-end
-local KILL_NAMES = {"ToolboxCity", "Lowpoly", "LowPoly", "CityTiles"}
-for _, n in ipairs(KILL_NAMES) do
-  local o = Workspace:FindFirstChild(n)
-  while o do o:Destroy(); o = Workspace:FindFirstChild(n) end
+	if p:IsA("BasePart") and p.Material == Enum.Material.Neon then
+		-- Skip player parts/character parts
+		if not p:FindFirstAncestorWhichIsA("Model") or not p:FindFirstAncestorWhichIsA("Model"):FindFirstChildOfClass("Humanoid") then
+			pcall(function() p:Destroy() end)
+		end
+	end
 end
 
--- 3. SAFE GROUND — wet asphalt feel
-local g = Workspace:FindFirstChild("KittyGround")
-if not g then
-  g = Instance.new("Part")
-  g.Name = "KittyGround"
-  g.Anchored = true; g.CanCollide = true
-  g.Size = Vector3.new(4000, 4, 4000)
-  g.Position = Vector3.new(0, -2, 0)
-  g.Material = Enum.Material.Slate
-  g.Color = Color3.fromRGB(38, 36, 44)
-  g.Reflectance = 0.05
-  g.TopSurface = Enum.SurfaceType.Smooth
-  g.Parent = Workspace
+-- =====================================================================
+-- GROUND  (warm-grey asphalt with grass at edges)
+-- =====================================================================
+local ground = Workspace:FindFirstChild("KittyGround")
+if not ground then
+	ground = Instance.new("Part")
+	ground.Name = "KittyGround"
+	ground.Anchored = true; ground.CanCollide = true
+	ground.Size = Vector3.new(4000, 4, 4000)
+	ground.Position = Vector3.new(0, -2, 0)
+	ground.Material = Enum.Material.Asphalt
+	ground.Color = Color3.fromRGB(95, 90, 85)
+	ground.TopSurface = Enum.SurfaceType.Smooth
+	ground.Parent = Workspace
 end
 if AssetIds.has("asphalt") then
-  local existing = g:FindFirstChildOfClass("Decal")
-  if not existing then
-    local d = Instance.new("Decal", g)
-    d.Texture = AssetIds.asphalt
-    d.Face = Enum.NormalId.Top
-  end
+	-- Tiled asphalt texture
+	local tex = ground:FindFirstChild("AsphaltTex") or Instance.new("Texture")
+	tex.Name = "AsphaltTex"
+	tex.Texture = AssetIds.asphalt
+	tex.Face = Enum.NormalId.Top
+	tex.StudsPerTileU = 32
+	tex.StudsPerTileV = 32
+	tex.Parent = ground
 end
 
--- 4. SAFE SPAWN
+-- =====================================================================
+-- SPAWN
+-- =====================================================================
 for _, sp in ipairs(Workspace:GetDescendants()) do
-  if sp:IsA("SpawnLocation") then sp:Destroy() end
+	if sp:IsA("SpawnLocation") then sp:Destroy() end
 end
-local s = Instance.new("SpawnLocation")
-s.Name = "MainSpawn"
-s.Anchored = true; s.CanCollide = true
-s.Size = Vector3.new(8, 1, 8)
-s.CFrame = CFrame.new(0, 5, 24)
-s.Material = Enum.Material.SmoothPlastic
-s.Transparency = 1
-s.Parent = Workspace
+local spawn = Instance.new("SpawnLocation")
+spawn.Name = "MainSpawn"
+spawn.Anchored = true; spawn.CanCollide = true
+spawn.Size = Vector3.new(8, 1, 8)
+spawn.CFrame = CFrame.new(0, 5, 24)
+spawn.Material = Enum.Material.SmoothPlastic
+spawn.Transparency = 1
+spawn.Parent = Workspace
 
--- 5. INSERT GROK'S CYBERPUNK CITY KIT (asset 139781692633505)
-local CITY_KIT_ID = 139781692633505
-local cityFolder = Workspace:FindFirstChild("CyberpunkCity") or Instance.new("Folder", Workspace)
-cityFolder.Name = "CyberpunkCity"
-if #cityFolder:GetChildren() == 0 then
-  task.spawn(function()
-    local ok, model = pcall(function() return InsertService:LoadAsset(CITY_KIT_ID) end)
-    if ok and model then
-      for _, c in ipairs(model:GetChildren()) do c.Parent = cityFolder end
-      model:Destroy()
-      print("[CityRebuild v4] Cyberpunk Neon City Kit loaded: " .. #cityFolder:GetChildren() .. " items")
-    else
-      warn("[CityRebuild v4] city kit load failed: " .. tostring(model))
-    end
-  end)
+-- =====================================================================
+-- HELPER: get a cloneable mesh template from MeshLoader
+-- =====================================================================
+local function getMesh(name)
+	local cache = _G.KittyRaiserMeshes
+	if cache and cache[name] and cache[name].meshTemplate then
+		return cache[name].meshTemplate
+	end
+	return nil
 end
 
--- 6. PROCEDURAL FALLBACK CITY — proper neon skyline with window grids + neon trim
+local cityFolder = Workspace:FindFirstChild("CartoonCity") or Instance.new("Folder", Workspace)
+cityFolder.Name = "CartoonCity"
+cityFolder:ClearAllChildren()
+
+-- =====================================================================
+-- SKYLINE  (real meshes if loaded, textured fallback if not)
+-- =====================================================================
+local function placeBuilding(meshTemplate, cf, sizeY, color, fallbackBox)
+	local p
+	if meshTemplate then
+		p = meshTemplate:Clone()
+		p.Anchored = true; p.CanCollide = true
+		p.Size = Vector3.new(sizeY * 0.45, sizeY, sizeY * 0.45)
+		p.Color = color
+		p.Material = Enum.Material.Brick
+		p.Reflectance = 0
+		p:PivotTo(cf)
+	else
+		p = fallbackBox(cf, sizeY, color)
+	end
+	p.Parent = cityFolder
+	return p
+end
+
+local function fallbackBuildingBox(cf, sizeY, color)
+	local b = Instance.new("Part")
+	b.Anchored = true; b.CanCollide = true
+	b.Size = Vector3.new(sizeY * 0.55, sizeY, sizeY * 0.55)
+	b.Color = color
+	b.Material = Enum.Material.Brick
+	b.TopSurface = Enum.SurfaceType.Smooth
+	b:PivotTo(cf)
+	-- Apply brick OR concrete texture if available
+	if AssetIds.has("brick") then
+		for _, face in ipairs({Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right}) do
+			local t = Instance.new("Texture", b)
+			t.Texture = AssetIds.brick
+			t.Face = face
+			t.StudsPerTileU = 8
+			t.StudsPerTileV = 8
+		end
+	end
+	-- Window stripes (warm yellow lit windows)
+	for floor = 1, math.floor(sizeY / 6) - 1 do
+		local stripe = Instance.new("Part")
+		stripe.Anchored = true; stripe.CanCollide = false
+		stripe.Size = Vector3.new(b.Size.X * 0.95, 1.6, b.Size.Z * 0.95)
+		stripe.Position = b.Position + Vector3.new(0, -sizeY/2 + floor * 6, 0)
+		stripe.Material = Enum.Material.SmoothPlastic
+		stripe.Color = Color3.fromRGB(255, 220, 150)
+		stripe.Transparency = 0.15
+		stripe.Parent = cityFolder
+	end
+	return b
+end
+
+-- Daytime brownstone palette (NOT cyberpunk neon)
+local BUILDING_COLORS = {
+	Color3.fromRGB(170, 110, 80),   -- warm brown brick
+	Color3.fromRGB(190, 175, 150),  -- sandstone
+	Color3.fromRGB(140, 100, 75),   -- darker brick
+	Color3.fromRGB(210, 195, 175),  -- limestone
+	Color3.fromRGB(160, 130, 100),  -- adobe
+	Color3.fromRGB(200, 160, 130),  -- terracotta
+}
+
 task.spawn(function()
-  task.wait(8)  -- give InsertService a chance
-  if #cityFolder:GetChildren() > 0 then return end
-  print("[CityRebuild v5] building procedural skyline")
+	-- Wait briefly for MeshLoader to populate cache.
+	for _ = 1, 30 do
+		if _G.KittyRaiserMeshes then break end
+		task.wait(0.5)
+	end
 
-  local rng = Random.new(42)
-  local NEON_COLORS = {
-    Color3.fromRGB(255, 80, 200),   -- hot pink
-    Color3.fromRGB(80, 220, 255),   -- cyan
-    Color3.fromRGB(255, 200, 80),   -- amber
-    Color3.fromRGB(180, 80, 255),   -- purple
-    Color3.fromRGB(120, 255, 180),  -- mint
-  }
-  local BUILDING_COLORS = {
-    Color3.fromRGB(35, 35, 50),
-    Color3.fromRGB(50, 38, 60),
-    Color3.fromRGB(40, 50, 65),
-    Color3.fromRGB(28, 28, 35),
-  }
+	local skyMesh = getMesh("mesh_skyscraper")
+	local brownMesh = getMesh("mesh_brownstone")
+	local rng = Random.new(73)
+	local SP = 220
 
-  local SP = 220  -- spacing between buildings
-  for gx = -3, 3 do
-    for gz = -3, 3 do
-      if math.abs(gx) > 0 or math.abs(gz) > 0 then
-        local cx = gx * SP + rng:NextInteger(-40, 40)
-        local cz = gz * SP + rng:NextInteger(-40, 40)
-        local h  = rng:NextInteger(80, 220)
-        local w  = rng:NextInteger(45, 80)
-        local d  = rng:NextInteger(45, 80)
-
-        local b = Instance.new("Part")
-        b.Anchored = true; b.CanCollide = true
-        b.Size = Vector3.new(w, h, d)
-        b.Position = Vector3.new(cx, h/2 + 1, cz)
-        b.Material = Enum.Material.Concrete
-        b.Color = BUILDING_COLORS[rng:NextInteger(1, #BUILDING_COLORS)]
-        b.TopSurface = Enum.SurfaceType.Smooth
-        b.Parent = cityFolder
-
-        -- Window grid via SurfaceGui per side: chunky cells visible from distance.
-        for _, face in ipairs({Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right}) do
-          local faceW = (face == Enum.NormalId.Front or face == Enum.NormalId.Back) and w or d
-          local cols = math.max(3, math.floor(faceW / 8))
-          local rows = math.max(4, math.floor(h / 10))
-          local sg = Instance.new("SurfaceGui")
-          sg.Face = face
-          sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-          sg.PixelsPerStud = 4
-          sg.LightInfluence = 0
-          sg.Parent = b
-          local container = Instance.new("Frame")
-          container.Size = UDim2.fromScale(1, 1)
-          container.BackgroundTransparency = 1
-          container.Parent = sg
-          local pad = Instance.new("UIPadding", container)
-          pad.PaddingLeft = UDim.new(0.04, 0); pad.PaddingRight = UDim.new(0.04, 0)
-          pad.PaddingTop = UDim.new(0.05, 0); pad.PaddingBottom = UDim.new(0.05, 0)
-          local grid = Instance.new("UIGridLayout", container)
-          grid.CellSize = UDim2.new(1/cols - 0.02, 0, 1/rows - 0.02, 0)
-          grid.CellPadding = UDim2.new(0.02, 0, 0.02, 0)
-          grid.SortOrder = Enum.SortOrder.LayoutOrder
-          for _ = 1, cols * rows do
-            local win = Instance.new("Frame")
-            local lit = rng:NextNumber() < 0.50
-            if lit then
-              win.BackgroundColor3 = (rng:NextNumber() < 0.65)
-                  and Color3.fromRGB(255, 220, 140)
-                  or Color3.fromRGB(120, 200, 255)
-            else
-              win.BackgroundColor3 = Color3.fromRGB(10, 12, 22)
-            end
-            win.BorderSizePixel = 0
-            win.Parent = container
-          end
-        end
-
-        -- Neon trim along top edge of building (a thin neon part)
-        local trim = Instance.new("Part")
-        trim.Anchored = true; trim.CanCollide = false
-        trim.Size = Vector3.new(w + 1, 1, d + 1)
-        trim.Position = Vector3.new(cx, h + 1.5, cz)
-        trim.Material = Enum.Material.Neon
-        trim.Color = NEON_COLORS[rng:NextInteger(1, #NEON_COLORS)]
-        trim.Parent = cityFolder
-
-        -- Random neon billboard panel on the side (one in three buildings)
-        if rng:NextNumber() < 0.35 then
-          local bbHeight = rng:NextInteger(15, 30)
-          local bbWidth  = rng:NextInteger(20, 35)
-          local bbColor  = NEON_COLORS[rng:NextInteger(1, #NEON_COLORS)]
-          local side = (rng:NextNumber() < 0.5) and 1 or -1
-          local axis = (rng:NextNumber() < 0.5) and "x" or "z"
-          local bb = Instance.new("Part")
-          bb.Anchored = true; bb.CanCollide = false
-          bb.Material = Enum.Material.Neon
-          bb.Color = bbColor
-          if axis == "x" then
-            bb.Size = Vector3.new(0.5, bbHeight, bbWidth)
-            bb.Position = Vector3.new(cx + side * (w/2 + 0.4), h - bbHeight/2 - 5, cz)
-          else
-            bb.Size = Vector3.new(bbWidth, bbHeight, 0.5)
-            bb.Position = Vector3.new(cx, h - bbHeight/2 - 5, cz + side * (d/2 + 0.4))
-          end
-          bb.Parent = cityFolder
-        end
-      end
-    end
-  end
-  print("[CityRebuild v5] procedural skyline ready: 48 buildings + neon")
+	for gx = -3, 3 do
+		for gz = -3, 3 do
+			if math.abs(gx) > 0 or math.abs(gz) > 0 then
+				local cx = gx * SP + rng:NextInteger(-30, 30)
+				local cz = gz * SP + rng:NextInteger(-30, 30)
+				local h  = rng:NextInteger(60, 180)
+				local color = BUILDING_COLORS[rng:NextInteger(1, #BUILDING_COLORS)]
+				local cf = CFrame.new(cx, h/2 + 1, cz)
+				local pickMesh = (rng:NextNumber() < 0.5) and skyMesh or brownMesh
+				placeBuilding(pickMesh, cf, h, color, fallbackBuildingBox)
+			end
+		end
+	end
+	print("[CityRebuild v6] skyline placed (48 buildings, real meshes when available)")
 end)
 
--- 7. PLAZA — neon-strip plaza with proper materials
+-- =====================================================================
+-- STREET PROPS  (taxi / hydrant / mailbox / trashcan)
+-- =====================================================================
+task.spawn(function()
+	for _ = 1, 30 do
+		if _G.KittyRaiserMeshes then break end
+		task.wait(0.5)
+	end
+	local rng = Random.new(91)
+	local taxiMesh   = getMesh("mesh_taxi")
+	local hydrantMesh = getMesh("mesh_hydrant")
+	local mailMesh   = getMesh("mesh_mailbox")
+	local trashMesh  = getMesh("mesh_trashcan")
+
+	-- Place props at intersections / sidewalks of the grid
+	local PROP_COUNT = 60
+	local placed = 0
+	for _ = 1, PROP_COUNT do
+		local px = rng:NextInteger(-700, 700)
+		local pz = rng:NextInteger(-700, 700)
+		-- Don't crash into the spawn area
+		if math.sqrt(px * px + (pz - 24)^2) < 24 then continue end
+		local pick = rng:NextNumber()
+		local mesh, sizeY, color
+		if pick < 0.18 and taxiMesh then
+			mesh = taxiMesh; sizeY = 3.5; color = Color3.fromRGB(255, 200, 0)  -- yellow taxi
+		elseif pick < 0.50 and hydrantMesh then
+			mesh = hydrantMesh; sizeY = 2.0; color = Color3.fromRGB(200, 50, 40) -- red hydrant
+		elseif pick < 0.75 and mailMesh then
+			mesh = mailMesh; sizeY = 2.4; color = Color3.fromRGB(50, 90, 160)   -- blue mailbox
+		elseif trashMesh then
+			mesh = trashMesh; sizeY = 2.4; color = Color3.fromRGB(60, 70, 60)   -- olive trashcan
+		end
+		if mesh then
+			local p = mesh:Clone()
+			p.Anchored = true; p.CanCollide = true
+			p.Size = Vector3.new(sizeY, sizeY, sizeY)
+			p.Color = color
+			p.Material = Enum.Material.SmoothPlastic
+			p:PivotTo(CFrame.new(px, sizeY/2, pz) * CFrame.Angles(0, math.rad(rng:NextInteger(0, 359)), 0))
+			p.Parent = cityFolder
+			placed = placed + 1
+		end
+	end
+	print("[CityRebuild v6] street props placed:", placed)
+end)
+
+-- =====================================================================
+-- PLAZA  (sunny park-style plaza, NOT pink-neon-glow)
+-- =====================================================================
 local plaza = Workspace:FindFirstChild("Plaza") or Instance.new("Folder", Workspace)
 plaza.Name = "Plaza"
 plaza:ClearAllChildren()
 
--- Floor: pavement
+-- Floor: warm cobblestone
 local pf = Instance.new("Part", plaza)
 pf.Name = "PlazaFloor"
 pf.Anchored = true; pf.CanCollide = true
 pf.Size = Vector3.new(140, 2, 140)
 pf.Position = Vector3.new(0, 1.5, 0)
-pf.Material = Enum.Material.Pavement
-pf.Color = Color3.fromRGB(70, 70, 78)
-pf.TopSurface = Enum.SurfaceType.Smooth
+pf.Material = Enum.Material.Cobblestone
+pf.Color = Color3.fromRGB(165, 155, 140)
 
--- Cyan glow strip running along plaza edge for that neon-noir vibe
-for _, edge in ipairs({
-  {pos = Vector3.new(0, 2.6, -69),  size = Vector3.new(140, 0.2, 1)},
-  {pos = Vector3.new(0, 2.6,  69),  size = Vector3.new(140, 0.2, 1)},
-  {pos = Vector3.new(-69, 2.6, 0),  size = Vector3.new(1, 0.2, 140)},
-  {pos = Vector3.new( 69, 2.6, 0),  size = Vector3.new(1, 0.2, 140)},
-}) do
-  local strip = Instance.new("Part", plaza)
-  strip.Anchored = true; strip.CanCollide = false
-  strip.Size = edge.size
-  strip.Position = edge.pos
-  strip.Material = Enum.Material.Neon
-  strip.Color = Color3.fromRGB(80, 220, 255)
-  strip.TopSurface = Enum.SurfaceType.Smooth
-end
+-- Inner brick circle (visual interest)
+local innerCircle = Instance.new("Part", plaza)
+innerCircle.Anchored = true; innerCircle.CanCollide = false
+innerCircle.Shape = Enum.PartType.Cylinder
+innerCircle.Size = Vector3.new(0.3, 60, 60)
+innerCircle.CFrame = CFrame.new(0, 2.6, 0) * CFrame.Angles(0, 0, math.rad(90))
+innerCircle.Material = Enum.Material.Brick
+innerCircle.Color = Color3.fromRGB(195, 145, 105)
 
--- Welcome sign — pink neon, framed
+-- Fountain in the center (cylindrical basin + central spout)
+local basin = Instance.new("Part", plaza)
+basin.Anchored = true; basin.CanCollide = true
+basin.Shape = Enum.PartType.Cylinder
+basin.Size = Vector3.new(2.5, 14, 14)
+basin.CFrame = CFrame.new(0, 4, 0) * CFrame.Angles(0, 0, math.rad(90))
+basin.Material = Enum.Material.Marble
+basin.Color = Color3.fromRGB(220, 215, 205)
+
+local water = Instance.new("Part", plaza)
+water.Anchored = true; water.CanCollide = false
+water.Shape = Enum.PartType.Cylinder
+water.Size = Vector3.new(0.3, 12, 12)
+water.CFrame = CFrame.new(0, 5.4, 0) * CFrame.Angles(0, 0, math.rad(90))
+water.Material = Enum.Material.Water
+water.Color = Color3.fromRGB(120, 180, 220)
+water.Transparency = 0.2
+
+local spout = Instance.new("Part", plaza)
+spout.Anchored = true; spout.CanCollide = true
+spout.Size = Vector3.new(0.8, 4.5, 0.8)
+spout.Position = Vector3.new(0, 7, 0)
+spout.Material = Enum.Material.Marble
+spout.Color = Color3.fromRGB(220, 215, 205)
+
+local spoutTop = Instance.new("Part", plaza)
+spoutTop.Anchored = true; spoutTop.CanCollide = false
+spoutTop.Shape = Enum.PartType.Ball
+spoutTop.Size = Vector3.new(1.6, 1.6, 1.6)
+spoutTop.Position = Vector3.new(0, 9.3, 0)
+spoutTop.Material = Enum.Material.Marble
+spoutTop.Color = Color3.fromRGB(220, 215, 205)
+
+-- Welcome sign — wooden cartoon, NOT pink neon
 local frame = Instance.new("Part", plaza)
 frame.Anchored = true; frame.CanCollide = false
-frame.Size = Vector3.new(86, 22, 1)
-frame.Position = Vector3.new(0, 17, -65)
-frame.Material = Enum.Material.Metal
-frame.Color = Color3.fromRGB(28, 28, 36)
+frame.Size = Vector3.new(82, 16, 1.4)
+frame.Position = Vector3.new(0, 16, -64)
+frame.Material = Enum.Material.WoodPlanks
+frame.Color = Color3.fromRGB(110, 75, 45)
 
-local sign = Instance.new("Part", plaza)
-sign.Anchored = true; sign.CanCollide = false
-sign.Size = Vector3.new(80, 18, 0.5)
-sign.Position = Vector3.new(0, 17, -64.5)
-sign.Material = Enum.Material.Neon
-sign.Color = Color3.fromRGB(255, 80, 200)
-local sg = Instance.new("SurfaceGui", sign); sg.Face = Enum.NormalId.Front
-sg.LightInfluence = 0
-sg.PixelsPerStud = 20
+local board = Instance.new("Part", plaza)
+board.Anchored = true; board.CanCollide = false
+board.Size = Vector3.new(78, 12.5, 0.6)
+board.Position = Vector3.new(0, 16, -63.2)
+board.Material = Enum.Material.WoodPlanks
+board.Color = Color3.fromRGB(195, 155, 100)
+
+local sg = Instance.new("SurfaceGui", board); sg.Face = Enum.NormalId.Front
+sg.LightInfluence = 0.7
+sg.PixelsPerStud = 16
 sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+
 local stl = Instance.new("TextLabel", sg)
 stl.AnchorPoint = Vector2.new(0.5, 0.5)
 stl.Position = UDim2.fromScale(0.5, 0.5)
-stl.Size = UDim2.new(0.94, 0, 0.7, 0)  -- give margin so text doesn't crash sign edges
+stl.Size = UDim2.new(0.94, 0, 0.7, 0)
 stl.BackgroundTransparency = 1
 stl.Text = "WELCOME TO KITTYRAISER"
-stl.Font = Enum.Font.GothamBlack
+stl.Font = Enum.Font.LuckiestGuy
 stl.TextScaled = true
-stl.TextColor3 = Color3.fromRGB(255, 240, 250)
-stl.TextStrokeTransparency = 0.4
-stl.TextStrokeColor3 = Color3.fromRGB(120, 30, 90)
+stl.TextColor3 = Color3.fromRGB(80, 40, 20)
+stl.TextStrokeTransparency = 0.6
+stl.TextStrokeColor3 = Color3.fromRGB(255, 240, 200)
 local stc = Instance.new("UITextSizeConstraint", stl)
 stc.MinTextSize = 60; stc.MaxTextSize = 220
 
--- Pink + cyan flood lights on the sign
-for _, side in ipairs({-30, 30}) do
-  local floodbox = Instance.new("Part", plaza)
-  floodbox.Anchored = true; floodbox.CanCollide = false
-  floodbox.Size = Vector3.new(2, 2, 2)
-  floodbox.Position = Vector3.new(side, 26, -64)
-  floodbox.Material = Enum.Material.Metal
-  floodbox.Color = Color3.fromRGB(40, 40, 50)
-  local sl = Instance.new("SpotLight", floodbox)
-  sl.Range = 60
-  sl.Brightness = 6
-  sl.Angle = 90
-  sl.Face = Enum.NormalId.Bottom
-  sl.Color = (side < 0) and Color3.fromRGB(255, 120, 220) or Color3.fromRGB(120, 220, 255)
+-- Two wooden post supports
+for _, sx in ipairs({-32, 32}) do
+	local post = Instance.new("Part", plaza)
+	post.Anchored = true; post.CanCollide = true
+	post.Size = Vector3.new(2, 16, 2)
+	post.Position = Vector3.new(sx, 8, -64)
+	post.Material = Enum.Material.Wood
+	post.Color = Color3.fromRGB(95, 65, 40)
 end
 
--- 8. PARTICLE POOL FOR PRANKS
+-- Trees around plaza edge for cartoon vibes
+for _, treePos in ipairs({
+	Vector3.new(-50, 0, -50), Vector3.new(50, 0, -50),
+	Vector3.new(-50, 0, 50),  Vector3.new(50, 0, 50),
+	Vector3.new(-58, 0, 0),   Vector3.new(58, 0, 0),
+}) do
+	local trunk = Instance.new("Part", plaza)
+	trunk.Anchored = true; trunk.CanCollide = true
+	trunk.Size = Vector3.new(2, 8, 2)
+	trunk.Position = treePos + Vector3.new(0, 5, 0)
+	trunk.Material = Enum.Material.Wood
+	trunk.Color = Color3.fromRGB(85, 55, 30)
+	local crown = Instance.new("Part", plaza)
+	crown.Anchored = true; crown.CanCollide = true
+	crown.Shape = Enum.PartType.Ball
+	crown.Size = Vector3.new(8, 8, 8)
+	crown.Position = treePos + Vector3.new(0, 12, 0)
+	crown.Material = Enum.Material.Grass
+	crown.Color = Color3.fromRGB(80, 140, 70)
+end
+
+-- Particle pool kept for prank effects (no neon)
 local pool = Workspace:FindFirstChild("PrankParticlePool") or Instance.new("Folder", Workspace)
 pool.Name = "PrankParticlePool"
 
-print("[CityRebuild v4] DONE — city + lighting + plaza + particle pool ready")
+print("[CityRebuild v6] sunny daytime cartoon city ready")
