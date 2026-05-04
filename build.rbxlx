@@ -177,8 +177,8 @@ AssetIds.anim_cat_fall            = "rbxassetid://0"
 AssetIds.badge_first_prank        = "rbxassetid://1429423254055989"
 AssetIds.badge_level_10           = "rbxassetid://2479335747751103"
 AssetIds.badge_level_25           = "rbxassetid://2206460901927124"
-AssetIds.badge_level_50           = "rbxassetid://0"
-AssetIds.badge_level_100          = "rbxassetid://0"
+AssetIds.badge_level_50           = "rbxassetid://707722981037590"
+AssetIds.badge_level_100          = "rbxassetid://1107903826690432"
 AssetIds.badge_first_rebirth      = "rbxassetid://0"
 AssetIds.badge_boss_defeat        = "rbxassetid://0"
 AssetIds.badge_ticketed           = "rbxassetid://0"
@@ -1947,8 +1947,13 @@ Players.PlayerRemoving:Connect(function(player)
     State[player.UserId] = nil
 end)
 
--- Heartbeat teleport check
+-- Heartbeat teleport check (throttled to 5Hz to keep server-side cost bounded
+-- on iPhone SE / busy servers; 5Hz is plenty to detect 80+studs/sec teleports)
+local _ac_lastTick = 0
 game:GetService("RunService").Heartbeat:Connect(function()
+    local now = os.clock()
+    if now - _ac_lastTick < 0.2 then return end
+    _ac_lastTick = now
     for _, player in ipairs(Players:GetPlayers()) do
         AntiCheat.checkTeleport(player)
     end
