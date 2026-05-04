@@ -6,9 +6,9 @@
 local Lighting = game:GetService("Lighting")
 
 Lighting.Technology = Enum.Technology.Future
-Lighting.Brightness = 2.6
-Lighting.Ambient = Color3.fromRGB(140, 130, 110)        -- warm light gray
-Lighting.OutdoorAmbient = Color3.fromRGB(180, 175, 160) -- bright daylight
+Lighting.Brightness = 2.0                               -- per Phase-10 directive (was 2.6)
+Lighting.Ambient = Color3.fromRGB(140, 140, 140)        -- neutral bright (per directive)
+Lighting.OutdoorAmbient = Color3.fromRGB(170, 170, 170) -- neutral bright (per directive)
 Lighting.EnvironmentDiffuseScale = 0.65
 Lighting.EnvironmentSpecularScale = 0.50
 Lighting.ClockTime = 13.0          -- early afternoon sun, high overhead
@@ -40,19 +40,24 @@ ensure("ColorCorrectionEffect", {
 -- Sun rays at low intensity (bright day, not dramatic)
 ensure("SunRaysEffect", { Intensity = 0.15, Spread = 0.4 })
 
--- Atmosphere: light haze for depth, NOT fog
+-- Atmosphere: very light haze. Lower density per Phase-10 (purple-void
+-- bug at oblique camera angles was visible through dense atmosphere).
 local atm = Lighting:FindFirstChildOfClass("Atmosphere")
 if not atm then atm = Instance.new("Atmosphere"); atm.Parent = Lighting end
-atm.Density = 0.12
+atm.Density = 0.05
 atm.Offset  = 0.05
-atm.Color   = Color3.fromRGB(220, 225, 230)
-atm.Decay   = Color3.fromRGB(150, 175, 200)
+atm.Color   = Color3.fromRGB(225, 230, 235)
+atm.Decay   = Color3.fromRGB(190, 205, 220)
 atm.Glare   = 0.05
-atm.Haze    = 0.5
+atm.Haze    = 0.4
 
--- Optional sky (force a clear blue cartoon sky)
-local sky = Lighting:FindFirstChildOfClass("Sky")
-if not sky then sky = Instance.new("Sky"); sky.Parent = Lighting end
+-- Sky: force-recreate so any stale or destroyed Sky child doesn't leave a
+-- purple-void backdrop (Phase-10 playtest bug). Standard built-in skybox
+-- textures are guaranteed to ship with the engine.
+local oldSky = Lighting:FindFirstChildOfClass("Sky")
+if oldSky then oldSky:Destroy() end
+local sky = Instance.new("Sky")
+sky.Parent = Lighting
 -- Use Roblox's default daytime sky textures (built-in, no asset id needed)
 sky.SkyboxBk = "rbxasset://textures/sky/sky512_bk.tex"
 sky.SkyboxDn = "rbxasset://textures/sky/sky512_dn.tex"

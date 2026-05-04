@@ -286,7 +286,7 @@ task.spawn(function()
 		task.wait(0.5)
 	end
 	local rng = Random.new(91)
-	-- Generic everywhere
+	-- Generic everywhere (v1 meshes — kept for fallback)
 	local taxiMesh   = getMesh("mesh_taxi")
 	local hydrantMesh = getMesh("mesh_hydrant")
 	local mailMesh   = getMesh("mesh_mailbox")
@@ -298,6 +298,17 @@ task.spawn(function()
 	local palmMesh   = getMesh("mesh_palm_tree")
 	local manholeMesh = getMesh("mesh_manhole")
 	local fireMesh   = getMesh("mesh_fire_truck")
+	-- v2 PHASE-10 MESHES (richer cartoon variants, used preferentially)
+	local taxiYellowMesh    = getMesh("mesh_taxi_yellow")
+	local deliveryVanMesh   = getMesh("mesh_delivery_van")
+	local foodTruckMesh     = getMesh("mesh_food_truck")
+	local fireHydrantMesh   = getMesh("mesh_fire_hydrant")
+	local trashCanMesh      = getMesh("mesh_trash_can")
+	local mailboxBlueMesh   = getMesh("mesh_mailbox_blue")
+	local busStopMesh       = getMesh("mesh_bus_stop_shelter")
+	local trafficLightMesh  = getMesh("mesh_traffic_light")
+	local hotDogCartMesh    = getMesh("mesh_hot_dog_cart")
+	local skyChunkMesh      = getMesh("mesh_skyscraper_chunk")
 
 	local function zoneFor(x, z)
 		if x >= 0 and z >= 0 then return "downtown" end
@@ -331,21 +342,33 @@ task.spawn(function()
 	}
 	local PROP_COUNT = 180
 	local placed = 0
+	-- Prefer v2 meshes when present, fall back to v1
+	local pickCar = function()
+		local pool = {}
+		if taxiYellowMesh   then table.insert(pool, taxiYellowMesh) end
+		if deliveryVanMesh  then table.insert(pool, deliveryVanMesh) end
+		if foodTruckMesh    then table.insert(pool, foodTruckMesh) end
+		if taxiMesh         then table.insert(pool, taxiMesh) end
+		return pool[rng:NextInteger(1, math.max(1, #pool))]
+	end
+	local hydrantPick = fireHydrantMesh or hydrantMesh
+	local mailPick    = mailboxBlueMesh or mailMesh
+	local trashPick   = trashCanMesh    or trashMesh
 	for _ = 1, PROP_COUNT do
 		local px = rng:NextInteger(-720, 720)
 		local pz = rng:NextInteger(-720, 720)
 		if math.sqrt(px * px + (pz - 24)^2) < 28 then continue end
 		local pick = rng:NextNumber()
-		if pick < 0.30 and taxiMesh then
-			-- 30% cars (more than v8's 18%) with random color from palette
+		local carMesh = pickCar()
+		if pick < 0.30 and carMesh then
 			local cc = CAR_COLORS[rng:NextInteger(1, #CAR_COLORS)]
-			if place(taxiMesh, px, 3.5/2, pz, 3.5, cc) then placed = placed + 1 end
-		elseif pick < 0.55 and hydrantMesh then
-			if place(hydrantMesh, px, 1, pz, 2.0, Color3.fromRGB(200, 50, 40)) then placed = placed + 1 end
-		elseif pick < 0.78 and mailMesh then
-			if place(mailMesh, px, 1.2, pz, 2.4, Color3.fromRGB(50, 90, 160)) then placed = placed + 1 end
-		elseif trashMesh then
-			if place(trashMesh, px, 1.2, pz, 2.4, Color3.fromRGB(60, 70, 60)) then placed = placed + 1 end
+			if place(carMesh, px, 3.5/2, pz, 3.5, cc) then placed = placed + 1 end
+		elseif pick < 0.55 and hydrantPick then
+			if place(hydrantPick, px, 1, pz, 2.0, Color3.fromRGB(200, 50, 40)) then placed = placed + 1 end
+		elseif pick < 0.78 and mailPick then
+			if place(mailPick, px, 1.2, pz, 2.4, Color3.fromRGB(50, 90, 160)) then placed = placed + 1 end
+		elseif trashPick then
+			if place(trashPick, px, 1.2, pz, 2.4, Color3.fromRGB(60, 70, 60)) then placed = placed + 1 end
 		end
 	end
 
@@ -383,7 +406,76 @@ task.spawn(function()
 		end
 	end
 
-	print("[CityRebuild v9] generic props:", placed, " zone props:", zonePlaced)
+	-- =====================================================================
+	-- v2 PHASE-10 SET-DRESSING (placed per directive)
+	-- Plaza:    2 trash_can corners, 2 mailbox_blue, 1 hot_dog_cart, 1 bus_stop_shelter
+	-- Downtown: 4 skyscraper_chunk in 2x2 grid behind plaza, 4 traffic_light at intersections,
+	--           2 taxi_yellow + 1 delivery_van + 1 food_truck on streets, 6 fire_hydrant on sidewalks
+	-- =====================================================================
+	local v2 = 0
+
+	-- Plaza corners (plaza is 140x140 centered on origin)
+	if trashCanMesh then
+		for _, c in ipairs({Vector3.new(-58, 1.2, -58), Vector3.new(58, 1.2, -58)}) do
+			if place(trashCanMesh, c.X, c.Y, c.Z, 2.4, Color3.fromRGB(60, 70, 60), nil, 0) then v2 = v2 + 1 end
+		end
+	end
+	if mailboxBlueMesh then
+		for _, c in ipairs({Vector3.new(-30, 1.2, -55), Vector3.new(30, 1.2, -55)}) do
+			if place(mailboxBlueMesh, c.X, c.Y, c.Z, 2.4, Color3.fromRGB(50, 90, 160), nil, 0) then v2 = v2 + 1 end
+		end
+	end
+	if hotDogCartMesh then
+		if place(hotDogCartMesh, 0, 1.5, 30, 3.0, Color3.fromRGB(220, 70, 60), nil, 0) then v2 = v2 + 1 end
+	end
+	if busStopMesh then
+		if place(busStopMesh, -45, 2.5, -55, 5.0, Color3.fromRGB(90, 100, 110), nil, 90) then v2 = v2 + 1 end
+	end
+
+	-- Downtown skyline (2x2 chunks) behind plaza horizon at +X/+Z corner
+	if skyChunkMesh then
+		for gx = 0, 1 do
+			for gz = 0, 1 do
+				local cx = 280 + gx * 90
+				local cz = 280 + gz * 90
+				if place(skyChunkMesh, cx, 60, cz, 120,
+				         Color3.fromRGB(180, 175, 170), Enum.Material.Brick, 0) then v2 = v2 + 1 end
+			end
+		end
+	end
+
+	-- Traffic lights at downtown intersections (160-stud grid, +X/+Z quadrant)
+	if trafficLightMesh then
+		for _, ipos in ipairs({Vector3.new(160, 4, 160), Vector3.new(320, 4, 160),
+		                       Vector3.new(160, 4, 320), Vector3.new(320, 4, 320)}) do
+			if place(trafficLightMesh, ipos.X, ipos.Y, ipos.Z, 6.0,
+			         Color3.fromRGB(50, 50, 55), Enum.Material.Metal, 0) then v2 = v2 + 1 end
+		end
+	end
+
+	-- Featured vehicles on the main street loop (just outside plaza, +X axis)
+	if taxiYellowMesh then
+		if place(taxiYellowMesh,  100, 1.8, 80, 3.5, Color3.fromRGB(255, 200, 0), nil, 90) then v2 = v2 + 1 end
+		if place(taxiYellowMesh, -100, 1.8, 80, 3.5, Color3.fromRGB(255, 200, 0), nil, 270) then v2 = v2 + 1 end
+	end
+	if deliveryVanMesh then
+		if place(deliveryVanMesh, 80, 2.0, 120, 4.0, Color3.fromRGB(220, 220, 220), nil, 90) then v2 = v2 + 1 end
+	end
+	if foodTruckMesh then
+		if place(foodTruckMesh, -80, 2.2, 120, 4.5, Color3.fromRGB(200, 130, 60), nil, 270) then v2 = v2 + 1 end
+	end
+
+	-- Fire hydrants lining downtown sidewalks
+	if fireHydrantMesh then
+		for _, hpos in ipairs({Vector3.new(155, 1, 60), Vector3.new(-155, 1, 60),
+		                       Vector3.new(155, 1, -60), Vector3.new(-155, 1, -60),
+		                       Vector3.new(60, 1, 155), Vector3.new(-60, 1, 155)}) do
+			if place(fireHydrantMesh, hpos.X, hpos.Y, hpos.Z, 2.0,
+			         Color3.fromRGB(200, 50, 40), nil, 0) then v2 = v2 + 1 end
+		end
+	end
+
+	print("[CityRebuild v10] generic props:", placed, "zone props:", zonePlaced, "v2 props:", v2)
 end)
 
 -- =====================================================================
@@ -432,14 +524,40 @@ local plaza = Workspace:FindFirstChild("Plaza") or Instance.new("Folder", Worksp
 plaza.Name = "Plaza"
 plaza:ClearAllChildren()
 
--- Floor: warm cobblestone-tan square
+-- Floor: warm sunset-cream cobblestone (Pixar-cartoon, not dim concrete).
 local pf = Instance.new("Part", plaza)
 pf.Name = "PlazaFloor"
 pf.Anchored = true; pf.CanCollide = true
 pf.Size = Vector3.new(140, 2, 140)
 pf.Position = Vector3.new(0, 1.5, 0)
 pf.Material = Enum.Material.Cobblestone
-pf.Color = Color3.fromRGB(205, 190, 165)  -- brighter tan than before
+pf.Color = Color3.fromRGB(255, 220, 170)  -- sunset cream
+
+-- Plaza perimeter walls (low cream borders with warm cornice top-cap).
+-- Replaces the dim grey concrete look from Phase-9 playtest screenshots.
+for _, def in ipairs({
+	{name="WallN", size=Vector3.new(140, 4, 4), pos=Vector3.new(0, 4, -68)},
+	{name="WallE", size=Vector3.new(4, 4, 140), pos=Vector3.new(68, 4, 0)},
+	{name="WallW", size=Vector3.new(4, 4, 140), pos=Vector3.new(-68, 4, 0)},
+	-- South wall split for plaza entry gap (player walks in from -Z)
+	{name="WallSL", size=Vector3.new(50, 4, 4), pos=Vector3.new(-45, 4, 68)},
+	{name="WallSR", size=Vector3.new(50, 4, 4), pos=Vector3.new(45, 4, 68)},
+}) do
+	local w = Instance.new("Part", plaza)
+	w.Name = def.name
+	w.Anchored = true; w.CanCollide = true
+	w.Size = def.size; w.Position = def.pos
+	w.Material = Enum.Material.SmoothPlastic
+	w.Color = Color3.fromRGB(255, 220, 170)  -- sunset cream
+	-- Cornice top-cap (slightly warmer orange-cream)
+	local cap = Instance.new("Part", plaza)
+	cap.Name = def.name .. "_Cap"
+	cap.Anchored = true; cap.CanCollide = false
+	cap.Size = def.size + Vector3.new(0.6, -3, 0.6)  -- extends 0.3 stud over edges
+	cap.Position = def.pos + Vector3.new(0, 2.5, 0)
+	cap.Material = Enum.Material.SmoothPlastic
+	cap.Color = Color3.fromRGB(255, 175, 90)  -- cornice warmth
+end
 
 -- Fountain in the center (cylindrical basin + central spout)
 local basin = Instance.new("Part", plaza)

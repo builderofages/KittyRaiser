@@ -47,9 +47,18 @@ local function tintPed(model, shirtColor, skinColor, legColor)
 end
 
 local function buildPed()
-  -- Try to spawn a real Roblox R15 character (proper rig + animations + face)
+  -- Phase-10 fix: bake body scales onto the HumanoidDescription BEFORE
+  -- creating the model, so the rig spawns at the right size. Setting
+  -- NumberValue children post-spawn was sometimes ignored by automatic
+  -- scaling, leaving NPCs tiny.
   local ok, m = pcall(function()
     local desc = Instance.new("HumanoidDescription")
+    desc.HeightScale     = 1.05
+    desc.WidthScale      = 1.00
+    desc.DepthScale      = 1.00
+    desc.HeadScale       = 1.00
+    desc.BodyTypeScale   = 1.00
+    desc.ProportionScale = 1.00
     return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
   end)
 
@@ -102,16 +111,15 @@ local function buildPed()
     hum.WalkSpeed = math.random(8, 14)
     hum.MaxHealth = 100; hum.Health = 100
     hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-    -- Normal human proportions — these civilians are humans walking the
-    -- streets, the player (a small quadruped cat) is meant to look UP at
-    -- them. Don't go cartoon — go realistic-human.
+    -- Belt-and-suspenders: also write NumberValue children so any future
+    -- description override applied later still results in normal-human size.
     local scales = {
       BodyDepthScale  = 1.00,
       BodyWidthScale  = 1.00,
-      BodyHeightScale = 1.05,   -- slightly tall so cats feel small
+      BodyHeightScale = 1.05,
       HeadScale       = 1.00,
-      BodyTypeScale   = 1.00,   -- anatomical thinner avatar style
-      ProportionScale = 1.00,   -- proper body proportions
+      BodyTypeScale   = 1.00,
+      ProportionScale = 1.00,
     }
     for sname, sval in pairs(scales) do
       local nv = hum:FindFirstChild(sname)

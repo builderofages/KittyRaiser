@@ -84,9 +84,17 @@ local function tintRig(model, palette)
 end
 
 local function buildHumanNPC()
-	-- Try to spawn a real R15 character via HumanoidDescription
+	-- Phase-10 fix: bake scales onto the HumanoidDescription BEFORE creating
+	-- the model so the rig spawns at the right size. Setting NumberValue
+	-- children post-spawn was sometimes ignored by automatic scaling.
 	local ok, model = pcall(function()
 		local desc = Instance.new("HumanoidDescription")
+		desc.HeightScale     = 1.05
+		desc.WidthScale      = 1.00
+		desc.DepthScale      = 1.00
+		desc.HeadScale       = 1.00
+		desc.BodyTypeScale   = 1.00
+		desc.ProportionScale = 1.00
 		return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
 	end)
 
