@@ -28,7 +28,7 @@ local function makeModal(displayTitle, accentColor)
     modal.BackgroundColor3 = UIUtil.Palette.bgMid
     modal.BorderSizePixel = 0
     modal.Visible = false
-    modal.ZIndex = 50
+    modal.ZIndex = UIUtil.DisplayOrder.Modal
     Instance.new("UICorner", modal).CornerRadius = UIUtil.Token.cornerLg
     local stroke = Instance.new("UIStroke", modal)
     stroke.Thickness = UIUtil.Token.strokeBold

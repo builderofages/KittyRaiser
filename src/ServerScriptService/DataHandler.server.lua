@@ -81,6 +81,16 @@ local function migrate(data)
         data.lastDailyClaim = data.lastDailyClaim or 0
         data.version = 2
     end
+    if data.version < 3 then
+        -- v3: persisted settings + seenTutorial flag
+        data.settings = data.settings or {
+            masterVolume = 0.8, musicVolume = 0.6,
+            sfxVolume = 0.9, uiVolume = 0.8,
+            graphicsQuality = "med", motionShake = true,
+        }
+        data.seenTutorial = data.seenTutorial or false
+        data.version = 3
+    end
     -- Backfill any new keys
     local def = defaultData()
     for k, v in pairs(def) do

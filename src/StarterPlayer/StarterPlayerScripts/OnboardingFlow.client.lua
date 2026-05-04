@@ -93,19 +93,29 @@ end
 
 local function spotlight(targetGui)
   if not targetGui then return nil end
-  local r = targetGui.AbsolutePosition
-  local s = targetGui.AbsoluteSize
   local ring = Instance.new("Frame")
-  ring.Size = UDim2.fromOffset(s.X + 30, s.Y + 30)
-  ring.Position = UDim2.fromOffset(r.X - 15, r.Y - 15)
   ring.BackgroundTransparency = 1
   ring.Parent = overlay
   local stroke = Instance.new("UIStroke", ring)
   stroke.Thickness = 4
   stroke.Color = PALETTE.gold
+  -- Resize on viewport change so the ring tracks the button if window resizes
+  local function reposition()
+    local r = targetGui.AbsolutePosition
+    local s = targetGui.AbsoluteSize
+    ring.Size = UDim2.fromOffset(s.X + 30, s.Y + 30)
+    ring.Position = UDim2.fromOffset(r.X - 15, r.Y - 15)
+  end
+  reposition()
+  targetGui:GetPropertyChangedSignal("AbsolutePosition"):Connect(reposition)
+  targetGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(reposition)
   task.spawn(function()
     while ring.Parent do
-      TweenService:Create(ring, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Size = UDim2.fromOffset(s.X + 50, s.Y + 50), Position = UDim2.fromOffset(r.X - 25, r.Y - 25)}):Play()
+      local r = targetGui.AbsolutePosition
+      local s = targetGui.AbsoluteSize
+      TweenService:Create(ring, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+        {Size = UDim2.fromOffset(s.X + 50, s.Y + 50),
+         Position = UDim2.fromOffset(r.X - 25, r.Y - 25)}):Play()
       task.wait(1)
     end
   end)

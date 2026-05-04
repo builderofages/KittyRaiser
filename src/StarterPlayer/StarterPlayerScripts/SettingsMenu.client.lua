@@ -76,7 +76,7 @@ modal.Position = UDim2.new(0.5, 0, 0.5, 0)
 modal.BackgroundColor3 = UIUtil.Palette.bgMid
 modal.BorderSizePixel = 0
 modal.Visible = false
-modal.ZIndex = 60
+modal.ZIndex = UIUtil.DisplayOrder.Settings
 Instance.new("UICorner", modal).CornerRadius = UIUtil.Token.cornerLg
 local mStroke = Instance.new("UIStroke", modal)
 mStroke.Thickness = UIUtil.Token.strokeBold; mStroke.Color = UIUtil.Palette.primary

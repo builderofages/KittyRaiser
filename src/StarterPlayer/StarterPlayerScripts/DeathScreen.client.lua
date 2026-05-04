@@ -22,7 +22,7 @@ local function buildOverlay(killReason)
     sg.Name = "DeathScreen"
     sg.IgnoreGuiInset = true
     sg.ResetOnSpawn = false
-    sg.DisplayOrder = 150  -- above HUD, below LoadingScreen
+    sg.DisplayOrder = UIUtil.DisplayOrder.DeathScreen
     sg.Parent = playerGui
 
     local dim = Instance.new("Frame", sg)

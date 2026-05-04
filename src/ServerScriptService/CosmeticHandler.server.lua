@@ -71,9 +71,15 @@ local function applyOnRespawn(player, character)
     applySkinToCharacter(character, data.equippedSkin or "Default")
 end
 
-Players.PlayerAdded:Connect(function(player)
+local function setupPlayer(player)
+    -- If character already auto-loaded before we hooked, apply skin now
+    if player.Character then
+        task.spawn(applyOnRespawn, player, player.Character)
+    end
     player.CharacterAdded:Connect(function(char) applyOnRespawn(player, char) end)
-end)
+end
+Players.PlayerAdded:Connect(setupPlayer)
+for _, p in ipairs(Players:GetPlayers()) do setupPlayer(p) end
 
 -- Equip
 Remotes.RequestEquipSkin.OnServerInvoke = function(player, skinId)

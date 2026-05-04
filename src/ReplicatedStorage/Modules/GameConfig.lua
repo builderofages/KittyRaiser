@@ -67,7 +67,7 @@ GameConfig.SUSPICIOUS_FLAG_THRESHOLD = 3
 GameConfig.DATASTORE_NAME = "KittyRaiserData_v1"
 GameConfig.DATASTORE_KEY_PREFIX = "Player_"
 GameConfig.AUTOSAVE_INTERVAL = 60
-GameConfig.SCHEMA_VERSION = 2  -- bumped: added stats/survival/perks/hellTokens
+GameConfig.SCHEMA_VERSION = 3  -- bumped: added settings table + seenTutorial
 
 -- ===== MONETIZATION =====
 GameConfig.GAMEPASS_IDS = {

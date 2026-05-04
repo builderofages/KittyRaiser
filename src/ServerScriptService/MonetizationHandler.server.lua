@@ -92,22 +92,25 @@ end
 -- GamePass purchase listener (live grants)
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gamepassId, purchased)
     if not purchased then return end
+    -- Guard: if a config gamepass id is still 0 (unconfigured), don't false-match
+    -- a purchased pass against the 0 placeholder.
+    if not gamepassId or gamepassId == 0 then return end
     -- Demon skin
-    if gamepassId == GameConfig.GAMEPASS_IDS.DEMON_SKIN then
+    if GameConfig.GAMEPASS_IDS.DEMON_SKIN ~= 0 and gamepassId == GameConfig.GAMEPASS_IDS.DEMON_SKIN then
         DataHandler.modify(player, function(d)
             if not table.find(d.ownedSkins, "Demon") then
                 table.insert(d.ownedSkins, "Demon")
             end
         end)
         Remotes.NotifyClient:FireClient(player, "Demon Cat unlocked!", "success")
-    elseif gamepassId == GameConfig.GAMEPASS_IDS.NEON_SKIN then
+    elseif GameConfig.GAMEPASS_IDS.NEON_SKIN ~= 0 and gamepassId == GameConfig.GAMEPASS_IDS.NEON_SKIN then
         DataHandler.modify(player, function(d)
             if not table.find(d.ownedSkins, "Neon") then
                 table.insert(d.ownedSkins, "Neon")
             end
         end)
         Remotes.NotifyClient:FireClient(player, "Neon Cat unlocked!", "success")
-    elseif gamepassId == GameConfig.GAMEPASS_IDS.VIP then
+    elseif GameConfig.GAMEPASS_IDS.VIP ~= 0 and gamepassId == GameConfig.GAMEPASS_IDS.VIP then
         Remotes.NotifyClient:FireClient(player, "VIP active! 2x Chaos!", "success")
     end
 end)

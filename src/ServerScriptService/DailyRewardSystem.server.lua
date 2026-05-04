@@ -43,11 +43,20 @@ local function streakBroken(data)
     return (os.time() - data.lastDailyClaim) >= (DAY_SECONDS * 2)
 end
 
+-- Per-player debounce so rapid double-fire from the client can't double-claim.
+local claimingNow = {}
+
 Remotes.RequestClaimDaily.OnServerInvoke = function(player)
+    if claimingNow[player.UserId] then return false, "in_progress" end
+    claimingNow[player.UserId] = true
+    -- Auto-clear after 2s in case of mid-claim error
+    task.delay(2, function() claimingNow[player.UserId] = nil end)
+
     local data = DataHandler.getData(player)
-    if not data then return false, "no_data" end
+    if not data then claimingNow[player.UserId] = nil; return false, "no_data" end
     if not isAvailable(data) then
         local nextAt = (data.lastDailyClaim or 0) + DAY_SECONDS
+        claimingNow[player.UserId] = nil
         return false, "wait", nextAt - os.time()
     end
 
@@ -75,6 +84,7 @@ Remotes.RequestClaimDaily.OnServerInvoke = function(player)
             Remotes.NotifyClient:FireClient(player, mega.msg, "success")
         end)
     end
+    claimingNow[player.UserId] = nil
     return true, newAbs
 end
 

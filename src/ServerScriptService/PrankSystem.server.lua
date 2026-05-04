@@ -112,6 +112,9 @@ function PrankSystem.handlePrankRequest(player, prankName, targetModel)
 
     -- Distance
     local primary = targetModel.PrimaryPart or targetModel:FindFirstChild("HumanoidRootPart")
+    -- Force a teleport sanity check at prank time too (Heartbeat sample
+    -- can miss between-frame teleport+prank exploits).
+    AntiCheat.checkTeleport(player)
     local distOk, distErr = AntiCheat.checkPrankDistance(player, primary, prank.rangeStuds)
     if not distOk then
         Remotes.PrankFailed:FireClient(player, distErr or "out_of_range")

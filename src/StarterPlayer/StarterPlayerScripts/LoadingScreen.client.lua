@@ -22,7 +22,7 @@ local sg = Instance.new("ScreenGui")
 sg.Name = "LoadingScreen"
 sg.IgnoreGuiInset = true
 sg.ResetOnSpawn = false
-sg.DisplayOrder = 200  -- above everything
+sg.DisplayOrder = UIUtil.DisplayOrder.LoadingScreen
 sg.Parent = playerGui
 
 -- Sky-gradient background

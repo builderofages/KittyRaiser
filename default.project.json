@@ -183,9 +183,6 @@
         "PreSpawnLobby": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/PreSpawnLobby.client.lua"
         },
-        "TutorialFlow": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/TutorialFlow.client.lua"
-        },
         "DailyRewardPopup": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/DailyRewardPopup.client.lua"
         },

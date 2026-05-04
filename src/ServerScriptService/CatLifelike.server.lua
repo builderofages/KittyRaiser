@@ -14,9 +14,28 @@ local Players      = game:GetService("Players")
 local RunService   = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
+-- Track per-player connections so we can disconnect them all on
+-- PlayerRemoving instead of relying on parent-destruction races.
+local conns = {}  -- userId -> { RBXScriptConnection, ... }
+local function addConn(player, c)
+	if not player then return end
+	conns[player.UserId] = conns[player.UserId] or {}
+	table.insert(conns[player.UserId], c)
+end
+local function killConns(userId)
+	local list = conns[userId]
+	if not list then return end
+	for _, c in ipairs(list) do pcall(function() c:Disconnect() end) end
+	conns[userId] = nil
+end
+Players.PlayerRemoving:Connect(function(p) killConns(p.UserId) end)
+
 local function setup(char)
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	if not hum then return end
+	-- Identify the owning player (used to track connections for cleanup)
+	local owner = Players:GetPlayerFromCharacter(char)
+	if owner then killConns(owner.UserId) end  -- clear any prior char's conns
 
 	-- Cat tail wag — find CatTail and its CatTailTip
 	local tail    = char:FindFirstChild("CatTail")
@@ -53,6 +72,7 @@ local function setup(char)
 				tailTip.CFrame = tail.CFrame * tipRel
 			end
 		end)
+		if owner then addConn(owner, conn) end
 	end
 
 	-- Cat ear twitch — find both CatEar parts
@@ -86,6 +106,7 @@ local function setup(char)
 			end
 			ear.CFrame = (head.CFrame * relCF) * CFrame.Angles(twitch, 0, 0)
 		end)
+		if owner then addConn(owner, conn) end
 	end
 
 	-- Cat dust trail: subtle dust puff under paws when running fast.
@@ -117,6 +138,7 @@ local function setup(char)
 			local speed = Vector3.new(v.X, 0, v.Z).Magnitude
 			emitter.Rate = speed > 12 and math.min(20, (speed - 12) * 4) or 0
 		end)
+		if owner then addConn(owner, conn) end
 	end
 
 	print("[CatLifelike v2] tail wag + ear twitch + dust trail active for " .. (char.Name or "?"))

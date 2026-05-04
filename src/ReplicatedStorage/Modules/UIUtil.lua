@@ -67,12 +67,16 @@ UIUtil.DisplayOrder = {
 	KillFeed        = 20,
 	Toast           = 30,
 	Combo           = 35,
+	BossBanner      = 36,
 	ScreenFlash     = 40,
 	Modal           = 60,   -- shop, leaderboard, perk, inventory
+	Settings        = 65,   -- on top of other modals
 	DailyReward     = 70,
 	Tutorial        = 80,
 	Onboarding      = 90,
 	PreSpawnLobby   = 100,
+	DeathScreen     = 150,
+	LoadingScreen   = 200,
 }
 
 -- ============================================================
@@ -196,7 +200,22 @@ end
 -- ============================================================
 -- TOAST
 -- ============================================================
+-- Cap simultaneous toasts so a flood of events can't spam the screen.
+local MAX_TOASTS = 5
+local function enforceToastCap(parent)
+	if not parent then return end
+	local toasts = {}
+	for _, c in ipairs(parent:GetChildren()) do
+		if c:IsA("Frame") then table.insert(toasts, c) end
+	end
+	while #toasts > MAX_TOASTS do
+		local oldest = table.remove(toasts, 1)
+		if oldest then oldest:Destroy() end
+	end
+end
+
 function UIUtil.makeToast(parent, text, color, duration)
+	enforceToastCap(parent)
 	local frame = Instance.new("Frame")
 	frame.Size = UDim2.new(0, 360, 0, 50)
 	frame.AnchorPoint = Vector2.new(0.5, 0)
