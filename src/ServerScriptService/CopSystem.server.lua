@@ -247,6 +247,7 @@ local function spawnCop(targetPlayer)
                     -- TICKET
                     DataHandler.modify(target, function(dd)
                         dd.chaosPoints = math.max(0, (dd.chaosPoints or 0) - TICKET_PENALTY)
+                        dd.timesTicketed = (dd.timesTicketed or 0) + 1
                     end)
                     Remotes.NotifyClient:FireClient(target, "TICKETED  -  -" .. TICKET_PENALTY .. " CHAOS", "warn")
                     pcall(playTicketBuzz, target)

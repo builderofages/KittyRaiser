@@ -378,6 +378,16 @@ function SummonSystem.markPranked(npc)
             return  -- still alive, don't mark Pranked
         end
         npc:SetAttribute("BossDefeated", true)
+        -- Persist lifetime total on the player who summoned this boss.
+        local summonedBy = npc:GetAttribute("SummonedBy")
+        if summonedBy and _G.KittyRaiserData then
+            local actor = Players:GetPlayerByUserId(summonedBy)
+            if actor then
+                _G.KittyRaiserData.modify(actor, function(d)
+                    d.bossesDefeated = (d.bossesDefeated or 0) + 1
+                end)
+            end
+        end
     end
     npc:SetAttribute("Pranked", true)
     task.delay(2, function()
