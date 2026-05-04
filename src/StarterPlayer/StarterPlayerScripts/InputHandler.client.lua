@@ -121,6 +121,22 @@ UserInputService.InputBegan:Connect(function(input, gp)
         if npc then
             lastMouseFire = now
             Remotes.RequestPrank:FireServer(prankName, npc)
+        else
+            -- Click missed: brief toast so player knows nothing's in range.
+            -- Throttle the toast itself separately so spam-clicking doesn't flood.
+            if now - lastMouseFire > 1.5 then
+                lastMouseFire = now
+                local hud = playerGui:FindFirstChild("MainHUD")
+                local toastFrame = hud and hud:FindFirstChild("ToastFrame")
+                if toastFrame then
+                    pcall(function()
+                        local UIUtil = require(ReplicatedStorage.Modules.UIUtil)
+                        UIUtil.makeToast(toastFrame,
+                            "MOVE CLOSER  -  no target in range",
+                            Color3.fromRGB(180, 130, 60), 1.6)
+                    end)
+                end
+            end
         end
         return
     end
