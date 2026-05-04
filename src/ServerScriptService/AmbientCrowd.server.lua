@@ -6,10 +6,10 @@
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
-local TARGET_VISIBLE = 20   -- denser street life
+local TARGET_VISIBLE = 30   -- Phase-12: denser sidewalks
 local NEAR_RADIUS = 60
-local FAR_RADIUS = 220
-local DESPAWN_RADIUS = 380
+local FAR_RADIUS = 240
+local DESPAWN_RADIUS = 400
 local TICK_INTERVAL = 3
 
 local crowdFolder = Workspace:FindFirstChild("AmbientCrowd")
