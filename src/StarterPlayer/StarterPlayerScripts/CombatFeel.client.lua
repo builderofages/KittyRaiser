@@ -96,6 +96,17 @@ local function bumpCombo()
 		comboLabel.TextTransparency = 0
 		comboLabel.TextStrokeTransparency = 0
 		comboLabel.Visible = true
+		-- Time-slow on milestone (5/10/20): drop gravity briefly so the world
+		-- feels like it gasps. Restore on a 0.6s hold + 0.4s ease-out.
+		if combo == 5 or combo == 10 or combo == 20 then
+			task.spawn(function()
+				local TS = game:GetService("TweenService")
+				local origG = workspace.Gravity
+				TS:Create(workspace, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Gravity = 70}):Play()
+				task.wait(0.9)
+				TS:Create(workspace, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {Gravity = origG}):Play()
+			end)
+		end
 		-- Pulse via scale on AnchorPoint so it doesn't shift position
 		comboLabel.Size = UDim2.new(0, 320, 0, 70)
 		TweenService:Create(comboLabel,

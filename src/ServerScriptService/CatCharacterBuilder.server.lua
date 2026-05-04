@@ -274,6 +274,11 @@ local function buildCatShape(character, furColor)
 	end
 
 	-- TAIL — curved arc behind cat (+Z), arching upward.
+	-- Tail uses a Motor6D so we can drive a gentle wag via Heartbeat without
+	-- breaking the welded chain (the base segment Motor6D rotates, downstream
+	-- WeldConstraints carry through the rotation).
+	local tailRoot = body
+	local tailBase
 	local prevCF = body.CFrame * CFrame.new(0, s(0.2), s(1.2))
 	local prevSize = 0.42
 	for i = 1, 6 do
@@ -285,9 +290,40 @@ local function buildCatShape(character, furColor)
 			Color = furColor,
 		}
 		seg.CFrame = prevCF * CFrame.Angles(pitch, 0, 0) * CFrame.new(0, 0, s(0.4))
-		attach(seg, body)
+		if i == 1 then
+			-- First segment hinged via Motor6D so we can swing the whole tail.
+			seg.Parent = character
+			markAccessory(seg)
+			seg:SetAttribute("CatBody", true)
+			local motor = Instance.new("Motor6D")
+			motor.Name = "TailMotor"
+			motor.Part0 = tailRoot
+			motor.Part1 = seg
+			motor.C0 = tailRoot.CFrame:ToObjectSpace(seg.CFrame)
+			motor.C1 = CFrame.new()
+			motor.Parent = tailRoot
+			tailBase = seg
+		else
+			attach(seg, tailBase)
+		end
 		prevCF = seg.CFrame
 		prevSize = sz
+	end
+
+	-- Idle tail wag: rotate the Motor6D's C1 around Y between -15 and +15deg
+	-- on a sine curve. Gentle, looks alive even without custom animation.
+	if tailBase then
+		local motor = tailRoot:FindFirstChild("TailMotor")
+		if motor then
+			local RunService = game:GetService("RunService")
+			local baseC1 = motor.C1
+			local conn
+			conn = RunService.Heartbeat:Connect(function()
+				if not motor.Parent then if conn then conn:Disconnect() end; return end
+				local theta = math.sin(os.clock() * 2.0) * math.rad(15)
+				motor.C1 = baseC1 * CFrame.Angles(0, theta, 0)
+			end)
+		end
 	end
 
 	-- Floating name tag above the cat head.
