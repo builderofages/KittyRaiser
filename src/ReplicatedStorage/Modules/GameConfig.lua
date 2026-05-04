@@ -71,12 +71,16 @@ GameConfig.SCHEMA_VERSION = 3  -- bumped: added settings table + seenTutorial
 
 -- ===== MONETIZATION =====
 GameConfig.GAMEPASS_IDS = {
+    VIP = 1822889201,
+    GANG_LEADER = 1822837259,
+    ULTIMATE_CHAOS = 1823014838,
+    PEARL_SKIN = 1823218389,
+    EMBER_SKIN = 1822895103,
+    GOLD_SKIN = 1822763618,
+    -- Legacy keys (kept for backward compat with existing PrankSystem hasVIP check)
     DEMON_SKIN = 0,
     NEON_SKIN = 0,
     HELLBORN_SKIN = 0,
-    VIP = 0,
-    GANG_LEADER = 0,
-    ULTIMATE_CHAOS = 0,
 }
 
 GameConfig.DEVPRODUCT_IDS = {
