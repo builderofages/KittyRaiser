@@ -149,6 +149,19 @@ AssetIds.mesh_coffee              = "rbxassetid://73626441372959"  -- drink prop
 AssetIds.mesh_manhole             = "rbxassetid://134150158459009"  -- flush ground decoration, downtown
 AssetIds.mesh_fire_truck          = "rbxassetid://98411832064235"  -- ambient prop in suburbs
 
+
+-- ===== V2 CITY MESHES (Phase 10 - cartoon city + street furniture) =====
+AssetIds.mesh_taxi_yellow           = "rbxassetid://138033436650428"
+AssetIds.mesh_delivery_van          = "rbxassetid://133553244193800"
+AssetIds.mesh_food_truck            = "rbxassetid://99741262168886"
+AssetIds.mesh_fire_hydrant          = "rbxassetid://107488733988709"
+AssetIds.mesh_trash_can             = "rbxassetid://103504006010745"
+AssetIds.mesh_mailbox_blue          = "rbxassetid://71802550356350"
+AssetIds.mesh_bus_stop_shelter      = "rbxassetid://103935174726610"
+AssetIds.mesh_traffic_light         = "rbxassetid://116494841104667"
+AssetIds.mesh_hot_dog_cart          = "rbxassetid://90205212501591"
+AssetIds.mesh_skyscraper_chunk      = "rbxassetid://102528222902039"
+
 -- ===== CAT ANIMATIONS — TODO upload via Roblox Studio Animation Editor
 -- and paste IDs here. CatAnimations.server.lua reads these and patches the
 -- default Animate script's StringValue children. Falls back to default Roblox
@@ -161,9 +174,9 @@ AssetIds.anim_cat_fall            = "rbxassetid://0"
 
 -- ===== BADGES — TODO create in Creator Hub > Badges, paste IDs here.
 -- AchievementSystem.server only awards if AssetIds.has() returns true. =====
-AssetIds.badge_first_prank        = "rbxassetid://0"
-AssetIds.badge_level_10           = "rbxassetid://0"
-AssetIds.badge_level_25           = "rbxassetid://0"
+AssetIds.badge_first_prank        = "rbxassetid://1429423254055989"
+AssetIds.badge_level_10           = "rbxassetid://2479335747751103"
+AssetIds.badge_level_25           = "rbxassetid://2206460901927124"
 AssetIds.badge_level_50           = "rbxassetid://0"
 AssetIds.badge_level_100          = "rbxassetid://0"
 AssetIds.badge_first_rebirth      = "rbxassetid://0"
@@ -1330,17 +1343,19 @@ return true
       <Properties>
         <string name="Name">AmbientCrowd</string>
         <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[-- AmbientCrowd.server.lua v3 — Grok-tuned single-manager, 12-15 visible NPCs, distance-based
+        <string name="Source"><![CDATA[-- AmbientCrowd.server.lua v4 — single-manager, 18-22 visible NPCs, distance-based.
+-- v4 fixes: spawn ALL needed NPCs each tick (v3 only spawned 1/player/tick),
+-- bumped target to 20, normal-human body scales (NOT cartoon-proportioned).
 -- Place in: ServerScriptService > AmbientCrowd. Auto-runs.
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
-local TARGET_VISIBLE = 14   -- Grok said 12-15
-local NEAR_RADIUS = 80
-local FAR_RADIUS = 200
-local DESPAWN_RADIUS = 350
-local TICK_INTERVAL = 4
+local TARGET_VISIBLE = 20   -- denser street life
+local NEAR_RADIUS = 60
+local FAR_RADIUS = 220
+local DESPAWN_RADIUS = 380
+local TICK_INTERVAL = 3
 
 local crowdFolder = Workspace:FindFirstChild("AmbientCrowd")
 if not crowdFolder then
@@ -1377,9 +1392,18 @@ local function tintPed(model, shirtColor, skinColor, legColor)
 end
 
 local function buildPed()
-  -- Try to spawn a real Roblox R15 character (proper rig + animations + face)
+  -- Phase-10 fix: bake body scales onto the HumanoidDescription BEFORE
+  -- creating the model, so the rig spawns at the right size. Setting
+  -- NumberValue children post-spawn was sometimes ignored by automatic
+  -- scaling, leaving NPCs tiny.
   local ok, m = pcall(function()
     local desc = Instance.new("HumanoidDescription")
+    desc.HeightScale     = 1.05
+    desc.WidthScale      = 1.00
+    desc.DepthScale      = 1.00
+    desc.HeadScale       = 1.00
+    desc.BodyTypeScale   = 1.00
+    desc.ProportionScale = 1.00
     return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
   end)
 
@@ -1432,15 +1456,15 @@ local function buildPed()
     hum.WalkSpeed = math.random(8, 14)
     hum.MaxHealth = 100; hum.Health = 100
     hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-    -- Cartoon proportions: short body, big head, chunky.
-    -- Each named scale must be set on the NumberValue child.
+    -- Belt-and-suspenders: also write NumberValue children so any future
+    -- description override applied later still results in normal-human size.
     local scales = {
-      BodyDepthScale  = 0.95,
-      BodyWidthScale  = 1.20,   -- wider/thicker body
-      BodyHeightScale = 0.75,   -- shorter overall
-      HeadScale       = 1.55,   -- BIG cartoon head
-      BodyTypeScale   = 0.0,
-      ProportionScale = 0.10,
+      BodyDepthScale  = 1.00,
+      BodyWidthScale  = 1.00,
+      BodyHeightScale = 1.05,
+      HeadScale       = 1.00,
+      BodyTypeScale   = 1.00,
+      ProportionScale = 1.00,
     }
     for sname, sval in pairs(scales) do
       local nv = hum:FindFirstChild(sname)
@@ -1503,13 +1527,17 @@ task.spawn(function()
     for _, c in ipairs(crowdFolder:GetChildren()) do
       if c:GetAttribute("AmbientNPC") and not c:GetAttribute("Pranked") then count = count + 1 end
     end
+    -- Spawn ALL needed NPCs this tick (v3 bug: only 1 per player per tick,
+    -- so a solo player saw at most 1 new NPC every 4s). Pick a random
+    -- valid player anchor for each spawn so NPCs spread around.
     local need = TARGET_VISIBLE - count
-    if need > 0 then
-      for _, p in ipairs(Players:GetPlayers()) do
-        if need <= 0 then break end
-        spawnNearPlayer(p)
-        need = need - 1
-      end
+    local attempts = 0
+    while need > 0 and attempts < need * 4 do
+      attempts = attempts + 1
+      local players = Players:GetPlayers()
+      if #players == 0 then break end
+      local p = players[math.random(1, #players)]
+      if spawnNearPlayer(p) then need = need - 1 end
     end
   end
 end)
@@ -1817,19 +1845,25 @@ print("[CatAnimations] online — will swap Animate IDs when AssetIds anim_cat_*
       <Properties>
         <string name="Name">CatCharacterBuilder</string>
         <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[-- CatCharacterBuilder.server.lua  v7 — primitive-only decoration.
--- v6 used uploaded mesh_cat_ear / mesh_cat_tail / SurfaceGui face. Playtest
--- (v3.35) showed a "maroon poofy blob" obscuring the cat: SurfaceGui face
--- doesn't render reliably on R15 MeshPart Heads; uploaded ear/tail meshes
--- may not respect Size and may extend beyond their bounding box.
+        <string name="Source"><![CDATA[-- CatCharacterBuilder.server.lua  v10 — REAL QUADRUPED CAT.
 --
--- v7: build EVERYTHING out of primitives (Ball / Cone / Cylinder Parts) welded
--- to standard R15 parts. Eyes / nose / mouth / whiskers are real welded Parts
--- so they're visible from any camera angle. Mesh assets remain in AssetIds
--- but are NOT used here until they're verified geometrically sane (set the
--- player attribute "UseCustomMeshes" to true to opt in).
+-- v9 was still a vertical biped cat-shape that read as a humanoid.
+-- v10 builds the cat HORIZONTAL (the same quadruped pose as the lobby
+-- preview): body parallel to the ground, four legs underneath touching
+-- the floor, head forward at -Z, tail arching back and up at +Z.
 --
--- Place in: ServerScriptService > CatCharacterBuilder. Auto-runs.
+-- Strategy:
+--   1. Hide the entire R15 body (Transparency=1) and strip cosmetic Accessories.
+--   2. Shrink R15 body scales aggressively (0.30) so the underlying invisible
+--      humanoid is small. Disable AutomaticScalingEnabled so our scales stick.
+--   3. Set Humanoid.HipHeight = 1.5 so HRP floats 1.5 studs above ground —
+--      that's exactly where our cat-body center needs to be so the paws
+--      touch the ground.
+--   4. Weld the quadruped cat shape to HumanoidRootPart, body centered on HRP,
+--      legs pointing down (-Y from HRP) so paws sit on the floor.
+--   5. The R15 still drives Humanoid:Move() / WalkSpeed so the cat moves like
+--      any other character — but visually it's a small quadruped sliding
+--      across the ground, with humans towering over it.
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1855,17 +1889,14 @@ do
 end
 
 local FUR_COLORS = {
-	Color3.fromRGB(220, 130, 50),  -- orange tabby
-	Color3.fromRGB(80, 60, 50),    -- brown
-	Color3.fromRGB(40, 40, 40),    -- black
-	Color3.fromRGB(220, 220, 215), -- white
-	Color3.fromRGB(140, 130, 120), -- grey tabby
-	Color3.fromRGB(255, 200, 180), -- cream
+	Color3.fromRGB(220, 130, 50),
+	Color3.fromRGB(105, 75, 55),
+	Color3.fromRGB(45, 40, 40),
+	Color3.fromRGB(225, 220, 210),
+	Color3.fromRGB(150, 140, 130),
+	Color3.fromRGB(245, 215, 175),
 }
 
--- =====================================================================
--- HELPERS
--- =====================================================================
 local function newPart(props)
 	local p = Instance.new("Part")
 	p.Anchored = false
@@ -1884,260 +1915,278 @@ local function weldTo(parent, child)
 	w.Parent = child
 end
 
--- Mark cat-decoration parts so the tinting loop skips them
 local function markAccessory(p) p:SetAttribute("CatAccessory", true) end
 
 -- =====================================================================
--- BODY SCALES
+-- HIDE THE R15 + STRIP DEFAULT ACCESSORIES
+-- =====================================================================
+local R15_BODY_PARTS = {
+	Head = true, UpperTorso = true, LowerTorso = true,
+	LeftUpperArm = true, LeftLowerArm = true, LeftHand = true,
+	RightUpperArm = true, RightLowerArm = true, RightHand = true,
+	LeftUpperLeg = true, LeftLowerLeg = true, LeftFoot = true,
+	RightUpperLeg = true, RightLowerLeg = true, RightFoot = true,
+	Torso = true, ["Left Arm"] = true, ["Right Arm"] = true,
+	["Left Leg"] = true, ["Right Leg"] = true,
+}
+local function hideR15(character)
+	for _, p in ipairs(character:GetDescendants()) do
+		if p:IsA("BasePart") and R15_BODY_PARTS[p.Name] and not p:GetAttribute("CatAccessory") then
+			p.Transparency = 1
+			for _, c in ipairs(p:GetChildren()) do
+				if c:IsA("Decal") and (c.Name == "face" or c.Name == "Face") then
+					c:Destroy()
+				end
+			end
+		end
+	end
+end
+
+local function stripCosmetics(character)
+	for _, child in ipairs(character:GetDescendants()) do
+		if child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic")
+		   or child:IsA("Accessory") or child:IsA("Hat") or child:IsA("CharacterMesh") then
+			child:Destroy()
+		end
+	end
+end
+
+-- =====================================================================
+-- QUADRUPED CAT — body horizontal, legs underneath, head forward, tail back.
+-- All offsets relative to HRP center (which floats at HipHeight above ground).
+-- =====================================================================
+local function buildCatShape(character, furColor)
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+	-- Clear any prior cat shape
+	for _, c in ipairs(character:GetChildren()) do
+		if c:IsA("BasePart") and c:GetAttribute("CatBody") then
+			c:Destroy()
+		end
+	end
+
+	local SCALE = 1.0  -- exact match to lobby preview proportions
+	local function s(v) return v * SCALE end
+
+	local function attach(part, anchor)
+		part.Parent = character
+		weldTo(anchor or hrp, part)
+		markAccessory(part)
+		part:SetAttribute("CatBody", true)
+	end
+
+	-- BODY: horizontal oblong, long axis along Z. Body center at HRP center.
+	local body = newPart{
+		Name = "CatBody",
+		Size = Vector3.new(s(1.6), s(1.2), s(2.4)),
+		Color = furColor,
+	}
+	body.CFrame = hrp.CFrame
+	attach(body, hrp)
+
+	-- CHEST (forward bulge)
+	local chest = newPart{
+		Name = "CatChest",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(s(1.5), s(1.3), s(1.5)),
+		Color = furColor,
+	}
+	chest.CFrame = hrp.CFrame * CFrame.new(0, 0, -s(0.8))
+	attach(chest, body)
+
+	-- HEAD (forward, slightly raised)
+	local head = newPart{
+		Name = "CatHead",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(s(1.35), s(1.3), s(1.3)),
+		Color = furColor,
+	}
+	head.CFrame = hrp.CFrame * CFrame.new(0, s(0.45), -s(1.55))
+	attach(head, body)
+
+	-- CHEEKS
+	for _, sx in ipairs({-1, 1}) do
+		local cheek = newPart{
+			Name = "CatCheek",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(s(0.6), s(0.55), s(0.55)),
+			Color = furColor,
+		}
+		cheek.CFrame = head.CFrame * CFrame.new(sx * s(0.45), -s(0.15), -s(0.2))
+		attach(cheek, head)
+	end
+
+	-- EYES (sclera + slit pupil) facing -Z
+	for _, sx in ipairs({-1, 1}) do
+		local sclera = newPart{
+			Name = "CatEye",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(s(0.32), s(0.32), s(0.32)),
+			Color = Color3.fromRGB(255, 255, 255),
+		}
+		sclera.CFrame = head.CFrame * CFrame.new(sx * s(0.32), s(0.1), -s(0.55))
+		attach(sclera, head)
+
+		local pupil = newPart{
+			Name = "CatPupil",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(s(0.12), s(0.26), s(0.12)),
+			Color = Color3.fromRGB(60, 220, 110),
+			Material = Enum.Material.Neon,
+		}
+		pupil.CFrame = sclera.CFrame * CFrame.new(0, 0, -s(0.1))
+		attach(pupil, head)
+	end
+
+	-- NOSE
+	local nose = newPart{
+		Name = "CatNose",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(s(0.18), s(0.14), s(0.14)),
+		Color = Color3.fromRGB(255, 130, 150),
+	}
+	nose.CFrame = head.CFrame * CFrame.new(0, -s(0.18), -s(0.6))
+	attach(nose, head)
+
+	-- MOUTH
+	for _, sx in ipairs({-1, 1}) do
+		local m = newPart{
+			Name = "CatMouth",
+			Size = Vector3.new(s(0.18), s(0.04), s(0.04)),
+			Color = Color3.fromRGB(60, 30, 30),
+		}
+		m.CFrame = head.CFrame
+			* CFrame.new(sx * s(0.08), -s(0.34), -s(0.62))
+			* CFrame.Angles(0, 0, sx * math.rad(20))
+		attach(m, head)
+	end
+
+	-- WHISKERS
+	for _, sx in ipairs({-1, 1}) do
+		for _, yOff in ipairs({-0.05, -0.18, -0.31}) do
+			local w = newPart{
+				Name = "CatWhisker",
+				Size = Vector3.new(s(0.55), s(0.025), s(0.025)),
+				Color = Color3.fromRGB(40, 40, 40),
+			}
+			w.CFrame = head.CFrame * CFrame.new(sx * s(0.65), s(yOff), -s(0.45))
+			attach(w, head)
+		end
+	end
+
+	-- EARS (outer + pink inner)
+	for _, sx in ipairs({-1, 1}) do
+		local off = Vector3.new(sx * s(0.4), s(0.7), -s(0.05))
+		local angle = sx * math.rad(8)
+		local ear = newPart{
+			Name = "CatEar",
+			Size = Vector3.new(s(0.4), s(0.6), s(0.15)),
+			Color = furColor,
+		}
+		ear.CFrame = head.CFrame * CFrame.new(off) * CFrame.Angles(math.rad(-5), angle, 0)
+		attach(ear, head)
+		local inner = newPart{
+			Name = "CatEarInner",
+			Size = Vector3.new(s(0.22), s(0.38), s(0.05)),
+			Color = Color3.fromRGB(255, 180, 200),
+		}
+		inner.CFrame = ear.CFrame * CFrame.new(0, 0, -s(0.08))
+		attach(inner, ear)
+	end
+
+	-- 4 LEGS underneath, with white paw tips at the bottom.
+	-- Leg center at y = -0.85 (relative to body), leg height 1.0, paw at y = -0.55 below leg.
+	-- Leg bottom = -0.85 - 0.5 = -1.35; paw bottom = -0.85 - 0.55 - 0.1 = -1.5.
+	-- So we want HipHeight = 1.5 so paws touch ground.
+	for _, lp in ipairs({
+		Vector3.new(-0.45, -0.85, -0.7),   -- front-left
+		Vector3.new( 0.45, -0.85, -0.7),   -- front-right
+		Vector3.new(-0.45, -0.85,  0.85),  -- back-left
+		Vector3.new( 0.45, -0.85,  0.85),  -- back-right
+	}) do
+		local leg = newPart{
+			Name = "CatLeg",
+			Size = Vector3.new(s(0.4), s(1.0), s(0.4)),
+			Color = furColor,
+		}
+		leg.CFrame = body.CFrame * CFrame.new(s(lp.X), s(lp.Y), s(lp.Z))
+		attach(leg, body)
+		local paw = newPart{
+			Name = "CatPaw",
+			Size = Vector3.new(s(0.45), s(0.2), s(0.5)),
+			Color = Color3.fromRGB(245, 240, 230),
+		}
+		paw.CFrame = leg.CFrame * CFrame.new(0, -s(0.55), s(0.05))
+		attach(paw, leg)
+	end
+
+	-- TAIL — curved arc behind cat (+Z), arching upward.
+	local prevCF = body.CFrame * CFrame.new(0, s(0.2), s(1.2))
+	local prevSize = 0.42
+	for i = 1, 6 do
+		local sz = math.max(0.22, prevSize - 0.03)
+		local pitch = math.rad(-18 - i * 4)
+		local seg = newPart{
+			Name = (i == 6) and "CatTailTip" or "CatTail",
+			Size = Vector3.new(s(sz), s(sz), s(0.6)),
+			Color = furColor,
+		}
+		seg.CFrame = prevCF * CFrame.Angles(pitch, 0, 0) * CFrame.new(0, 0, s(0.4))
+		attach(seg, body)
+		prevCF = seg.CFrame
+		prevSize = sz
+	end
+
+	-- Floating name tag above the cat head.
+	local g = Instance.new("BillboardGui")
+	g.Name = "CatNameTag"
+	g.Size = UDim2.new(0, 200, 0, 40)
+	g.StudsOffset = Vector3.new(0, s(1.4), 0)
+	g.AlwaysOnTop = true
+	g.Parent = head
+	local lbl = Instance.new("TextLabel", g)
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = ""
+	lbl.Font = Enum.Font.GothamBlack
+	lbl.TextScaled = true
+	lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	lbl.TextStrokeTransparency = 0
+	lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
+	local c = Instance.new("UITextSizeConstraint", lbl); c.MinTextSize = 14; c.MaxTextSize = 24
+
+	return head, body, lbl
+end
+
+-- =====================================================================
+-- BODY SCALES + HIPHEIGHT — make the underlying R15 small + position HRP
+-- so the welded cat shape sits on the ground.
 -- =====================================================================
 local function setCatBodyScales(humanoid)
+	-- Disable Roblox's automatic scaling so our explicit values stick.
+	pcall(function() humanoid.AutomaticScalingEnabled = false end)
 	local scales = {
-		BodyDepthScale  = 1.10,
-		BodyWidthScale  = 0.90,
-		BodyHeightScale = 0.65,
-		HeadScale       = 1.20,
+		BodyDepthScale  = 0.30,
+		BodyWidthScale  = 0.30,
+		BodyHeightScale = 0.30,
+		HeadScale       = 0.30,
 		BodyTypeScale   = 0.0,
-		ProportionScale = 0.20,
+		ProportionScale = 0.0,
 	}
 	for name, value in pairs(scales) do
 		local nv = humanoid:FindFirstChild(name)
 		if nv and nv:IsA("NumberValue") then nv.Value = value end
 	end
+	-- HipHeight = 1.5 puts HRP center exactly where the cat body needs to be
+	-- for paws to touch ground (paw bottom at -1.5 from HRP center).
+	humanoid.HipHeight = 1.5
+	-- Camera offset: lift focus point slightly so the camera frames the cat
+	-- and the world ahead, not the back of the cat's head.
+	humanoid.CameraOffset = Vector3.new(0, 1.0, 0)
 end
 
 -- =====================================================================
--- TINTING — strip clothing, recolor every BasePart that isn't accessory
--- =====================================================================
-local function tintCat(character, furColor)
-	-- Aggressive cosmetics strip — Shirt/Pants/ShirtGraphic/Decal-on-shirt
-	for _, child in ipairs(character:GetDescendants()) do
-		if child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic") then
-			child:Destroy()
-		end
-	end
-
-	-- If a multi-color skin is equipped (Calico/Tuxedo/etc), CosmeticHandler
-	-- already set BodyColors per-limb. Don't overwrite with single-color tint.
-	-- (CosmeticHandler sets MultiColorSkin attribute when it applies one.)
-	if character:GetAttribute("MultiColorSkin") then
-		-- Still strip clothing + tint accessories below, but skip the
-		-- per-part .Color overwrite that would flatten the multi-color look.
-		return
-	end
-
-	-- BodyColors (legacy) for any R6 fallback
-	local bc = character:FindFirstChildOfClass("BodyColors") or Instance.new("BodyColors")
-	bc.Parent = character
-	local bcc = BrickColor.new(furColor)
-	bc.HeadColor       = bcc
-	bc.TorsoColor      = bcc
-	bc.LeftArmColor    = bcc
-	bc.RightArmColor   = bcc
-	bc.LeftLegColor    = bcc
-	bc.RightLegColor   = bcc
-
-	-- Direct .Color tint for MeshPart-based R15 + classic R6 parts.
-	-- Skip CatAccessory parts (we handle those separately so inner-ear pink etc stays).
-	for _, p in ipairs(character:GetDescendants()) do
-		if p:IsA("BasePart") and not p:GetAttribute("CatAccessory") then
-			-- Don't recolor HumanoidRootPart (transparent) or the actual Head (we
-			-- want the Head fur color too — it's visible).
-			p.Color = furColor
-			p.Material = Enum.Material.SmoothPlastic
-		end
-	end
-end
-
--- =====================================================================
--- EARS — primitive cone shape per ear, with pink inner ear.
--- =====================================================================
-local function buildEars(head, furColor)
-	local insideColor = Color3.fromRGB(255, 180, 200)
-	for _, side in ipairs({-1, 1}) do
-		local ear = newPart({
-			Name = "CatEar",
-			Size = Vector3.new(0.45, 0.7, 0.18),
-			Color = furColor,
-		})
-		markAccessory(ear)
-		ear.CFrame = head.CFrame
-			* CFrame.new(side * 0.5, 0.55, 0)
-			* CFrame.Angles(math.rad(-5), side * math.rad(8), side * math.rad(-3))
-		ear.Parent = head
-		weldTo(head, ear)
-
-		-- Pink inner ear
-		local inner = newPart({
-			Name = "CatEarInner",
-			Size = Vector3.new(0.28, 0.45, 0.06),
-			Color = insideColor,
-		})
-		markAccessory(inner)
-		inner.CFrame = ear.CFrame * CFrame.new(0, 0, -0.08)
-		inner.Parent = head
-		weldTo(ear, inner)
-	end
-end
-
--- =====================================================================
--- TAIL — primitive cylinder welded to upper torso, curving up + tip ball.
--- =====================================================================
-local function buildTail(character, furColor)
-	local anchor = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
-	if not anchor then return end
-
-	local tail = newPart({
-		Name = "CatTail",
-		Size = Vector3.new(0.35, 0.35, 1.6),
-		Color = furColor,
-	})
-	markAccessory(tail)
-	tail.CFrame = anchor.CFrame * CFrame.new(0, 0.2, 0.7) * CFrame.Angles(math.rad(35), 0, 0)
-	tail.Parent = character
-	weldTo(anchor, tail)
-
-	local tip = newPart({
-		Name = "CatTailTip",
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(0.4, 0.4, 0.4),
-		Color = furColor,
-	})
-	markAccessory(tip)
-	tip.CFrame = tail.CFrame * CFrame.new(0, 0, 1.0)
-	tip.Parent = character
-	weldTo(tail, tip)
-end
-
--- =====================================================================
--- FACE — REAL welded primitive parts (eyes/nose/mouth/whiskers) so they're
--- visible from every angle and on any head MeshPart. No SurfaceGui.
--- =====================================================================
-local function buildFace(head)
-	-- Strip Roblox's default face Decal so it doesn't conflict
-	for _, c in ipairs(head:GetChildren()) do
-		if c:IsA("Decal") and (c.Name == "face" or c.Name == "Face") then
-			c:Destroy()
-		end
-	end
-	-- Strip any prior CatFaceGui from older versions
-	local oldGui = head:FindFirstChild("CatFaceGui")
-	if oldGui then oldGui:Destroy() end
-	-- Strip any prior face-feature welded parts (defensive — prevents orphan
-	-- duplicates if buildFace runs more than once on the same character).
-	local PRIOR_NAMES = { CatEye=true, CatPupil=true, CatNose=true, CatMouth=true, CatWhisker=true }
-	for _, c in ipairs(head:GetChildren()) do
-		if PRIOR_NAMES[c.Name] then c:Destroy() end
-	end
-
-	-- Pull head size for relative placement
-	local headHalfZ = head.Size.Z * 0.5
-	local headHalfY = head.Size.Y * 0.5
-	-- Place face features on the FRONT face of the head (negative Z in head's local space)
-
-	-- Eyes (white sclera + green slit pupil)
-	for _, sx in ipairs({-1, 1}) do
-		local sclera = newPart({
-			Name = "CatEye",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.new(0.32, 0.32, 0.32),
-			Color = Color3.fromRGB(255, 255, 255),
-			Material = Enum.Material.SmoothPlastic,
-		})
-		markAccessory(sclera)
-		sclera.CFrame = head.CFrame * CFrame.new(sx * 0.32, 0.1, -headHalfZ * 0.85)
-		sclera.Parent = head
-		weldTo(head, sclera)
-
-		-- Pupil (vertical slit) - smaller part offset slightly forward
-		local pupil = newPart({
-			Name = "CatPupil",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.new(0.12, 0.26, 0.12),
-			Color = Color3.fromRGB(60, 220, 110),
-			Material = Enum.Material.Neon,
-		})
-		markAccessory(pupil)
-		pupil.CFrame = sclera.CFrame * CFrame.new(0, 0, -0.08)
-		pupil.Parent = head
-		weldTo(sclera, pupil)
-	end
-
-	-- Nose (pink ball)
-	local nose = newPart({
-		Name = "CatNose",
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(0.18, 0.14, 0.14),
-		Color = Color3.fromRGB(255, 130, 150),
-		Material = Enum.Material.SmoothPlastic,
-	})
-	markAccessory(nose)
-	nose.CFrame = head.CFrame * CFrame.new(0, -0.18, -headHalfZ * 0.95)
-	nose.Parent = head
-	weldTo(head, nose)
-
-	-- Mouth (two thin parts forming a small smile under the nose)
-	for _, sx in ipairs({-1, 1}) do
-		local mouth = newPart({
-			Name = "CatMouth",
-			Size = Vector3.new(0.18, 0.04, 0.04),
-			Color = Color3.fromRGB(60, 30, 30),
-			Material = Enum.Material.SmoothPlastic,
-		})
-		markAccessory(mouth)
-		mouth.CFrame = head.CFrame
-			* CFrame.new(sx * 0.08, -0.34, -headHalfZ * 0.95)
-			* CFrame.Angles(0, 0, sx * math.rad(20))
-		mouth.Parent = head
-		weldTo(head, mouth)
-	end
-
-	-- Whiskers (3 per side, thin cylinders extending outward from cheeks)
-	for _, sx in ipairs({-1, 1}) do
-		for _, yOff in ipairs({-0.05, -0.18, -0.31}) do
-			local whisker = newPart({
-				Name = "CatWhisker",
-				Shape = Enum.PartType.Cylinder,
-				Size = Vector3.new(0.55, 0.03, 0.03),
-				Color = Color3.fromRGB(40, 40, 40),
-				Material = Enum.Material.SmoothPlastic,
-			})
-			markAccessory(whisker)
-			whisker.CFrame = head.CFrame
-				* CFrame.new(sx * 0.55, yOff, -headHalfZ * 0.85)
-				* CFrame.Angles(0, 0, 0)
-				-- Cylinder long-axis is X; rotate to point outward from face
-			whisker.Parent = head
-			weldTo(head, whisker)
-		end
-	end
-end
-
--- =====================================================================
--- NAME TAG
--- =====================================================================
-local function buildNameTag(player, head)
-	if head:FindFirstChild("CatNameTag") then return end
-	local g = Instance.new("BillboardGui")
-	g.Name = "CatNameTag"
-	g.Size = UDim2.new(0, 200, 0, 50)
-	g.StudsOffset = Vector3.new(0, 2.4, 0)
-	g.AlwaysOnTop = true
-	g.Parent = head
-	local l = Instance.new("TextLabel")
-	l.Size = UDim2.fromScale(1, 1)
-	l.BackgroundTransparency = 1
-	l.Text = player.DisplayName
-	l.Font = Enum.Font.GothamBlack
-	l.TextScaled = true
-	l.TextColor3 = Color3.fromRGB(255, 255, 255)
-	l.TextStrokeTransparency = 0
-	l.TextStrokeColor3 = Color3.new(0, 0, 0)
-	l.Parent = g
-	local c = Instance.new("UITextSizeConstraint", l); c.MinTextSize = 14; c.MaxTextSize = 24
-end
-
--- =====================================================================
--- SPAWN CHIME + AMBIENT
+-- SPAWN CHIME + CITY AMBIENT
 -- =====================================================================
 local function playSpawnChime(character)
 	if not AssetIds.has("spawn_chime") then return end
@@ -2169,14 +2218,13 @@ end
 task.spawn(ensureCityAmbient)
 
 -- =====================================================================
--- DECORATE
+-- DECORATE — apply everything to a freshly-spawned character.
 -- =====================================================================
 local function decorateCharacter(player, character)
-	local hum  = character:WaitForChild("Humanoid", 5); if not hum then return end
-	local head = character:WaitForChild("Head", 5);     if not head then return end
+	local hum  = character:WaitForChild("Humanoid", 5);          if not hum then return end
+	local _r15head = character:WaitForChild("Head", 5);          if not _r15head then return end
+	local hrp  = character:WaitForChild("HumanoidRootPart", 5);  if not hrp then return end
 
-	-- Wait one extra frame so HumanoidDescription's default Shirt/Pants exist
-	-- and we can strip them BEFORE we tint.
 	task.wait(0.05)
 
 	local fc = player:GetAttribute("FurColor")
@@ -2185,21 +2233,23 @@ local function decorateCharacter(player, character)
 	else color = FUR_COLORS[math.random(1, #FUR_COLORS)]
 		player:SetAttribute("FurColor", color) end
 
+	pcall(stripCosmetics, character)
 	pcall(setCatBodyScales, hum)
-	pcall(tintCat, character, color)
-	pcall(buildFace, head)         -- BEFORE ears so face wins z-order
-	pcall(buildEars, head, color)
-	pcall(buildTail, character, color)
-	pcall(buildNameTag, player, head)
+	pcall(hideR15, character)
+	local catHead, catBody, nameLbl = nil, nil, nil
+	pcall(function()
+		catHead, catBody, nameLbl = buildCatShape(character, color)
+	end)
+	if nameLbl then nameLbl.Text = player.DisplayName end
 	pcall(playSpawnChime, character)
 
 	hum.WalkSpeed = 18
-	hum.JumpPower = 55
+	hum.JumpPower = 50
 
 	character:SetAttribute("KittyCat", true)
 	character:SetAttribute("FurColor", color)
 
-	print(("[CatCharacterBuilder v7] decorated %s as cat (color=%s)"):format(
+	print(("[CatCharacterBuilder v10] %s spawned as quadruped cat (color=%s)"):format(
 		player.Name, tostring(color)))
 end
 
@@ -2214,9 +2264,10 @@ end
 Players.PlayerAdded:Connect(setupPlayer)
 for _, p in ipairs(Players:GetPlayers()) do setupPlayer(p) end
 
--- Fur-color tween: if a player's FurColor attribute changes mid-game (skin
--- equip etc.), smoothly interpolate body + accessory colors.
+-- Fur-color tween mid-game.
 local TweenService = game:GetService("TweenService")
+local FUR_TINTABLE = { CatBody=true, CatChest=true, CatHead=true, CatCheek=true,
+                       CatEar=true, CatLeg=true, CatTail=true, CatTailTip=true }
 local function watchFurChanges(player)
 	player:GetAttributeChangedSignal("FurColor"):Connect(function()
 		local newColor = player:GetAttribute("FurColor")
@@ -2224,13 +2275,8 @@ local function watchFurChanges(player)
 		local char = player.Character
 		if not char then return end
 		for _, p in ipairs(char:GetDescendants()) do
-			if p:IsA("BasePart") then
-				-- Tint everything that's not face / inner-ear / mouth / whiskers
-				if not p:GetAttribute("CatAccessory") then
-					TweenService:Create(p, TweenInfo.new(0.6), {Color = newColor}):Play()
-				elseif p.Name == "CatEar" or p.Name == "CatTail" or p.Name == "CatTailTip" then
-					TweenService:Create(p, TweenInfo.new(0.6), {Color = newColor}):Play()
-				end
+			if p:IsA("BasePart") and FUR_TINTABLE[p.Name] then
+				TweenService:Create(p, TweenInfo.new(0.6), {Color = newColor}):Play()
 			end
 		end
 	end)
@@ -2239,14 +2285,7 @@ Players.PlayerAdded:Connect(watchFurChanges)
 for _, p in ipairs(Players:GetPlayers()) do watchFurChanges(p) end
 
 -- =====================================================================
--- LOBBY -> CHARACTER
--- IMPORTANT: there are TWO copies of RequestSpawnCustomization in the
--- DataModel — one at ReplicatedStorage root (from RemotesBootstrap, the
--- bootstrap script that fires first) and one under
--- ReplicatedStorage.Modules.RemoteEvents (created by the RemoteEvents
--- module). Whichever the client fires must match what the server listens
--- on, or the fur color from the lobby never lands.
--- We listen on BOTH to be safe.
+-- LOBBY -> CHARACTER (listens on BOTH module + root copies, v3.40 fix)
 -- =====================================================================
 local function handleSpawnRequest(player, data)
 	if typeof(data) == "table" and typeof(data.furColor) == "table" then
@@ -2256,34 +2295,30 @@ local function handleSpawnRequest(player, data)
 		local color = Color3.fromRGB(r, g, b)
 		player:SetAttribute("FurColor", color)
 		player:SetAttribute("SkinName", tostring(data.skinName or ""))
-		print(("[CatCharacterBuilder v8] %s requested fur RGB(%d,%d,%d) name=%s"):format(
+		print(("[CatCharacterBuilder v10] %s requested fur RGB(%d,%d,%d) name=%s"):format(
 			player.Name, r, g, b, tostring(data.skinName or "")))
-	else
-		print(("[CatCharacterBuilder v8] %s requested spawn with no fur data"):format(player.Name))
 	end
 	pcall(function() player:LoadCharacter() end)
 end
 
 task.spawn(function()
-	-- Listener 1: module copy (ReplicatedStorage.Modules.RemoteEvents)
 	local Modules = ReplicatedStorage:WaitForChild("Modules", 10)
 	local RemoteEvents = Modules and Modules:WaitForChild("RemoteEvents", 5)
 	if RemoteEvents then
 		local ok, Remotes = pcall(require, RemoteEvents)
 		if ok and Remotes and Remotes.RequestSpawnCustomization then
 			Remotes.RequestSpawnCustomization.OnServerEvent:Connect(handleSpawnRequest)
-			print("[CatCharacterBuilder v8] listening on Modules.RemoteEvents")
+			print("[CatCharacterBuilder v10] listening on Modules.RemoteEvents")
 		end
 	end
-	-- Listener 2: root copy (RemotesBootstrap)
 	local rootEvent = ReplicatedStorage:WaitForChild("RequestSpawnCustomization", 10)
 	if rootEvent and rootEvent:IsA("RemoteEvent") then
 		rootEvent.OnServerEvent:Connect(handleSpawnRequest)
-		print("[CatCharacterBuilder v8] listening on ReplicatedStorage root")
+		print("[CatCharacterBuilder v10] listening on ReplicatedStorage root")
 	end
 end)
 
-print("[CatCharacterBuilder v7] online — primitive-only decoration")
+print("[CatCharacterBuilder v10] online — REAL quadruped cat (horizontal body, paws on ground)")
 ]]></string>
       </Properties>
     </Item>
@@ -2291,164 +2326,22 @@ print("[CatCharacterBuilder v7] online — primitive-only decoration")
       <Properties>
         <string name="Name">CatLifelike</string>
         <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[-- CatLifelike.server.lua  v2 — physics-safe micro animations for the cat.
+        <string name="Source"><![CDATA[-- CatLifelike.server.lua  v3 — DISABLED for v3.44.
 --
--- The previous version overwrote welded body parts' CFrames with stale
--- spawn-time values, fighting physics. This version animates ONLY the
--- standalone CatEar / CatTail / CatTailTip parts (which are *attached* via
--- WeldConstraint, not part of the R15 Motor6D rig) by tweening the
--- WeldConstraint-driven part's CFrame through TweenService relative to the
--- head/torso transform. We sample the parent's CFrame each tick so the wag
--- follows the cat as it moves.
+-- Previous versions disabled WeldConstraints on CatTail / CatEar parts and
+-- drove their CFrames each Heartbeat to simulate twitch / wag. This worked
+-- when those parts were welded to UpperTorso / Head. But CatCharacterBuilder
+-- v9 now hides R15 entirely and welds the whole cat-shape body to the
+-- HumanoidRootPart. Disabling the welds in this version disconnects the
+-- tail from the cat body visually.
 --
--- Place in: ServerScriptService > CatLifelike (Script). Auto-runs.
+-- For v1.0: the static welded cat looks great and follows the player. We
+-- keep this file as a no-op so the project tree doesn't break and so we
+-- have a place to re-enable physics-safe micro-animation later.
 
-local Players      = game:GetService("Players")
-local RunService   = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-
--- Track per-player connections so we can disconnect them all on
--- PlayerRemoving instead of relying on parent-destruction races.
-local conns = {}  -- userId -> { RBXScriptConnection, ... }
-local function addConn(player, c)
-	if not player then return end
-	conns[player.UserId] = conns[player.UserId] or {}
-	table.insert(conns[player.UserId], c)
-end
-local function killConns(userId)
-	local list = conns[userId]
-	if not list then return end
-	for _, c in ipairs(list) do pcall(function() c:Disconnect() end) end
-	conns[userId] = nil
-end
-Players.PlayerRemoving:Connect(function(p) killConns(p.UserId) end)
-
-local function setup(char)
-	local hum = char:FindFirstChildOfClass("Humanoid")
-	if not hum then return end
-	-- Identify the owning player (used to track connections for cleanup)
-	local owner = Players:GetPlayerFromCharacter(char)
-	if owner then killConns(owner.UserId) end  -- clear any prior char's conns
-
-	-- Cat tail wag — find CatTail and its CatTailTip
-	local tail    = char:FindFirstChild("CatTail")
-	local tailTip = char:FindFirstChild("CatTailTip")
-	local anchor  = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
-	if tail and anchor and tail:IsA("BasePart") then
-		-- Snapshot the tail's CFrame relative to the torso ONCE.
-		local relCF = anchor.CFrame:ToObjectSpace(tail.CFrame)
-		-- Disable the existing weld so we can drive CFrame manually each frame.
-		for _, w in ipairs(tail:GetChildren()) do
-			if w:IsA("WeldConstraint") then w.Enabled = false end
-		end
-		tail.Anchored = false
-		tail.CanCollide = false
-		tail.Massless = true
-		-- Heartbeat-driven wag using torso-relative CFrame so it follows the cat.
-		local startedAt = os.clock()
-		local conn
-		conn = RunService.Heartbeat:Connect(function()
-			if not (tail.Parent and anchor.Parent) then conn:Disconnect() return end
-			local t = os.clock() - startedAt
-			-- Slow side-to-side wag, with extra wag when moving fast.
-			local hrp = char:FindFirstChild("HumanoidRootPart")
-			local speed = 0
-			if hrp then
-				local v = hrp.AssemblyLinearVelocity
-				speed = Vector3.new(v.X, 0, v.Z).Magnitude
-			end
-			local wag = math.sin(t * (3 + speed * 0.05)) * (math.rad(15) + math.rad(speed * 0.6))
-			tail.CFrame = (anchor.CFrame * relCF) * CFrame.Angles(0, wag, 0)
-			if tailTip and tailTip.Parent then
-				-- Tip follows tail with slight lag
-				local tipRel = CFrame.new(0, 0, 1.0)
-				tailTip.CFrame = tail.CFrame * tipRel
-			end
-		end)
-		if owner then addConn(owner, conn) end
-	end
-
-	-- Cat ear twitch — find both CatEar parts
-	local ears = {}
-	for _, c in ipairs(char:GetChildren()) do
-		if c.Name == "CatEar" and c:IsA("BasePart") then
-			table.insert(ears, c)
-		end
-	end
-	for _, ear in ipairs(ears) do
-		-- Snapshot ear's local-to-head transform
-		local head = char:FindFirstChild("Head")
-		if not head then break end
-		local relCF = head.CFrame:ToObjectSpace(ear.CFrame)
-		for _, w in ipairs(ear:GetChildren()) do
-			if w:IsA("WeldConstraint") then w.Enabled = false end
-		end
-		ear.Anchored = false
-		ear.CanCollide = false
-		ear.Massless = true
-		local startedAt = os.clock() + math.random()
-		local conn
-		conn = RunService.Heartbeat:Connect(function()
-			if not (ear.Parent and head.Parent) then conn:Disconnect() return end
-			local t = os.clock() - startedAt
-			-- Mostly still, occasional twitch (every ~6-10s)
-			local twitch = 0
-			local cycle = math.fmod(t, 8)
-			if cycle < 0.4 then
-				twitch = math.sin(cycle / 0.4 * math.pi) * math.rad(15)
-			end
-			ear.CFrame = (head.CFrame * relCF) * CFrame.Angles(twitch, 0, 0)
-		end)
-		if owner then addConn(owner, conn) end
-	end
-
-	-- Cat dust trail: subtle dust puff under paws when running fast.
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if hrp then
-		local att = Instance.new("Attachment", hrp)
-		att.Name = "CatDustAttachment"
-		att.Position = Vector3.new(0, -2.5, 0)  -- below feet
-		local emitter = Instance.new("ParticleEmitter")
-		emitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
-		emitter.Color = ColorSequence.new(Color3.fromRGB(180, 165, 145))
-		emitter.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.5),
-			NumberSequenceKeypoint.new(0.5, 0.7),
-			NumberSequenceKeypoint.new(1, 1),
-		})
-		emitter.Lifetime = NumberRange.new(0.3, 0.6)
-		emitter.Speed = NumberRange.new(2, 5)
-		emitter.SpreadAngle = Vector2.new(60, 60)
-		emitter.Size = NumberSequence.new(0.4, 0.05)
-		emitter.Acceleration = Vector3.new(0, 4, 0)
-		emitter.Rate = 0
-		emitter.Parent = att
-		-- Heartbeat: when speed > 12 turn on dust; otherwise off
-		local conn
-		conn = RunService.Heartbeat:Connect(function()
-			if not (hrp.Parent and att.Parent) then conn:Disconnect() return end
-			local v = hrp.AssemblyLinearVelocity
-			local speed = Vector3.new(v.X, 0, v.Z).Magnitude
-			emitter.Rate = speed > 12 and math.min(20, (speed - 12) * 4) or 0
-		end)
-		if owner then addConn(owner, conn) end
-	end
-
-	print("[CatLifelike v2] tail wag + ear twitch + dust trail active for " .. (char.Name or "?"))
-end
-
-local function setupPlayer(player)
-	if player.Character then setup(player.Character) end
-	player.CharacterAdded:Connect(function(char)
-		task.wait(0.4)
-		setup(char)
-	end)
-end
-
-Players.PlayerAdded:Connect(setupPlayer)
-for _, p in ipairs(Players:GetPlayers()) do setupPlayer(p) end
-
-print("[CatLifelike v2] online")
+local Players = game:GetService("Players")
+print("[CatLifelike v3] no-op (intentional for v9 cat shape — micro-anim TBD in v1.1)")
+return true
 ]]></string>
       </Properties>
     </Item>
@@ -2690,32 +2583,43 @@ task.spawn(function()
 	local skyMesh   = getMesh("mesh_skyscraper")
 	local brownMesh = getMesh("mesh_brownstone")
 	local rng = Random.new(73)
-	local SP = 220
+	-- Denser grid: 9x9 with spacing 160 (was 7x7 at 220). Plus secondary
+	-- "infill" buildings between main blocks for street-wall density.
+	local SP = 160
 	local placedByZone = { downtown = 0, suburbs = 0, harbor = 0 }
 
-	for gx = -3, 3 do
-		for gz = -3, 3 do
+	for gx = -4, 4 do
+		for gz = -4, 4 do
 			if math.abs(gx) > 0 or math.abs(gz) > 0 then
 				local zoneName = zoneForCell(gx, gz)
 				local zone = ZONES[zoneName]
-				local cx = gx * SP + rng:NextInteger(-30, 30)
-				local cz = gz * SP + rng:NextInteger(-30, 30)
+				local cx = gx * SP + rng:NextInteger(-20, 20)
+				local cz = gz * SP + rng:NextInteger(-20, 20)
 				local h  = rng:NextInteger(zone.heightRange[1], zone.heightRange[2])
 				local color = zone.buildingColors[rng:NextInteger(1, #zone.buildingColors)]
 				local cf = CFrame.new(cx, h/2 + 1, cz)
-				local pickMesh
-				if zone.preferTall then
-					pickMesh = skyMesh or brownMesh
-				else
-					pickMesh = brownMesh or skyMesh
-				end
+				local pickMesh = zone.preferTall and (skyMesh or brownMesh) or (brownMesh or skyMesh)
 				local b = placeBuilding(pickMesh, cf, h, color, fallbackBuildingBox)
 				if b then b:SetAttribute("Zone", zoneName) end
 				placedByZone[zoneName] = placedByZone[zoneName] + 1
+
+				-- Infill: smaller secondary building in each cell so streets
+				-- aren't barren between the main blocks.
+				if rng:NextNumber() < 0.7 then
+					local ix = cx + rng:NextInteger(-65, 65)
+					local iz = cz + rng:NextInteger(-65, 65)
+					local ih = math.floor(h * rng:NextNumber() * 0.55 + 30)
+					local icolor = zone.buildingColors[rng:NextInteger(1, #zone.buildingColors)]
+					local icf = CFrame.new(ix, ih/2 + 1, iz)
+					local imesh = (rng:NextNumber() < 0.5) and brownMesh or pickMesh
+					local ib = placeBuilding(imesh, icf, ih, icolor, fallbackBuildingBox)
+					if ib then ib:SetAttribute("Zone", zoneName) end
+					placedByZone[zoneName] = placedByZone[zoneName] + 1
+				end
 			end
 		end
 	end
-	print("[CityRebuild v7] zones placed:",
+	print("[CityRebuild v9] dense zones placed:",
 		"downtown="..placedByZone.downtown,
 		"suburbs="..placedByZone.suburbs,
 		"harbor="..placedByZone.harbor)
@@ -2733,7 +2637,7 @@ task.spawn(function()
 		task.wait(0.5)
 	end
 	local rng = Random.new(91)
-	-- Generic everywhere
+	-- Generic everywhere (v1 meshes — kept for fallback)
 	local taxiMesh   = getMesh("mesh_taxi")
 	local hydrantMesh = getMesh("mesh_hydrant")
 	local mailMesh   = getMesh("mesh_mailbox")
@@ -2745,6 +2649,17 @@ task.spawn(function()
 	local palmMesh   = getMesh("mesh_palm_tree")
 	local manholeMesh = getMesh("mesh_manhole")
 	local fireMesh   = getMesh("mesh_fire_truck")
+	-- v2 PHASE-10 MESHES (richer cartoon variants, used preferentially)
+	local taxiYellowMesh    = getMesh("mesh_taxi_yellow")
+	local deliveryVanMesh   = getMesh("mesh_delivery_van")
+	local foodTruckMesh     = getMesh("mesh_food_truck")
+	local fireHydrantMesh   = getMesh("mesh_fire_hydrant")
+	local trashCanMesh      = getMesh("mesh_trash_can")
+	local mailboxBlueMesh   = getMesh("mesh_mailbox_blue")
+	local busStopMesh       = getMesh("mesh_bus_stop_shelter")
+	local trafficLightMesh  = getMesh("mesh_traffic_light")
+	local hotDogCartMesh    = getMesh("mesh_hot_dog_cart")
+	local skyChunkMesh      = getMesh("mesh_skyscraper_chunk")
 
 	local function zoneFor(x, z)
 		if x >= 0 and z >= 0 then return "downtown" end
@@ -2764,32 +2679,57 @@ task.spawn(function()
 		return true
 	end
 
-	-- Generic props (60 across the map)
-	local PROP_COUNT = 60
+	-- Generic props (180 across the map — was 60, now 3x denser).
+	-- More cars in different colors so streets feel alive, not just yellow taxis.
+	local CAR_COLORS = {
+		Color3.fromRGB(255, 200, 0),    -- yellow taxi
+		Color3.fromRGB(220, 60, 60),    -- red sedan
+		Color3.fromRGB(60, 100, 180),   -- blue sedan
+		Color3.fromRGB(40, 40, 50),     -- black
+		Color3.fromRGB(220, 220, 220),  -- white
+		Color3.fromRGB(80, 130, 80),    -- olive
+		Color3.fromRGB(200, 130, 60),   -- orange
+		Color3.fromRGB(140, 95, 60),    -- brown
+	}
+	local PROP_COUNT = 180
 	local placed = 0
+	-- Prefer v2 meshes when present, fall back to v1
+	local pickCar = function()
+		local pool = {}
+		if taxiYellowMesh   then table.insert(pool, taxiYellowMesh) end
+		if deliveryVanMesh  then table.insert(pool, deliveryVanMesh) end
+		if foodTruckMesh    then table.insert(pool, foodTruckMesh) end
+		if taxiMesh         then table.insert(pool, taxiMesh) end
+		return pool[rng:NextInteger(1, math.max(1, #pool))]
+	end
+	local hydrantPick = fireHydrantMesh or hydrantMesh
+	local mailPick    = mailboxBlueMesh or mailMesh
+	local trashPick   = trashCanMesh    or trashMesh
 	for _ = 1, PROP_COUNT do
-		local px = rng:NextInteger(-700, 700)
-		local pz = rng:NextInteger(-700, 700)
-		if math.sqrt(px * px + (pz - 24)^2) < 24 then continue end
+		local px = rng:NextInteger(-720, 720)
+		local pz = rng:NextInteger(-720, 720)
+		if math.sqrt(px * px + (pz - 24)^2) < 28 then continue end
 		local pick = rng:NextNumber()
-		if pick < 0.18 and taxiMesh then
-			if place(taxiMesh, px, 3.5/2, pz, 3.5, Color3.fromRGB(255, 200, 0)) then placed = placed + 1 end
-		elseif pick < 0.50 and hydrantMesh then
-			if place(hydrantMesh, px, 1, pz, 2.0, Color3.fromRGB(200, 50, 40)) then placed = placed + 1 end
-		elseif pick < 0.75 and mailMesh then
-			if place(mailMesh, px, 1.2, pz, 2.4, Color3.fromRGB(50, 90, 160)) then placed = placed + 1 end
-		elseif trashMesh then
-			if place(trashMesh, px, 1.2, pz, 2.4, Color3.fromRGB(60, 70, 60)) then placed = placed + 1 end
+		local carMesh = pickCar()
+		if pick < 0.30 and carMesh then
+			local cc = CAR_COLORS[rng:NextInteger(1, #CAR_COLORS)]
+			if place(carMesh, px, 3.5/2, pz, 3.5, cc) then placed = placed + 1 end
+		elseif pick < 0.55 and hydrantPick then
+			if place(hydrantPick, px, 1, pz, 2.0, Color3.fromRGB(200, 50, 40)) then placed = placed + 1 end
+		elseif pick < 0.78 and mailPick then
+			if place(mailPick, px, 1.2, pz, 2.4, Color3.fromRGB(50, 90, 160)) then placed = placed + 1 end
+		elseif trashPick then
+			if place(trashPick, px, 1.2, pz, 2.4, Color3.fromRGB(60, 70, 60)) then placed = placed + 1 end
 		end
 	end
 
-	-- Zone-specific props (40 across the map, zone-biased)
-	local ZONE_COUNT = 40
+	-- Zone-specific props (120 across the map, zone-biased)
+	local ZONE_COUNT = 120
 	local zonePlaced = 0
 	for _ = 1, ZONE_COUNT do
-		local px = rng:NextInteger(-700, 700)
-		local pz = rng:NextInteger(-700, 700)
-		if math.sqrt(px * px + (pz - 24)^2) < 24 then continue end
+		local px = rng:NextInteger(-720, 720)
+		local pz = rng:NextInteger(-720, 720)
+		if math.sqrt(px * px + (pz - 24)^2) < 28 then continue end
 		local zone = zoneFor(px, pz)
 		if zone == "downtown" then
 			local pick = rng:NextNumber()
@@ -2817,7 +2757,109 @@ task.spawn(function()
 		end
 	end
 
-	print("[CityRebuild v8] generic props:", placed, " zone props:", zonePlaced)
+	-- =====================================================================
+	-- v2 PHASE-10 SET-DRESSING (placed per directive)
+	-- Plaza:    2 trash_can corners, 2 mailbox_blue, 1 hot_dog_cart, 1 bus_stop_shelter
+	-- Downtown: 4 skyscraper_chunk in 2x2 grid behind plaza, 4 traffic_light at intersections,
+	--           2 taxi_yellow + 1 delivery_van + 1 food_truck on streets, 6 fire_hydrant on sidewalks
+	-- =====================================================================
+	local v2 = 0
+
+	-- Plaza corners (plaza is 140x140 centered on origin)
+	if trashCanMesh then
+		for _, c in ipairs({Vector3.new(-58, 1.2, -58), Vector3.new(58, 1.2, -58)}) do
+			if place(trashCanMesh, c.X, c.Y, c.Z, 2.4, Color3.fromRGB(60, 70, 60), nil, 0) then v2 = v2 + 1 end
+		end
+	end
+	if mailboxBlueMesh then
+		for _, c in ipairs({Vector3.new(-30, 1.2, -55), Vector3.new(30, 1.2, -55)}) do
+			if place(mailboxBlueMesh, c.X, c.Y, c.Z, 2.4, Color3.fromRGB(50, 90, 160), nil, 0) then v2 = v2 + 1 end
+		end
+	end
+	if hotDogCartMesh then
+		if place(hotDogCartMesh, 0, 1.5, 30, 3.0, Color3.fromRGB(220, 70, 60), nil, 0) then v2 = v2 + 1 end
+	end
+	if busStopMesh then
+		if place(busStopMesh, -45, 2.5, -55, 5.0, Color3.fromRGB(90, 100, 110), nil, 90) then v2 = v2 + 1 end
+	end
+
+	-- Downtown skyline (2x2 chunks) behind plaza horizon at +X/+Z corner
+	if skyChunkMesh then
+		for gx = 0, 1 do
+			for gz = 0, 1 do
+				local cx = 280 + gx * 90
+				local cz = 280 + gz * 90
+				if place(skyChunkMesh, cx, 60, cz, 120,
+				         Color3.fromRGB(180, 175, 170), Enum.Material.Brick, 0) then v2 = v2 + 1 end
+			end
+		end
+	end
+
+	-- Traffic lights at downtown intersections (160-stud grid, +X/+Z quadrant)
+	if trafficLightMesh then
+		for _, ipos in ipairs({Vector3.new(160, 4, 160), Vector3.new(320, 4, 160),
+		                       Vector3.new(160, 4, 320), Vector3.new(320, 4, 320)}) do
+			if place(trafficLightMesh, ipos.X, ipos.Y, ipos.Z, 6.0,
+			         Color3.fromRGB(50, 50, 55), Enum.Material.Metal, 0) then v2 = v2 + 1 end
+		end
+	end
+
+	-- Featured vehicles on the main street loop (just outside plaza, +X axis)
+	if taxiYellowMesh then
+		if place(taxiYellowMesh,  100, 1.8, 80, 3.5, Color3.fromRGB(255, 200, 0), nil, 90) then v2 = v2 + 1 end
+		if place(taxiYellowMesh, -100, 1.8, 80, 3.5, Color3.fromRGB(255, 200, 0), nil, 270) then v2 = v2 + 1 end
+	end
+	if deliveryVanMesh then
+		if place(deliveryVanMesh, 80, 2.0, 120, 4.0, Color3.fromRGB(220, 220, 220), nil, 90) then v2 = v2 + 1 end
+	end
+	if foodTruckMesh then
+		if place(foodTruckMesh, -80, 2.2, 120, 4.5, Color3.fromRGB(200, 130, 60), nil, 270) then v2 = v2 + 1 end
+	end
+
+	-- Fire hydrants lining downtown sidewalks
+	if fireHydrantMesh then
+		for _, hpos in ipairs({Vector3.new(155, 1, 60), Vector3.new(-155, 1, 60),
+		                       Vector3.new(155, 1, -60), Vector3.new(-155, 1, -60),
+		                       Vector3.new(60, 1, 155), Vector3.new(-60, 1, 155)}) do
+			if place(fireHydrantMesh, hpos.X, hpos.Y, hpos.Z, 2.0,
+			         Color3.fromRGB(200, 50, 40), nil, 0) then v2 = v2 + 1 end
+		end
+	end
+
+	print("[CityRebuild v10] generic props:", placed, "zone props:", zonePlaced, "v2 props:", v2)
+end)
+
+-- =====================================================================
+-- ROAD GRID — paint white lane stripes on the asphalt so the city
+-- reads as STREETS, not just an empty plane with buildings on it.
+-- =====================================================================
+task.spawn(function()
+	local stripes = Workspace:FindFirstChild("RoadStripes") or Instance.new("Folder", Workspace)
+	stripes.Name = "RoadStripes"
+	stripes:ClearAllChildren()
+	-- Lanes run along grid edges (every 160 studs to match building grid).
+	for axis = -3, 3 do
+		local lane = axis * 160
+		-- N-S lane at x=lane (full Z extent)
+		for z = -640, 640, 32 do
+			local stripe = Instance.new("Part", stripes)
+			stripe.Anchored = true; stripe.CanCollide = false
+			stripe.Size = Vector3.new(0.6, 0.1, 14)
+			stripe.Position = Vector3.new(lane, 0.6, z)
+			stripe.Material = Enum.Material.SmoothPlastic
+			stripe.Color = Color3.fromRGB(245, 230, 180)
+		end
+		-- E-W lane at z=lane (full X extent)
+		for x = -640, 640, 32 do
+			local stripe = Instance.new("Part", stripes)
+			stripe.Anchored = true; stripe.CanCollide = false
+			stripe.Size = Vector3.new(14, 0.1, 0.6)
+			stripe.Position = Vector3.new(x, 0.6, lane)
+			stripe.Material = Enum.Material.SmoothPlastic
+			stripe.Color = Color3.fromRGB(245, 230, 180)
+		end
+	end
+	print("[CityRebuild v9] road stripes painted")
 end)
 
 -- =====================================================================
@@ -2833,14 +2875,40 @@ local plaza = Workspace:FindFirstChild("Plaza") or Instance.new("Folder", Worksp
 plaza.Name = "Plaza"
 plaza:ClearAllChildren()
 
--- Floor: warm cobblestone-tan square
+-- Floor: warm sunset-cream cobblestone (Pixar-cartoon, not dim concrete).
 local pf = Instance.new("Part", plaza)
 pf.Name = "PlazaFloor"
 pf.Anchored = true; pf.CanCollide = true
 pf.Size = Vector3.new(140, 2, 140)
 pf.Position = Vector3.new(0, 1.5, 0)
 pf.Material = Enum.Material.Cobblestone
-pf.Color = Color3.fromRGB(205, 190, 165)  -- brighter tan than before
+pf.Color = Color3.fromRGB(255, 220, 170)  -- sunset cream
+
+-- Plaza perimeter walls (low cream borders with warm cornice top-cap).
+-- Replaces the dim grey concrete look from Phase-9 playtest screenshots.
+for _, def in ipairs({
+	{name="WallN", size=Vector3.new(140, 4, 4), pos=Vector3.new(0, 4, -68)},
+	{name="WallE", size=Vector3.new(4, 4, 140), pos=Vector3.new(68, 4, 0)},
+	{name="WallW", size=Vector3.new(4, 4, 140), pos=Vector3.new(-68, 4, 0)},
+	-- South wall split for plaza entry gap (player walks in from -Z)
+	{name="WallSL", size=Vector3.new(50, 4, 4), pos=Vector3.new(-45, 4, 68)},
+	{name="WallSR", size=Vector3.new(50, 4, 4), pos=Vector3.new(45, 4, 68)},
+}) do
+	local w = Instance.new("Part", plaza)
+	w.Name = def.name
+	w.Anchored = true; w.CanCollide = true
+	w.Size = def.size; w.Position = def.pos
+	w.Material = Enum.Material.SmoothPlastic
+	w.Color = Color3.fromRGB(255, 220, 170)  -- sunset cream
+	-- Cornice top-cap (slightly warmer orange-cream)
+	local cap = Instance.new("Part", plaza)
+	cap.Name = def.name .. "_Cap"
+	cap.Anchored = true; cap.CanCollide = false
+	cap.Size = def.size + Vector3.new(0.6, -3, 0.6)  -- extends 0.3 stud over edges
+	cap.Position = def.pos + Vector3.new(0, 2.5, 0)
+	cap.Material = Enum.Material.SmoothPlastic
+	cap.Color = Color3.fromRGB(255, 175, 90)  -- cornice warmth
+end
 
 -- Fountain in the center (cylindrical basin + central spout)
 local basin = Instance.new("Part", plaza)
@@ -5625,9 +5693,9 @@ end)
 local Lighting = game:GetService("Lighting")
 
 Lighting.Technology = Enum.Technology.Future
-Lighting.Brightness = 2.6
-Lighting.Ambient = Color3.fromRGB(140, 130, 110)        -- warm light gray
-Lighting.OutdoorAmbient = Color3.fromRGB(180, 175, 160) -- bright daylight
+Lighting.Brightness = 2.0                               -- per Phase-10 directive (was 2.6)
+Lighting.Ambient = Color3.fromRGB(140, 140, 140)        -- neutral bright (per directive)
+Lighting.OutdoorAmbient = Color3.fromRGB(170, 170, 170) -- neutral bright (per directive)
 Lighting.EnvironmentDiffuseScale = 0.65
 Lighting.EnvironmentSpecularScale = 0.50
 Lighting.ClockTime = 13.0          -- early afternoon sun, high overhead
@@ -5659,19 +5727,24 @@ ensure("ColorCorrectionEffect", {
 -- Sun rays at low intensity (bright day, not dramatic)
 ensure("SunRaysEffect", { Intensity = 0.15, Spread = 0.4 })
 
--- Atmosphere: light haze for depth, NOT fog
+-- Atmosphere: very light haze. Lower density per Phase-10 (purple-void
+-- bug at oblique camera angles was visible through dense atmosphere).
 local atm = Lighting:FindFirstChildOfClass("Atmosphere")
 if not atm then atm = Instance.new("Atmosphere"); atm.Parent = Lighting end
-atm.Density = 0.12
+atm.Density = 0.05
 atm.Offset  = 0.05
-atm.Color   = Color3.fromRGB(220, 225, 230)
-atm.Decay   = Color3.fromRGB(150, 175, 200)
+atm.Color   = Color3.fromRGB(225, 230, 235)
+atm.Decay   = Color3.fromRGB(190, 205, 220)
 atm.Glare   = 0.05
-atm.Haze    = 0.5
+atm.Haze    = 0.4
 
--- Optional sky (force a clear blue cartoon sky)
-local sky = Lighting:FindFirstChildOfClass("Sky")
-if not sky then sky = Instance.new("Sky"); sky.Parent = Lighting end
+-- Sky: force-recreate so any stale or destroyed Sky child doesn't leave a
+-- purple-void backdrop (Phase-10 playtest bug). Standard built-in skybox
+-- textures are guaranteed to ship with the engine.
+local oldSky = Lighting:FindFirstChildOfClass("Sky")
+if oldSky then oldSky:Destroy() end
+local sky = Instance.new("Sky")
+sky.Parent = Lighting
 -- Use Roblox's default daytime sky textures (built-in, no asset id needed)
 sky.SkyboxBk = "rbxasset://textures/sky/sky512_bk.tex"
 sky.SkyboxDn = "rbxasset://textures/sky/sky512_dn.tex"
@@ -5780,9 +5853,17 @@ local function tintRig(model, palette)
 end
 
 local function buildHumanNPC()
-	-- Try to spawn a real R15 character via HumanoidDescription
+	-- Phase-10 fix: bake scales onto the HumanoidDescription BEFORE creating
+	-- the model so the rig spawns at the right size. Setting NumberValue
+	-- children post-spawn was sometimes ignored by automatic scaling.
 	local ok, model = pcall(function()
 		local desc = Instance.new("HumanoidDescription")
+		desc.HeightScale     = 1.05
+		desc.WidthScale      = 1.00
+		desc.DepthScale      = 1.00
+		desc.HeadScale       = 1.00
+		desc.BodyTypeScale   = 1.00
+		desc.ProportionScale = 1.00
 		return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
 	end)
 
@@ -5833,14 +5914,15 @@ local function buildHumanNPC()
 		hum.MaxHealth = 100
 		hum.Health = 100
 		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-		-- Cartoon proportions so victims look like Pixar civilians, not blocky Robloxians.
+		-- Normal human proportions — these victims are humans the cat is
+		-- pranking. The cat (player) is small; humans tower over it.
 		local scales = {
-			BodyDepthScale  = 0.95,
-			BodyWidthScale  = 1.20,
-			BodyHeightScale = 0.75,
-			HeadScale       = 1.55,
-			BodyTypeScale   = 0.0,
-			ProportionScale = 0.10,
+			BodyDepthScale  = 1.00,
+			BodyWidthScale  = 1.00,
+			BodyHeightScale = 1.05,
+			HeadScale       = 1.00,
+			BodyTypeScale   = 1.00,
+			ProportionScale = 1.00,
 		}
 		for sname, sval in pairs(scales) do
 			local nv = hum:FindFirstChild(sname)
@@ -10055,8 +10137,11 @@ return true
       <Item class="LocalScript" referent="67">
         <Properties>
           <string name="Name">PreSpawnLobby</string>
-          <string name="Source"><![CDATA[-- PreSpawnLobby v3 — Grok's fix: use direct ReplicatedStorage:WaitForChild for RemoteEvent
--- All other features same as v2 (3D rotating cat, cyberpunk skyline, 12 fur tiers, premium SPAWN button)
+          <string name="Source"><![CDATA[-- PreSpawnLobby v4 — compact UI revamp.
+-- v3 was too big: 320x320 preview + 65x65 cards + 360x80 spawn button took
+-- up the whole screen and clipped the picker. v4 reduces preview to 220px,
+-- cards to 50px (60px hover), spawn 260x60. All 24 skins fit in 2 rows on
+-- desktop, wrap to 3-4 on phone. Title smaller too.
 -- Place in: StarterPlayer > StarterPlayerScripts > PreSpawnLobby (LocalScript)
 
 local Players = game:GetService("Players")
@@ -10208,10 +10293,10 @@ for i = 1, 14 do
   end
 end
 
--- Title — wood-stained "KITTYRAISER" sign vibe
+-- Title — compact wood-stained "KITTYRAISER" sign
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 130)
-title.Position = UDim2.new(0, 0, 0.04, 0)
+title.Size = UDim2.new(1, 0, 0, 80)
+title.Position = UDim2.new(0, 0, 0.02, 0)
 title.BackgroundTransparency = 1
 title.Text = "KITTYRAISER"
 title.Font = Enum.Font.LuckiestGuy
@@ -10221,25 +10306,25 @@ title.TextStrokeTransparency = 0.3
 title.TextStrokeColor3 = Color3.fromRGB(255, 240, 200)
 title.Parent = lobby
 local titleC = Instance.new("UITextSizeConstraint", title)
-titleC.MinTextSize = 50; titleC.MaxTextSize = 110
+titleC.MinTextSize = 36; titleC.MaxTextSize = 70
 
 local subtitle = Instance.new("TextLabel")
-subtitle.Size = UDim2.new(1, 0, 0, 28)
-subtitle.Position = UDim2.new(0, 0, 0.16, 0)
+subtitle.Size = UDim2.new(1, 0, 0, 22)
+subtitle.Position = UDim2.new(0, 0, 0.13, 0)
 subtitle.BackgroundTransparency = 1
-subtitle.Text = "a sunny day for chaos"
+subtitle.Text = "pick your cat"
 subtitle.Font = Enum.Font.LuckiestGuy
 subtitle.TextScaled = true
 subtitle.TextColor3 = Color3.fromRGB(120, 70, 40)
 subtitle.Parent = lobby
 local subC = Instance.new("UITextSizeConstraint", subtitle)
-subC.MinTextSize = 14; subC.MaxTextSize = 24
+subC.MinTextSize = 12; subC.MaxTextSize = 18
 
--- 3D viewport
+-- 3D viewport — compact 220x220
 local previewFrame = Instance.new("Frame")
-previewFrame.Size = UDim2.new(0, 320, 0, 320)
-previewFrame.Position = UDim2.new(0.5, -160, 0.24, 0)
-previewFrame.BackgroundColor3 = Color3.fromRGB(245, 230, 200)  -- warm cream
+previewFrame.Size = UDim2.new(0, 220, 0, 220)
+previewFrame.Position = UDim2.new(0.5, -110, 0.18, 0)
+previewFrame.BackgroundColor3 = Color3.fromRGB(245, 230, 200)
 previewFrame.BorderSizePixel = 0
 previewFrame.Parent = lobby
 Instance.new("UICorner", previewFrame).CornerRadius = UDim.new(1, 0)
@@ -10419,10 +10504,10 @@ RunService.RenderStepped:Connect(function(dt)
   end
 end)
 
--- Name + rarity
+-- Name + rarity (compact, side-by-side under preview)
 local nameLabel = Instance.new("TextLabel")
-nameLabel.Size = UDim2.new(0, 360, 0, 32)
-nameLabel.Position = UDim2.new(0.5, -180, 0.61, 0)
+nameLabel.Size = UDim2.new(0, 280, 0, 26)
+nameLabel.Position = UDim2.new(0.5, -140, 0.49, 0)
 nameLabel.BackgroundTransparency = 1
 nameLabel.Text = FUR_OPTIONS[1].name
 nameLabel.Font = Enum.Font.LuckiestGuy
@@ -10432,32 +10517,35 @@ nameLabel.TextStrokeTransparency = 0.4
 nameLabel.TextStrokeColor3 = Color3.fromRGB(255, 240, 200)
 nameLabel.Parent = lobby
 local nameC = Instance.new("UITextSizeConstraint", nameLabel)
-nameC.MinTextSize = 16; nameC.MaxTextSize = 28
+nameC.MinTextSize = 14; nameC.MaxTextSize = 22
 
 local rarityBadge = Instance.new("TextLabel")
-rarityBadge.Size = UDim2.new(0, 120, 0, 22)
-rarityBadge.Position = UDim2.new(0.5, -60, 0.65, 0)
+rarityBadge.Size = UDim2.new(0, 90, 0, 18)
+rarityBadge.Position = UDim2.new(0.5, -45, 0.535, 0)
 rarityBadge.BackgroundColor3 = RARITY_COLOR.common
 rarityBadge.Text = "COMMON"
 rarityBadge.Font = Enum.Font.GothamBold
 rarityBadge.TextScaled = true
 rarityBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
 rarityBadge.Parent = lobby
-Instance.new("UICorner", rarityBadge).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", rarityBadge).CornerRadius = UDim.new(0, 5)
+local rbC = Instance.new("UITextSizeConstraint", rarityBadge)
+rbC.MinTextSize = 9; rbC.MaxTextSize = 12
 
--- Color picker — width-flex so it fits any screen, wraps on phone if needed.
+-- Color picker — compact 50x50 cards, two rows of 12 wraps cleanly on all
+-- screens; ScreenGui width-flex still lets phone fall to 3+ rows.
 local pickerRow = Instance.new("Frame")
-pickerRow.Size = UDim2.new(0.94, 0, 0, 150)  -- 94% of screen width, 150px tall (room for 2 rows on phone)
+pickerRow.Size = UDim2.new(0.96, 0, 0, 116)  -- 96% width, 2 rows @ 50px + 6px gap + slack
 pickerRow.AnchorPoint = Vector2.new(0.5, 0)
-pickerRow.Position = UDim2.new(0.5, 0, 0.74, 0)
+pickerRow.Position = UDim2.new(0.5, 0, 0.59, 0)
 pickerRow.BackgroundTransparency = 1
 pickerRow.Parent = lobby
 local layout = Instance.new("UIListLayout", pickerRow)
 layout.FillDirection = Enum.FillDirection.Horizontal
 layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 layout.VerticalAlignment = Enum.VerticalAlignment.Top
-layout.Padding = UDim.new(0, 8)
-layout.Wraps = true  -- wrap to next row when out of space (phone)
+layout.Padding = UDim.new(0, 6)
+layout.Wraps = true
 
 local function setSelected(i)
   selectedIndex = i
@@ -10479,19 +10567,19 @@ end
 
 for i, opt in ipairs(FUR_OPTIONS) do
   local card = Instance.new("Frame", pickerRow)
-  card.Size = UDim2.new(0, 65, 0, 65)
+  card.Size = UDim2.new(0, 50, 0, 50)
   card.BackgroundColor3 = opt.color
   card.BorderSizePixel = 0
   Instance.new("UICorner", card).CornerRadius = UDim.new(1, 0)
   local sStroke = Instance.new("UIStroke", card)
-  sStroke.Thickness = (i == 1) and 5 or 1
+  sStroke.Thickness = (i == 1) and 4 or 1
   sStroke.Color = (i == 1) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(80, 80, 100)
   local rRing = Instance.new("UIStroke", card)
   rRing.Thickness = 2; rRing.Color = RARITY_COLOR[opt.rarity] or RARITY_COLOR.common
   rRing.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
   if opt.rarity == "robux" then
     local robux = Instance.new("TextLabel", card)
-    robux.Size = UDim2.new(0, 24, 0, 24); robux.Position = UDim2.new(1, -22, 0, -2)
+    robux.Size = UDim2.new(0, 18, 0, 18); robux.Position = UDim2.new(1, -16, 0, -2)
     robux.BackgroundColor3 = Color3.fromRGB(255, 215, 0); robux.Text = "R$"
     robux.Font = Enum.Font.GothamBold; robux.TextScaled = true; robux.TextColor3 = Color3.fromRGB(0, 0, 0)
     Instance.new("UICorner", robux).CornerRadius = UDim.new(1, 0)
@@ -10500,17 +10588,17 @@ for i, opt in ipairs(FUR_OPTIONS) do
   btn.Size = UDim2.fromScale(1, 1); btn.BackgroundTransparency = 1; btn.Text = ""
   btn.MouseButton1Click:Connect(function() setSelected(i) end)
   btn.MouseEnter:Connect(function()
-    TweenService:Create(card, TweenInfo.new(0.15), {Size = UDim2.new(0, 75, 0, 75)}):Play()
+    TweenService:Create(card, TweenInfo.new(0.15), {Size = UDim2.new(0, 60, 0, 60)}):Play()
   end)
   btn.MouseLeave:Connect(function()
-    TweenService:Create(card, TweenInfo.new(0.15), {Size = UDim2.new(0, 65, 0, 65)}):Play()
+    TweenService:Create(card, TweenInfo.new(0.15), {Size = UDim2.new(0, 50, 0, 50)}):Play()
   end)
 end
 
--- SPAWN button — wooden plank style
+-- SPAWN button — compact wooden plank style
 local spawnBtn = Instance.new("TextButton")
-spawnBtn.Size = UDim2.new(0, 360, 0, 80)
-spawnBtn.Position = UDim2.new(0.5, -180, 0.86, 0)
+spawnBtn.Size = UDim2.new(0, 260, 0, 60)
+spawnBtn.Position = UDim2.new(0.5, -130, 0.85, 0)
 spawnBtn.BackgroundColor3 = Color3.fromRGB(220, 150, 60)
 spawnBtn.Text = "SPAWN"
 spawnBtn.Font = Enum.Font.LuckiestGuy
@@ -10520,10 +10608,10 @@ spawnBtn.TextStrokeTransparency = 0.3
 spawnBtn.TextStrokeColor3 = Color3.fromRGB(80, 40, 20)
 spawnBtn.Parent = lobby
 local spawnC = Instance.new("UITextSizeConstraint", spawnBtn)
-spawnC.MinTextSize = 24; spawnC.MaxTextSize = 44
-Instance.new("UICorner", spawnBtn).CornerRadius = UDim.new(0, 14)
+spawnC.MinTextSize = 20; spawnC.MaxTextSize = 34
+Instance.new("UICorner", spawnBtn).CornerRadius = UDim.new(0, 12)
 local btnStroke = Instance.new("UIStroke", spawnBtn)
-btnStroke.Thickness = 4; btnStroke.Color = Color3.fromRGB(110, 75, 40)
+btnStroke.Thickness = 3; btnStroke.Color = Color3.fromRGB(110, 75, 40)
 local spawnGrad = Instance.new("UIGradient", spawnBtn)
 spawnGrad.Color = ColorSequence.new{
   ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 195, 100)),
@@ -10533,7 +10621,7 @@ spawnGrad.Rotation = 90
 
 task.spawn(function()
   while spawnBtn.Parent do
-    TweenService:Create(spawnBtn, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Size = UDim2.new(0, 380, 0, 86)}):Play()
+    TweenService:Create(spawnBtn, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Size = UDim2.new(0, 276, 0, 64)}):Play()
     task.wait(1.6)
   end
 end)
@@ -10604,7 +10692,7 @@ hint.Parent = lobby
 local hintC = Instance.new("UITextSizeConstraint", hint)
 hintC.MinTextSize = 12; hintC.MaxTextSize = 18
 
-print("[PreSpawnLobby v3 grokfix] ready, requestSpawn = " .. tostring(requestSpawn))
+print("[PreSpawnLobby v4 compact] ready, requestSpawn = " .. tostring(requestSpawn))
 ]]></string>
         </Properties>
       </Item>
