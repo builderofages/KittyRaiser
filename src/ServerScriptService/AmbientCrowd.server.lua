@@ -103,12 +103,12 @@ local function buildPed()
     -- Cartoon proportions: short body, big head, chunky.
     -- Each named scale must be set on the NumberValue child.
     local scales = {
-      BodyDepthScale  = 0.95,
-      BodyWidthScale  = 1.20,   -- wider/thicker body
-      BodyHeightScale = 0.75,   -- shorter overall
-      HeadScale       = 1.55,   -- BIG cartoon head
+      BodyDepthScale  = 0.90,
+      BodyWidthScale  = 1.40,   -- much wider — clear cartoon read
+      BodyHeightScale = 0.60,   -- shorter — squat civilian
+      HeadScale       = 1.85,   -- BIG cartoon head dominates silhouette
       BodyTypeScale   = 0.0,
-      ProportionScale = 0.10,
+      ProportionScale = 0.0,
     }
     for sname, sval in pairs(scales) do
       local nv = hum:FindFirstChild(sname)

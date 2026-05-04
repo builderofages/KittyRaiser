@@ -137,14 +137,14 @@ local function buildHumanNPC()
 		hum.MaxHealth = 100
 		hum.Health = 100
 		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-		-- Cartoon proportions so victims look like Pixar civilians, not blocky Robloxians.
+		-- Cartoon proportions: short body, big head, chunky. Match AmbientCrowd v3.44.
 		local scales = {
-			BodyDepthScale  = 0.95,
-			BodyWidthScale  = 1.20,
-			BodyHeightScale = 0.75,
-			HeadScale       = 1.55,
+			BodyDepthScale  = 0.90,
+			BodyWidthScale  = 1.40,
+			BodyHeightScale = 0.60,
+			HeadScale       = 1.85,
 			BodyTypeScale   = 0.0,
-			ProportionScale = 0.10,
+			ProportionScale = 0.0,
 		}
 		for sname, sval in pairs(scales) do
 			local nv = hum:FindFirstChild(sname)
