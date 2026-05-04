@@ -181,32 +181,83 @@ end
 local function verb(touch, mouse)
     return UIUtil.isMobile() and touch or mouse
 end
-local welcome = showStep("Welcome.  " .. verb("Tap", "Click") .. " SUMMON HUMAN\nto spawn your first victim.")
+local welcome = showStep("Welcome.  " .. verb("Tap", "Click") .. " SUMMON HUMAN\nto spawn your first victim.  (X to dismiss)")
 local summonBtn = findHudButton("SUMMON") or findHudButton("Summon")
 local ring1
+
+-- Manual dismiss (X) on welcome banner
+local dismissBtn = Instance.new("TextButton", welcome)
+dismissBtn.Name = "Dismiss"
+dismissBtn.AnchorPoint = Vector2.new(1, 0)
+dismissBtn.Size = UDim2.new(0, 28, 0, 28)
+dismissBtn.Position = UDim2.new(1, -6, 0, 6)
+dismissBtn.BackgroundColor3 = PALETTE.neonPink
+dismissBtn.AutoButtonColor = true
+dismissBtn.Text = "X"
+dismissBtn.TextColor3 = PALETTE.white
+dismissBtn.Font = Enum.Font.GothamBlack
+dismissBtn.TextScaled = true
+Instance.new("UICorner", dismissBtn).CornerRadius = UDim.new(1, 0)
+local dimissC = Instance.new("UITextSizeConstraint", dismissBtn); dimissC.MinTextSize = 14; dimissC.MaxTextSize = 20
+
+-- Auto-dismiss after 10s of no interaction
+local welcomeDismissed = false
+local function dismissWelcome()
+  if welcomeDismissed then return end
+  welcomeDismissed = true
+  if welcome and welcome.Parent then welcome:Destroy() end
+  if ring1 and ring1.Parent then ring1:Destroy() end
+end
+dismissBtn.MouseButton1Click:Connect(dismissWelcome)
+task.delay(10, dismissWelcome)
+
 if summonBtn then
   ring1 = spotlight(summonBtn)
   -- Wait for click
   local conn
   conn = summonBtn.MouseButton1Click:Connect(function()
     if conn then conn:Disconnect() end
-    welcome:Destroy()
-    if ring1 then ring1:Destroy() end
+    dismissWelcome()
     -- Step 2 after delay
     task.wait(1.5)
-    local step2 = showStep("NOW PRANK THEM\n" .. verb("Tap", "Click") .. " a glowing prank")
+    local step2 = showStep("NOW PRANK THEM\n" .. verb("Tap", "Click") .. " a glowing prank  (X to dismiss)")
+    -- Manual dismiss on step2
+    local step2Dismiss = Instance.new("TextButton", step2)
+    step2Dismiss.AnchorPoint = Vector2.new(1, 0)
+    step2Dismiss.Size = UDim2.new(0, 28, 0, 28)
+    step2Dismiss.Position = UDim2.new(1, -6, 0, 6)
+    step2Dismiss.BackgroundColor3 = PALETTE.neonPink
+    step2Dismiss.AutoButtonColor = true
+    step2Dismiss.Text = "X"
+    step2Dismiss.TextColor3 = PALETTE.white
+    step2Dismiss.Font = Enum.Font.GothamBlack
+    step2Dismiss.TextScaled = true
+    Instance.new("UICorner", step2Dismiss).CornerRadius = UDim.new(1, 0)
+    local sd2 = Instance.new("UITextSizeConstraint", step2Dismiss); sd2.MinTextSize = 14; sd2.MaxTextSize = 20
+
     -- Find prank column
     local prankBtn
     local col = hud:FindFirstChild("PrankColumn", true)
     if col then prankBtn = col:FindFirstChildWhichIsA("TextButton", true) end
     local ring2
+    if prankBtn then ring2 = spotlight(prankBtn) end
+
+    local step2Dismissed = false
+    local function dismissStep2()
+      if step2Dismissed then return end
+      step2Dismissed = true
+      if step2 and step2.Parent then step2:Destroy() end
+      if ring2 and ring2.Parent then ring2:Destroy() end
+    end
+    step2Dismiss.MouseButton1Click:Connect(dismissStep2)
+    -- Auto-dismiss step2 after 15s if user doesn't click a prank
+    task.delay(15, dismissStep2)
+
     if prankBtn then
-      ring2 = spotlight(prankBtn)
       local conn2
       conn2 = prankBtn.MouseButton1Click:Connect(function()
         if conn2 then conn2:Disconnect() end
-        step2:Destroy()
-        if ring2 then ring2:Destroy() end
+        dismissStep2()
         -- Step 3: massive payoff
         task.wait(0.6)
         massivePayoff()
