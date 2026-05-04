@@ -97,6 +97,30 @@ cityFolder.Name = "CartoonCity"
 cityFolder:ClearAllChildren()
 
 -- =====================================================================
+-- ZONE GROUND PATCHES — large flat overlay parts at each zone center so
+-- the ground LOOKS different per zone, not just the buildings.
+-- =====================================================================
+local function placeZonePatch(name, position, color, material)
+	local p = Instance.new("Part")
+	p.Name = "Zone_" .. name
+	p.Anchored = true
+	p.CanCollide = true
+	p.Size = Vector3.new(640, 0.6, 640)  -- large flat slab covering ~3x3 of grid
+	p.Position = position
+	p.Material = material
+	p.Color = color
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.Parent = cityFolder
+end
+-- Downtown (NE quadrant, +X +Z): clean granite slate
+placeZonePatch("downtown", Vector3.new( 440, 0.3,  440), Color3.fromRGB(82, 78, 80),  Enum.Material.Slate)
+-- Suburbs (cross quadrants): warm stone tile (use NW + SE patches)
+placeZonePatch("suburbsNW", Vector3.new(-440, 0.3,  440), Color3.fromRGB(140, 110, 85), Enum.Material.Cobblestone)
+placeZonePatch("suburbsSE", Vector3.new( 440, 0.3, -440), Color3.fromRGB(140, 110, 85), Enum.Material.Cobblestone)
+-- Harbor (SW quadrant): sandy beige sand-ish
+placeZonePatch("harbor",   Vector3.new(-440, 0.3, -440), Color3.fromRGB(210, 195, 165), Enum.Material.Sand)
+
+-- =====================================================================
 -- SKYLINE  (real meshes if loaded, textured fallback if not)
 -- =====================================================================
 local function placeBuilding(meshTemplate, cf, sizeY, color, fallbackBox)

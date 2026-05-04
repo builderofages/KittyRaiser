@@ -212,6 +212,9 @@
         },
         "SocialBadges": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/SocialBadges.client.lua"
+        },
+        "ZoneAmbience": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/ZoneAmbience.client.lua"
         }
       }
     },

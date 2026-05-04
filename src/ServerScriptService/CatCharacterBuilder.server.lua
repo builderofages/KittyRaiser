@@ -326,6 +326,36 @@ end
 Players.PlayerAdded:Connect(setupPlayer)
 for _, p in ipairs(Players:GetPlayers()) do setupPlayer(p) end
 
+-- Fur-color tween: if a player's FurColor attribute changes mid-game (e.g.
+-- they bought a new skin), smoothly interpolate the existing character's
+-- BasePart colors instead of force-respawning.
+local TweenService = game:GetService("TweenService")
+local function watchFurChanges(player)
+	player:GetAttributeChangedSignal("FurColor"):Connect(function()
+		local newColor = player:GetAttribute("FurColor")
+		if typeof(newColor) ~= "Color3" then return end
+		local char = player.Character
+		if not char then return end
+		for _, p in ipairs(char:GetDescendants()) do
+			if p:IsA("BasePart") and not p:GetAttribute("CatAccessory") then
+				TweenService:Create(p, TweenInfo.new(0.6, Enum.EasingStyle.Quad),
+					{Color = newColor}):Play()
+			end
+		end
+		-- Also retint the welded ear/tail (CatAccessory parts) since they
+		-- match the fur color
+		for _, p in ipairs(char:GetDescendants()) do
+			if p:IsA("BasePart") and p:GetAttribute("CatAccessory")
+			   and (p.Name == "CatEar" or p.Name == "CatTail" or p.Name == "CatTailTip") then
+				TweenService:Create(p, TweenInfo.new(0.6, Enum.EasingStyle.Quad),
+					{Color = newColor}):Play()
+			end
+		end
+	end)
+end
+Players.PlayerAdded:Connect(watchFurChanges)
+for _, p in ipairs(Players:GetPlayers()) do watchFurChanges(p) end
+
 -- =====================================================================
 -- LOBBY -> CHARACTER
 -- =====================================================================

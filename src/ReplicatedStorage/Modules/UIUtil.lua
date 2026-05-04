@@ -239,4 +239,18 @@ function UIUtil.makeToast(parent, text, color, duration)
 	return frame
 end
 
+-- ============================================================
+-- GRAPHICS QUALITY SCALING — read by FX scripts to scale particle counts.
+-- low=0.3, med=0.7, high=1.0
+-- ============================================================
+function UIUtil.particleScale()
+	local Players = game:GetService("Players")
+	local lp = Players.LocalPlayer
+	if not lp then return 1 end
+	local q = lp:GetAttribute("GraphicsQuality") or "med"
+	if q == "low" then return 0.3 end
+	if q == "med" then return 0.7 end
+	return 1.0
+end
+
 return UIUtil

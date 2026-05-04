@@ -88,7 +88,38 @@ local function setup(char)
 		end)
 	end
 
-	print("[CatLifelike v2] tail wag + ear twitch active for " .. (char.Name or "?"))
+	-- Cat dust trail: subtle dust puff under paws when running fast.
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		local att = Instance.new("Attachment", hrp)
+		att.Name = "CatDustAttachment"
+		att.Position = Vector3.new(0, -2.5, 0)  -- below feet
+		local emitter = Instance.new("ParticleEmitter")
+		emitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+		emitter.Color = ColorSequence.new(Color3.fromRGB(180, 165, 145))
+		emitter.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.5),
+			NumberSequenceKeypoint.new(0.5, 0.7),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		emitter.Lifetime = NumberRange.new(0.3, 0.6)
+		emitter.Speed = NumberRange.new(2, 5)
+		emitter.SpreadAngle = Vector2.new(60, 60)
+		emitter.Size = NumberSequence.new(0.4, 0.05)
+		emitter.Acceleration = Vector3.new(0, 4, 0)
+		emitter.Rate = 0
+		emitter.Parent = att
+		-- Heartbeat: when speed > 12 turn on dust; otherwise off
+		local conn
+		conn = RunService.Heartbeat:Connect(function()
+			if not (hrp.Parent and att.Parent) then conn:Disconnect() return end
+			local v = hrp.AssemblyLinearVelocity
+			local speed = Vector3.new(v.X, 0, v.Z).Magnitude
+			emitter.Rate = speed > 12 and math.min(20, (speed - 12) * 4) or 0
+		end)
+	end
+
+	print("[CatLifelike v2] tail wag + ear twitch + dust trail active for " .. (char.Name or "?"))
 end
 
 local function setupPlayer(player)

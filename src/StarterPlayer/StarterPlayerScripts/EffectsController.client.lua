@@ -14,6 +14,7 @@ local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
 local GameConfig  = require(ReplicatedStorage.Modules.GameConfig)
 local AssetIds    = require(ReplicatedStorage.Modules:WaitForChild("AssetIds"))
 local AudioGroups = require(ReplicatedStorage.Modules:WaitForChild("AudioGroups"))
+local UIUtil      = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
 
 -- Helper: clone a real mesh (uploaded via Open Cloud) into the workspace by
 -- looking it up via InsertService at runtime. Falls back to nil if the asset
@@ -92,7 +93,8 @@ local function spawnParticleBurst(cf, color, count, opts)
     })
     emitter.LightEmission = opts.lightEmission or 0.4
     emitter.Parent = emitterPart
-    emitter:Emit(count)
+    -- Scale particle count by graphics quality so low-end mobile stays smooth
+    emitter:Emit(math.floor(count * UIUtil.particleScale()))
 
     -- Add a quick point-light flash
     if opts.flashColor then
