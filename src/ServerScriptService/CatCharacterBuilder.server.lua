@@ -406,24 +406,47 @@ for _, p in ipairs(Players:GetPlayers()) do watchFurChanges(p) end
 
 -- =====================================================================
 -- LOBBY -> CHARACTER
+-- IMPORTANT: there are TWO copies of RequestSpawnCustomization in the
+-- DataModel — one at ReplicatedStorage root (from RemotesBootstrap, the
+-- bootstrap script that fires first) and one under
+-- ReplicatedStorage.Modules.RemoteEvents (created by the RemoteEvents
+-- module). Whichever the client fires must match what the server listens
+-- on, or the fur color from the lobby never lands.
+-- We listen on BOTH to be safe.
 -- =====================================================================
+local function handleSpawnRequest(player, data)
+	if typeof(data) == "table" and typeof(data.furColor) == "table" then
+		local r = tonumber(data.furColor[1]) or 220
+		local g = tonumber(data.furColor[2]) or 130
+		local b = tonumber(data.furColor[3]) or 50
+		local color = Color3.fromRGB(r, g, b)
+		player:SetAttribute("FurColor", color)
+		player:SetAttribute("SkinName", tostring(data.skinName or ""))
+		print(("[CatCharacterBuilder v8] %s requested fur RGB(%d,%d,%d) name=%s"):format(
+			player.Name, r, g, b, tostring(data.skinName or "")))
+	else
+		print(("[CatCharacterBuilder v8] %s requested spawn with no fur data"):format(player.Name))
+	end
+	pcall(function() player:LoadCharacter() end)
+end
+
 task.spawn(function()
+	-- Listener 1: module copy (ReplicatedStorage.Modules.RemoteEvents)
 	local Modules = ReplicatedStorage:WaitForChild("Modules", 10)
 	local RemoteEvents = Modules and Modules:WaitForChild("RemoteEvents", 5)
-	if not RemoteEvents then return end
-	local ok, Remotes = pcall(require, RemoteEvents)
-	if not ok or not Remotes or not Remotes.RequestSpawnCustomization then return end
-
-	Remotes.RequestSpawnCustomization.OnServerEvent:Connect(function(player, data)
-		if typeof(data) == "table" and typeof(data.furColor) == "table" then
-			local r = tonumber(data.furColor[1]) or 220
-			local g = tonumber(data.furColor[2]) or 130
-			local b = tonumber(data.furColor[3]) or 50
-			player:SetAttribute("FurColor", Color3.fromRGB(r, g, b))
-			player:SetAttribute("SkinName", tostring(data.skinName or ""))
+	if RemoteEvents then
+		local ok, Remotes = pcall(require, RemoteEvents)
+		if ok and Remotes and Remotes.RequestSpawnCustomization then
+			Remotes.RequestSpawnCustomization.OnServerEvent:Connect(handleSpawnRequest)
+			print("[CatCharacterBuilder v8] listening on Modules.RemoteEvents")
 		end
-		pcall(function() player:LoadCharacter() end)
-	end)
+	end
+	-- Listener 2: root copy (RemotesBootstrap)
+	local rootEvent = ReplicatedStorage:WaitForChild("RequestSpawnCustomization", 10)
+	if rootEvent and rootEvent:IsA("RemoteEvent") then
+		rootEvent.OnServerEvent:Connect(handleSpawnRequest)
+		print("[CatCharacterBuilder v8] listening on ReplicatedStorage root")
+	end
 end)
 
 print("[CatCharacterBuilder v7] online — primitive-only decoration")

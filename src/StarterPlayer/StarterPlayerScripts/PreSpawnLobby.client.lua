@@ -11,10 +11,29 @@ local UIUtil = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("U
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Get RemoteEvent the SAFE way
-local requestSpawn = ReplicatedStorage:WaitForChild("RequestSpawnCustomization", 10)
+-- Get the RemoteEvent the way the SERVER expects: via the RemoteEvents module
+-- under ReplicatedStorage.Modules. RemotesBootstrap also creates a copy at
+-- ReplicatedStorage root, but the server's CatCharacterBuilder connects to
+-- the module copy, so we MUST use the module to make the round-trip work.
+-- (Fur color was previously not persisting from lobby because the lobby
+-- fired the root copy while the server listened on the folder copy.)
+local Remotes
+do
+  local mods = ReplicatedStorage:WaitForChild("Modules", 10)
+  local re = mods and mods:WaitForChild("RemoteEvents", 5)
+  if re then
+    local ok, mod = pcall(require, re)
+    if ok then Remotes = mod end
+  end
+end
+local requestSpawn = Remotes and Remotes.RequestSpawnCustomization
+-- Belt-and-suspenders: also fall back to the root copy so we don't break
+-- if the module path fails. RemotesBootstrap creates the root copy.
 if not requestSpawn then
-  warn("[PreSpawnLobby] RequestSpawnCustomization RemoteEvent missing after 10s")
+  requestSpawn = ReplicatedStorage:WaitForChild("RequestSpawnCustomization", 5)
+end
+if not requestSpawn then
+  warn("[PreSpawnLobby] RequestSpawnCustomization not found via module OR root after 15s")
 end
 
 local FUR_OPTIONS = {
