@@ -60,9 +60,40 @@ label.TextScaled = true
 label.TextTransparency = 1
 UIUtil.boundText(label, 14, 22)
 
+-- Red screen-edge vignette overlay for the dramatic boss-spawn moment.
+local vignette = Instance.new("ImageLabel", sg)
+vignette.Name = "BossVignette"
+vignette.Size = UDim2.fromScale(1, 1)
+vignette.BackgroundTransparency = 1
+vignette.Image = "rbxasset://textures/ui/Controls/RadialFade.png"
+vignette.ScaleType = Enum.ScaleType.Stretch
+vignette.ImageColor3 = Color3.fromRGB(220, 50, 40)
+vignette.ImageTransparency = 1
+vignette.ZIndex = 0
+
 local visible = false
+local function fovPunch()
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    local origFOV = cam.FieldOfView
+    TweenService:Create(cam, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        {FieldOfView = origFOV + 20}):Play()
+    task.delay(0.45, function()
+        TweenService:Create(cam, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {FieldOfView = origFOV}):Play()
+    end)
+end
+local function vignettePulse()
+    vignette.ImageTransparency = 0.2
+    TweenService:Create(vignette, TweenInfo.new(1.5, Enum.EasingStyle.Quad), {ImageTransparency = 1}):Play()
+end
 local function setVisible(v)
     if v == visible then return end
+    -- Boss-spawn stinger: FOV punch + red vignette on the EDGE of detection.
+    if v and not visible then
+        task.spawn(fovPunch)
+        task.spawn(vignettePulse)
+    end
     visible = v
     local target = v and 0.1 or 1
     local labelTarget = v and 0 or 1

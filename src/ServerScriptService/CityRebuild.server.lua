@@ -680,6 +680,34 @@ spoutTop.Position = Vector3.new(0, 9.3, 0)
 spoutTop.Material = Enum.Material.Marble
 spoutTop.Color = Color3.fromRGB(220, 215, 205)
 
+-- Fountain water particles (Phase-12 polish): three falling-droplet emitters
+-- on the spout top so the fountain reads as ACTIVELY pouring, not a statue.
+for _, ang in ipairs({0, math.rad(120), math.rad(240)}) do
+	local emitterPart = Instance.new("Part", plaza)
+	emitterPart.Anchored = true; emitterPart.CanCollide = false; emitterPart.Transparency = 1
+	emitterPart.Size = Vector3.new(0.4, 0.4, 0.4)
+	emitterPart.Position = Vector3.new(math.cos(ang) * 0.6, 10.0, math.sin(ang) * 0.6)
+	local emitter = Instance.new("ParticleEmitter", emitterPart)
+	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	emitter.Color = ColorSequence.new(Color3.fromRGB(130, 180, 220))
+	emitter.LightEmission = 0.4
+	emitter.LightInfluence = 0.5
+	emitter.Lifetime = NumberRange.new(0.6, 1.0)
+	emitter.Rate = 24
+	emitter.Speed = NumberRange.new(6, 9)
+	emitter.SpreadAngle = Vector2.new(20, 20)
+	emitter.Acceleration = Vector3.new(0, -25, 0)  -- gravity-pulled droplets
+	emitter.Size = NumberSequence.new{
+		NumberSequenceKeypoint.new(0, 0.25),
+		NumberSequenceKeypoint.new(1, 0.05),
+	}
+	emitter.Transparency = NumberSequence.new{
+		NumberSequenceKeypoint.new(0, 0.2),
+		NumberSequenceKeypoint.new(1, 1),
+	}
+	emitter.Rotation = NumberRange.new(0, 360)
+end
+
 -- Welcome sign — wooden cartoon, NOT pink neon
 local frame = Instance.new("Part", plaza)
 frame.Anchored = true; frame.CanCollide = false
