@@ -417,8 +417,26 @@ local function hookMenuButton()
     end)
 end
 
+-- Aggressive retry loop: hookMenuButton tries to attach the MENU button to
+-- the BottomBar immediately and again on hud.ChildAdded. If the BottomBar
+-- gets created LATE or if SettingsMenu loads before HUDBuilder finishes,
+-- the immediate try bails. A polling fallback handles edge cases where
+-- ChildAdded misses (e.g. BottomBar exists but hookMenuButton was killed
+-- by an upstream error before reaching this line).
 hookMenuButton()
-hud.ChildAdded:Connect(function() task.wait(0.5); hookMenuButton() end)
+hud.ChildAdded:Connect(function() task.wait(0.3); hookMenuButton() end)
+task.spawn(function()
+    for i = 1, 30 do  -- 30 * 0.5s = 15s window
+        task.wait(0.5)
+        local botBar = hud:FindFirstChild("BottomBar")
+        if botBar and botBar:FindFirstChild("MenuButton") then return end
+        hookMenuButton()
+    end
+    if not (hud:FindFirstChild("BottomBar") and hud.BottomBar:FindFirstChild("MenuButton")) then
+        warn("[SettingsMenu] MenuButton still missing after 15s retry window")
+    end
+end)
+print("[SettingsMenu] MENU button hook scheduled (with 15s retry fallback)")
 
 -- Also bind Escape (PC) to open
 UserInputService.InputBegan:Connect(function(input, gp)

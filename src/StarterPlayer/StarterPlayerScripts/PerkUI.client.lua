@@ -302,6 +302,14 @@ local function hookStatsButton()
     end)
 end
 hookStatsButton()
-hud.ChildAdded:Connect(function() task.wait(0.5); hookStatsButton() end)
+hud.ChildAdded:Connect(function() task.wait(0.3); hookStatsButton() end)
+task.spawn(function()
+    for i = 1, 30 do
+        task.wait(0.5)
+        local botBar = hud:FindFirstChild("BottomBar")
+        if botBar and botBar:FindFirstChild("StatsButton") then return end
+        hookStatsButton()
+    end
+end)
 
 return true
