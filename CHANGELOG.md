@@ -2,6 +2,40 @@
 
 All-in-one log of every commit since the cyberpunk-cleanup sprint.
 
+## v3.46 — Phase-10 v2 city wiring + plaza warmth + sky fix + NPC scale fix
+- Live as place v250 on universe 10107635885 (https://www.roblox.com/games/100613539623679/KittyRaiser).
+- 10 v2 city meshes wired through `CityRebuild` with `if mesh then` truthiness gates: taxi_yellow, delivery_van, food_truck, fire_hydrant, trash_can, mailbox_blue, bus_stop_shelter, traffic_light, hot_dog_cart, skyscraper_chunk. v1 meshes kept as fallback. Generic-prop loop prefers v2 cars from a pool; hydrant/mailbox/trash use v2-or-v1 fallback. Plaza set-dressing: 2 trash_cans + 2 mailbox_blues + 1 hot_dog_cart + 1 bus_stop_shelter. Downtown: 4 skyscraper_chunks in 2x2 grid behind plaza, 4 traffic_lights at intersections, 2 taxi_yellows + 1 delivery_van + 1 food_truck on street loop, 6 fire_hydrants on sidewalks.
+- Plaza warmth: floor (205,190,165) → (255,220,170) sunset cream. Added 5-piece perimeter walls (N/E/W + split-S for entry gap) in matching cream with (255,175,90) cornice top-cap. Pixar-cartoon, not dim grey concrete.
+- Sky purple-void fix in `StrayLighting`: force-destroy any existing Sky + recreate (so stale state can't bleed through). Atmosphere.Density 0.12 → 0.05, Decay (150,175,200) → (190,205,220). Brightness 2.6 → 2.0, Ambient → (140,140,140), OutdoorAmbient → (170,170,170) per Phase-10 directive.
+- NPC tiny-humanoid fix: `HumanoidDescription` scale fields (HeightScale=1.05, WidthScale=DepthScale=HeadScale=BodyTypeScale=ProportionScale=1.00) now BAKED on the description BEFORE `Players:CreateHumanoidModelFromDescription`. Setting them only on post-spawn NumberValue children was sometimes ignored by auto-scaling. Fix applied in `AmbientCrowd` and `SummonSystem`. NumberValues kept as belt-and-suspenders.
+
+## v3.45 — quadruped cat, normal-human NPCs, denser city, fixed spawn rate, compact lobby
+- `CatCharacterBuilder` v10: real quadruped cat. Body horizontal welded to HRP, head forward at -Z, tail back at +Z, four legs underneath; HipHeight=1.5 puts paws on ground. R15 hidden via Transparency=1, scales 0.30, AutomaticScalingEnabled=false. Default Accessory/Hat/CharacterMesh stripped (kills red-afro hair).
+- `AmbientCrowd` v4: spawn-loop bug fix (was capped at 1 NPC/player/tick → now while-loop until target). TARGET_VISIBLE 14 → 20, TICK_INTERVAL 4 → 3.
+- NPC scales reverted from cartoon (BodyHeightScale=0.6, HeadScale=1.85) to normal human (BodyHeightScale=1.05, others 1.0, BodyTypeScale + ProportionScale = 1.0). Same in `SummonSystem`.
+- `CityRebuild` v9: 7x7 grid spacing 220 → 9x9 spacing 160 + 70% infill secondary buildings. Generic props 60 → 180. Zone props 40 → 120. Cars use 8-color palette. White lane stripes painted on asphalt every 160 studs.
+- `PreSpawnLobby` v4: compact UI. Title 130 → 80px, preview 320 → 220px, picker cards 65 → 50px (60 hover), spawn button 360x80 → 260x60. All 24 fur skins fit in 2 rows.
+
+## v3.44 — cat is actually a cat (interim)
+- `CatCharacterBuilder` v9: hide R15 + weld primitive cat-shape on top. Strip Accessory/Hat. Was vertical biped — superseded by v3.45's true quadruped.
+- `CatLifelike` disabled (no-op): old WeldConstraint-disable approach conflicts with welded cat body.
+
+## v3.43 — production audit pass
+- CosmeticHandler: 3s retry loop on `getData` for race condition.
+- SurvivalSystem: WalkSpeed debuff via baseSpeed × 0.65 multiplier; eat/drink nearEnough check (20 studs) + 3s cooldown.
+- 6 zone-specific meshes wired: streetlamp/manhole/fire_truck (downtown), oak_tree/park_bench (suburbs), palm_tree/park_bench (harbor).
+
+## v3.42 — wire 5 missing dev product handlers + 5 missing gamepass grants + 4 paid skin definitions
+- `MonetizationHandler`: handlers for CHAOS_500K, HELLTOKENS_100, HELLTOKENS_1000, PERK_RESET, DAILY_DOUBLE.
+- Refactored gamepass listener to GAMEPASS_GRANTS table covering all 9.
+- `CosmeticConfig`: Pearl/Ember/Gold/GangLeader skin definitions with `gamepassKey` field.
+
+## v3.41 — 6 gamepass IDs wired
+- VIP=1822889201, GANG_LEADER=1822837259, ULTIMATE_CHAOS=1823014838, PEARL_SKIN=1823218389, EMBER_SKIN=1822895103, GOLD_SKIN=1822763618.
+
+## v3.40 — 7 dev product IDs wired
+- CHAOS_5K/50K/500K, HELLTOKENS_100/1000, PERK_RESET, DAILY_DOUBLE.
+
 ## v3.29 — settings persistence + cat animations stub
 - DataHandler now stores user settings (master/music/sfx/ui volume,
   graphics quality, motion shake) in the player's profile and mirrors
