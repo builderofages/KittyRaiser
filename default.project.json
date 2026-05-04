@@ -173,6 +173,15 @@
         },
         "OnboardingFlow": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/OnboardingFlow.client.lua"
+        },
+        "LoadingScreen": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/LoadingScreen.client.lua"
+        },
+        "DeathScreen": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/DeathScreen.client.lua"
+        },
+        "SettingsMenu": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/SettingsMenu.client.lua"
         }
       }
     },

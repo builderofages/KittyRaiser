@@ -194,7 +194,8 @@ if Remotes.PrankRegistered then
 
 		-- FOV pulse intensity scales with prank's screenShake config but capped.
 		local shake = (prank and prank.screenShake) or 0
-		if shake > 0 then
+		-- Respect player's "Motion FX" setting from SettingsMenu
+		if shake > 0 and player:GetAttribute("MotionShake") ~= false then
 			task.spawn(fovPulse, math.min(shake * 0.5, 6), 80)
 		end
 

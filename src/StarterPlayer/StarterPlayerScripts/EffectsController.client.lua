@@ -382,7 +382,10 @@ Remotes.PrankRegistered.OnClientEvent:Connect(function(prankName, target, chaosG
     playSound(prank.soundId)
     if chaosGained and chaosGained > 0 then
         chaosFlyUp(chaosGained, cf)
-        shake(prank.screenShake or 0)
+        -- Respect player's "Motion FX" setting from SettingsMenu
+        if player:GetAttribute("MotionShake") ~= false then
+            shake(prank.screenShake or 0)
+        end
     end
 end)
 
