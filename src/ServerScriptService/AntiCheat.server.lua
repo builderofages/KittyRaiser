@@ -120,8 +120,13 @@ Players.PlayerRemoving:Connect(function(player)
     State[player.UserId] = nil
 end)
 
--- Heartbeat teleport check
+-- Heartbeat teleport check (throttled to 5Hz to keep server-side cost bounded
+-- on iPhone SE / busy servers; 5Hz is plenty to detect 80+studs/sec teleports)
+local _ac_lastTick = 0
 game:GetService("RunService").Heartbeat:Connect(function()
+    local now = os.clock()
+    if now - _ac_lastTick < 0.2 then return end
+    _ac_lastTick = now
     for _, player in ipairs(Players:GetPlayers()) do
         AntiCheat.checkTeleport(player)
     end
