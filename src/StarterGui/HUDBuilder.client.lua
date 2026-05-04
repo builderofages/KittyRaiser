@@ -267,11 +267,14 @@ bind(makeLabel({
 }), 14, 32)
 
 -- ===== CENTER BOTTOM: SUMMON BUTTON (icon + glow ring) =====
-local summonSize = IS_MOBILE and 150 or 120
+local summonSize = IS_MOBILE and 130 or 110
+-- Position summon button so its bottom edge sits ABOVE the bottom bar.
+-- BottomBar height ≈ 60+10 padding = 70; summon bottom should clear that.
+-- (Previously offset 30 caused 40px overlap with the bottom bar.)
 local summonBtn = makeButton({
     Name = "SummonButton",
     Size = UDim2.new(0, summonSize, 0, summonSize),
-    Position = UDim2.new(0.5, -summonSize/2, 1, -(summonSize + 30)),
+    Position = UDim2.new(0.5, -summonSize/2, 1, -(summonSize + 90)),
     BackgroundColor3 = PALETTE_DANGER,
     Text = "",
     Parent = screenGui,
