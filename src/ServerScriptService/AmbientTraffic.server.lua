@@ -72,6 +72,39 @@ task.spawn(function()
 			local yaw = direction == 1 and math.rad(90) or math.rad(-90)
 			part.CFrame = CFrame.new(startX + offset, 2.5, z) * CFrame.Angles(0, yaw, 0)
 			part.Parent = trafficFolder
+
+			-- Driver figure: small primitive head + torso visible through the
+			-- car so it looks driven, not abandoned. Welded to the car so it
+			-- moves with the TweenService loop.
+			local DRIVER_SHIRT = {
+				Color3.fromRGB(40, 50, 80), Color3.fromRGB(220, 60, 60),
+				Color3.fromRGB(60, 130, 200), Color3.fromRGB(80, 200, 90),
+			}
+			local SKIN_TONES = {
+				Color3.fromRGB(245,205,160), Color3.fromRGB(200,165,130),
+				Color3.fromRGB(160,110,80),  Color3.fromRGB(95,65,45),
+			}
+			local driverTorso = Instance.new("Part", trafficFolder)
+			driverTorso.Anchored = true; driverTorso.CanCollide = false
+			driverTorso.Size = Vector3.new(1.3, 1.0, 0.8)
+			driverTorso.Material = Enum.Material.SmoothPlastic
+			driverTorso.Color = DRIVER_SHIRT[rng:NextInteger(1, #DRIVER_SHIRT)]
+			driverTorso.CFrame = part.CFrame * CFrame.new(-0.4, 0.6, 1.5)
+			local dwt = Instance.new("WeldConstraint", driverTorso)
+			dwt.Part0 = part; dwt.Part1 = driverTorso
+			local driverHead = Instance.new("Part", trafficFolder)
+			driverHead.Anchored = true; driverHead.CanCollide = false
+			driverHead.Size = Vector3.new(0.8, 0.8, 0.8)
+			driverHead.Shape = Enum.PartType.Ball
+			driverHead.Material = Enum.Material.SmoothPlastic
+			driverHead.Color = SKIN_TONES[rng:NextInteger(1, #SKIN_TONES)]
+			driverHead.CFrame = driverTorso.CFrame * CFrame.new(0, 0.9, 0)
+			local dwh = Instance.new("WeldConstraint", driverHead)
+			dwh.Part0 = part; dwh.Part1 = driverHead
+			-- Face decal for personality
+			local face = Instance.new("Decal", driverHead)
+			face.Texture = "rbxasset://textures/face.png"
+			face.Face = Enum.NormalId.Front
 			-- TweenService loop — slow cruise. Speed ~30 studs/sec → 1400/30 ≈ 47s
 			local duration = rng:NextNumber(40, 55)
 			task.spawn(function()
