@@ -97,6 +97,9 @@ stroke.Color = PALETTE_PRIMARY
 stroke.Parent = topBar
 
 -- Generic helper: icon + label "currency cell" used by chaos/hell/rebirth.
+-- Always renders a colored circle (UICorner) BEHIND the ImageLabel so even
+-- when the asset hasn't loaded / is moderated / is private, the player
+-- still sees a visible round badge instead of just the bare number.
 local function buildCurrencyCell(parent, name, iconKey, iconColor, posX, sizeX)
     local wrap = makeFrame({
         Name = name,
@@ -105,27 +108,37 @@ local function buildCurrencyCell(parent, name, iconKey, iconColor, posX, sizeX)
         BackgroundTransparency = 1,
         Parent = parent,
     })
-    -- Drop shadow
+
+    -- Always-visible colored circle backplate (38x38). Sits at the LEFT edge
+    -- of the wrap; label text starts after it via Position offset 44px.
+    local backplate = Instance.new("Frame")
+    backplate.Name = "IconBackplate"
+    backplate.AnchorPoint = Vector2.new(0, 0.5)
+    backplate.Size = UDim2.new(0, 38, 0, 38)
+    backplate.Position = UDim2.new(0, 0, 0.5, 0)
+    backplate.BackgroundColor3 = iconColor
+    backplate.BorderSizePixel = 0
+    backplate.Parent = wrap
+    Instance.new("UICorner", backplate).CornerRadius = UDim.new(1, 0)
+    local bpStroke = Instance.new("UIStroke", backplate)
+    bpStroke.Thickness = 2
+    bpStroke.Color = UIUtil.Palette.stroke
+    bpStroke.Transparency = 0.3
+
+    -- Real icon ImageLabel (if asset is uploaded) sits ON TOP of the
+    -- backplate. Tinted white so the icon shape is visible against the
+    -- colored circle. Size shrunk slightly so backplate ring shows.
     if iconKey and AssetIds.has(iconKey) then
-        local shadow = Instance.new("ImageLabel")
-        shadow.Name = "IconShadow"
-        shadow.BackgroundTransparency = 1
-        shadow.Size = UDim2.new(0, 32, 0, 32)
-        shadow.Position = UDim2.new(0, 2, 0.5, -14)
-        shadow.Image = AssetIds[iconKey]
-        shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-        shadow.ImageTransparency = 0.6
-        shadow.ScaleType = Enum.ScaleType.Fit
-        shadow.Parent = wrap
         local icon = Instance.new("ImageLabel")
         icon.Name = "Icon"
+        icon.AnchorPoint = Vector2.new(0.5, 0.5)
         icon.BackgroundTransparency = 1
-        icon.Size = UDim2.new(0, 32, 0, 32)
-        icon.Position = UDim2.new(0, 0, 0.5, -16)
+        icon.Size = UDim2.new(0, 28, 0, 28)
+        icon.Position = UDim2.new(0.5, 0, 0.5, 0)
         icon.Image = AssetIds[iconKey]
-        icon.ImageColor3 = iconColor
+        icon.ImageColor3 = Color3.fromRGB(255, 255, 255)  -- white tint so any color icon shows
         icon.ScaleType = Enum.ScaleType.Fit
-        icon.Parent = wrap
+        icon.Parent = backplate
     end
     return wrap
 end
@@ -193,7 +206,10 @@ xpGrad.Color = ColorSequence.new{
 }
 xpGrad.Rotation = 90
 
--- Rebirth counter: trophy icon + count
+-- Rebirth counter: trophy icon + count.
+-- Right-anchored backplate so the trophy circle sits at the RIGHT edge of
+-- the wrap, with the rebirth count to its left. Always-visible colored
+-- circle even if trophy asset fails to load.
 local rebirthWrap = makeFrame({
     Name = "RebirthWrap",
     Size = UDim2.new(0.18, 0, 0.7, 0),
@@ -201,25 +217,28 @@ local rebirthWrap = makeFrame({
     BackgroundTransparency = 1,
     Parent = topBar,
 })
+local rebirthBackplate = Instance.new("Frame")
+rebirthBackplate.Name = "IconBackplate"
+rebirthBackplate.AnchorPoint = Vector2.new(1, 0.5)
+rebirthBackplate.Size = UDim2.new(0, 38, 0, 38)
+rebirthBackplate.Position = UDim2.new(1, 0, 0.5, 0)
+rebirthBackplate.BackgroundColor3 = PALETTE_PRIMARY
+rebirthBackplate.BorderSizePixel = 0
+rebirthBackplate.Parent = rebirthWrap
+Instance.new("UICorner", rebirthBackplate).CornerRadius = UDim.new(1, 0)
+local rbStroke = Instance.new("UIStroke", rebirthBackplate)
+rbStroke.Thickness = 2; rbStroke.Color = UIUtil.Palette.stroke; rbStroke.Transparency = 0.3
 if AssetIds.has("trophy") then
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "IconShadow"
-    shadow.BackgroundTransparency = 1
-    shadow.Size = UDim2.new(0, 32, 0, 32)
-    shadow.Position = UDim2.new(1, -34, 0.5, -14)
-    shadow.Image = AssetIds.trophy
-    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.ImageTransparency = 0.6
-    shadow.ScaleType = Enum.ScaleType.Fit
-    shadow.Parent = rebirthWrap
     local icon = Instance.new("ImageLabel")
     icon.Name = "RebirthIcon"
+    icon.AnchorPoint = Vector2.new(0.5, 0.5)
     icon.BackgroundTransparency = 1
-    icon.Size = UDim2.new(0, 32, 0, 32)
-    icon.Position = UDim2.new(1, -32, 0.5, -16)
+    icon.Size = UDim2.new(0, 28, 0, 28)
+    icon.Position = UDim2.new(0.5, 0, 0.5, 0)
     icon.Image = AssetIds.trophy
-    icon.ImageColor3 = PALETTE_PRIMARY
-    icon.Parent = rebirthWrap
+    icon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+    icon.ScaleType = Enum.ScaleType.Fit
+    icon.Parent = rebirthBackplate
 end
 bind(makeLabel({
     Name = "RebirthLabel",
