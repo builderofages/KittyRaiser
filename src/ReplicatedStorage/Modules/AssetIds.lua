@@ -123,12 +123,12 @@ AssetIds.badge_boss_defeat        = "rbxassetid://0"
 AssetIds.badge_ticketed           = "rbxassetid://0"
 
 -- ===== MARKETING =====
-AssetIds.game_icon                = "rbxassetid://112119672948925"
-AssetIds.game_icon_small          = "rbxassetid://127301758963300"
-AssetIds.thumb_anvil_drop         = "rbxassetid://122430493238064"
-AssetIds.thumb_city_night         = "rbxassetid://93412783927707"
-AssetIds.thumb_lobby              = "rbxassetid://138479515559252"
-AssetIds.thumb_pie_throw          = "rbxassetid://77814614183684"
+AssetIds.game_icon                = "rbxassetid://92376623612256"
+AssetIds.game_icon_small          = "rbxassetid://92376623612256"
+AssetIds.thumb_anvil_drop         = "rbxassetid://101925244771007"
+AssetIds.thumb_city_night         = "rbxassetid://78180746183552"
+AssetIds.thumb_lobby              = "rbxassetid://102793817013440"
+AssetIds.thumb_pie_throw          = "rbxassetid://98108593160983"
 
 function AssetIds.has(name)
     local v = AssetIds[name]
