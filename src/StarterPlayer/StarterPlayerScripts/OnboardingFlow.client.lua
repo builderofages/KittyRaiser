@@ -22,13 +22,14 @@ task.wait(4)
 local hud = playerGui:WaitForChild("MainHUD", 30)
 if not hud then return end
 
+-- Sunny daytime cartoon palette per CLAUDE.md (no neon).
 local PALETTE = {
-  bgDark    = Color3.fromRGB(26, 20, 40),
-  neonPink  = Color3.fromRGB(192, 38, 211),
-  cyan      = Color3.fromRGB(34, 211, 238),
-  gold      = Color3.fromRGB(250, 204, 21),
-  green     = Color3.fromRGB(34, 197, 94),
-  white     = Color3.fromRGB(245, 240, 250),
+  bgDark    = Color3.fromRGB(50, 35, 20),    -- dark wood
+  neonPink  = Color3.fromRGB(220, 150, 60),  -- name kept for compat; warm amber now
+  cyan      = Color3.fromRGB(110, 165, 95),  -- sage green
+  gold      = Color3.fromRGB(245, 200, 90),  -- amber gold
+  green     = Color3.fromRGB(95, 165, 80),   -- daytime green
+  white     = Color3.fromRGB(255, 248, 230), -- cream white
 }
 
 local overlay = Instance.new("ScreenGui")
@@ -49,8 +50,8 @@ local function showStep(text, anchorRect)
   stroke.Thickness = 3; stroke.Color = PALETTE.neonPink
   local grad = Instance.new("UIGradient", box)
   grad.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(48, 30, 90)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 14, 32)),
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(110, 75, 45)),  -- warm wood top
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 35, 20)),   -- dark wood bottom
   }
   grad.Rotation = 90
 
