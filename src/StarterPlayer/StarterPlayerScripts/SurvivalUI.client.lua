@@ -32,16 +32,29 @@ local function makeBar(name, color, iconKey, layoutOrder)
     row.LayoutOrder = layoutOrder
     row.Parent = container
 
-    local iconWidth = 0
+    -- Always-visible colored circle backplate (matches the bar color) so the
+    -- icon position is visible even if the asset image hasn't loaded.
+    local iconWidth = 30
+    local backplate = Instance.new("Frame", row)
+    backplate.Name = "IconBackplate"
+    backplate.AnchorPoint = Vector2.new(0, 0.5)
+    backplate.Size = UDim2.new(0, 26, 0, 26)
+    backplate.Position = UDim2.new(0, 0, 0.5, 0)
+    backplate.BackgroundColor3 = color
+    backplate.BorderSizePixel = 0
+    Instance.new("UICorner", backplate).CornerRadius = UDim.new(1, 0)
+    local bpStroke = Instance.new("UIStroke", backplate)
+    bpStroke.Thickness = 1; bpStroke.Color = UIUtil.Palette.stroke; bpStroke.Transparency = 0.3
+
     if iconKey and AssetIds.has(iconKey) then
-        local icon = Instance.new("ImageLabel", row)
+        local icon = Instance.new("ImageLabel", backplate)
+        icon.AnchorPoint = Vector2.new(0.5, 0.5)
         icon.BackgroundTransparency = 1
-        icon.Size = UDim2.new(0, 22, 0, 22)
-        icon.Position = UDim2.new(0, 0, 0.5, -11)
+        icon.Size = UDim2.new(0, 18, 0, 18)
+        icon.Position = UDim2.new(0.5, 0, 0.5, 0)
         icon.Image = AssetIds[iconKey]
-        icon.ImageColor3 = color
+        icon.ImageColor3 = Color3.fromRGB(255, 255, 255)
         icon.ScaleType = Enum.ScaleType.Fit
-        iconWidth = 26
     end
 
     local lbl = Instance.new("TextLabel", row)
