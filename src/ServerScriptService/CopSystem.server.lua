@@ -12,14 +12,45 @@ local RunService    = game:GetService("RunService")
 local PathfindingService = game:GetService("PathfindingService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Remotes  = require(ReplicatedStorage.Modules.RemoteEvents)
-local AssetIds = require(ReplicatedStorage.Modules.AssetIds)
+local Remotes     = require(ReplicatedStorage.Modules.RemoteEvents)
+local AssetIds    = require(ReplicatedStorage.Modules.AssetIds)
+local AudioGroups = require(ReplicatedStorage.Modules:WaitForChild("AudioGroups"))
 
 local function waitForGlobal(name)
     while not _G[name] do task.wait() end
     return _G[name]
 end
 local DataHandler = waitForGlobal("KittyRaiserData")
+
+-- Helper: attach a looping siren to the cop's head with proper rolloff
+local function attachSiren(cop)
+    if not AssetIds.has("cop_siren") then return end
+    local head = cop:FindFirstChild("Head")
+    if not head then return end
+    local s = Instance.new("Sound")
+    s.Name = "CopSiren"
+    s.SoundId = AssetIds.cop_siren
+    s.Looped = true
+    s.Volume = 0.8
+    s.RollOffMode = Enum.RollOffMode.Linear
+    s.RollOffMaxDistance = 120
+    s.RollOffMinDistance = 5
+    AudioGroups.assign(s, "SFX")
+    s.Parent = head
+    s:Play()
+end
+
+-- Helper: short ticket buzz when a player gets caught
+local function playTicketBuzz(target)
+    if not AssetIds.has("ticket_buzz") then return end
+    local s = Instance.new("Sound")
+    s.SoundId = AssetIds.ticket_buzz
+    s.Volume = 0.9
+    AudioGroups.assign(s, "UI")
+    s.Parent = target.Character and target.Character:FindFirstChild("Head")
+    if s.Parent then s:Play() end
+    game:GetService("Debris"):AddItem(s, 4)
+end
 
 local copsFolder = Workspace:FindFirstChild("Cops") or Instance.new("Folder", Workspace)
 copsFolder.Name = "Cops"
@@ -164,6 +195,22 @@ local function spawnCop(targetPlayer)
     pcall(tintCop, model)
     pcall(attachHat, model:FindFirstChild("Head"))
     pcall(attachBadge, model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso"))
+    pcall(attachSiren, model)
+
+    -- Optional parked cop car beside the cop, ONLY if the mesh has been
+    -- uploaded (AssetIds.mesh_cop_car != 0). Falls back to no car.
+    if AssetIds.has("mesh_cop_car") and _G.KittyRaiserMeshes
+       and _G.KittyRaiserMeshes.mesh_cop_car
+       and _G.KittyRaiserMeshes.mesh_cop_car.meshTemplate then
+        local car = _G.KittyRaiserMeshes.mesh_cop_car.meshTemplate:Clone()
+        car.Anchored = true; car.CanCollide = true
+        car.Size = Vector3.new(4, 2.5, 8)
+        car.Material = Enum.Material.SmoothPlastic
+        car.Color = Color3.fromRGB(245, 245, 245)
+        local copPos = model.PrimaryPart and model.PrimaryPart.Position or origin + offset
+        car:PivotTo(CFrame.new(copPos + Vector3.new(6, 0, 0)) * CFrame.Angles(0, math.rad(90), 0))
+        car.Parent = model
+    end
 
     -- Spawn behind / near player but offset
     local origin = char.PrimaryPart.Position
@@ -202,6 +249,7 @@ local function spawnCop(targetPlayer)
                         dd.chaosPoints = math.max(0, (dd.chaosPoints or 0) - TICKET_PENALTY)
                     end)
                     Remotes.NotifyClient:FireClient(target, "TICKETED  -  -" .. TICKET_PENALTY .. " CHAOS", "warn")
+                    pcall(playTicketBuzz, target)
                     -- Brief stun: drop walk speed
                     if tchar then
                         local thum = tchar:FindFirstChildOfClass("Humanoid")

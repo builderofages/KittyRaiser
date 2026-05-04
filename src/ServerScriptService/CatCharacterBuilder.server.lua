@@ -267,6 +267,23 @@ local function playSpawnChime(character)
 	game:GetService("Debris"):AddItem(s, 4)
 end
 
+-- Looping background ambient music. Created ONCE per server in SoundService
+-- so all players hear the same loop. Routed to Music channel.
+local function ensureCityAmbient()
+	local SoundService = game:GetService("SoundService")
+	if SoundService:FindFirstChild("CityAmbient") then return end
+	if not AssetIds.has("city_ambient") then return end
+	local s = Instance.new("Sound")
+	s.Name = "CityAmbient"
+	s.SoundId = AssetIds.city_ambient
+	s.Looped = true
+	s.Volume = 0.6
+	if AudioGroups then AudioGroups.assign(s, "Music") end
+	s.Parent = SoundService
+	s:Play()
+end
+task.spawn(ensureCityAmbient)
+
 -- =====================================================================
 -- DECORATE
 -- =====================================================================

@@ -33,7 +33,7 @@ AssetIds.grass                    = "rbxassetid://73817717455234"
 AssetIds.neon_sign                = "rbxassetid://122168511391603"
 AssetIds.skyscraper_windows       = "rbxassetid://105109450915340"
 
--- ===== SOUNDS =====
+-- ===== SOUNDS (already uploaded) =====
 AssetIds.anvil_clang              = "rbxassetid://128055965356130"
 AssetIds.cat_scratch              = "rbxassetid://80128569475740"
 AssetIds.coin_pickup              = "rbxassetid://120402840139184"
@@ -50,7 +50,17 @@ AssetIds.slushie_freeze           = "rbxassetid://127263280391632"
 AssetIds.spawn_chime              = "rbxassetid://88974946443069"
 AssetIds.tp_unroll                = "rbxassetid://106817307887848"
 
--- ===== MESHES =====
+-- ===== SOUNDS — TODO upload, then paste id here. AssetIds.has() returns
+-- false for "rbxassetid://0", so all consuming code falls back gracefully. =====
+AssetIds.cop_siren                = "rbxassetid://0"  -- looping siren, attached to cop head, SFX channel
+AssetIds.boss_warning             = "rbxassetid://0"  -- one-shot stinger when boss spawns, SFX channel
+AssetIds.quest_complete           = "rbxassetid://0"  -- one-shot chime when quest finishes, UI channel
+AssetIds.city_ambient             = "rbxassetid://0"  -- looping background music, Music channel
+AssetIds.cat_purr_loop            = "rbxassetid://0"  -- looping purr for emote, SFX channel
+AssetIds.cat_hiss                 = "rbxassetid://0"  -- short hiss for emote, SFX channel
+AssetIds.ticket_buzz              = "rbxassetid://0"  -- short angry buzz when cop tickets you
+
+-- ===== MESHES (already uploaded) =====
 AssetIds.mesh_anvil               = "rbxassetid://112707712825379"
 AssetIds.mesh_brownstone          = "rbxassetid://121998943640862"
 AssetIds.mesh_cat_body            = "rbxassetid://123706210309343"
@@ -64,6 +74,19 @@ AssetIds.mesh_pie                 = "rbxassetid://140111034397281"
 AssetIds.mesh_skyscraper          = "rbxassetid://82803902927729"
 AssetIds.mesh_taxi                = "rbxassetid://107507236907511"
 AssetIds.mesh_trashcan            = "rbxassetid://83811237643216"
+
+-- ===== MESHES — TODO build via blender_kittyraiser_extras.py, upload, paste
+-- id here. CityRebuild + CopSystem already check AssetIds.has() and fall
+-- back to primitive shapes if not yet uploaded. =====
+AssetIds.mesh_cop_car             = "rbxassetid://0"  -- black/white squad car, used by CopSystem
+AssetIds.mesh_streetlamp          = "rbxassetid://0"  -- decorative lamp post, downtown zone
+AssetIds.mesh_park_bench          = "rbxassetid://0"  -- plaza seating
+AssetIds.mesh_oak_tree            = "rbxassetid://0"  -- replaces procedural tree in suburbs
+AssetIds.mesh_palm_tree           = "rbxassetid://0"  -- replaces procedural tree in harbor
+AssetIds.mesh_donut               = "rbxassetid://0"  -- food prop for survival eating
+AssetIds.mesh_coffee              = "rbxassetid://0"  -- drink prop for thirst
+AssetIds.mesh_manhole             = "rbxassetid://0"  -- flush ground decoration, downtown
+AssetIds.mesh_fire_truck          = "rbxassetid://0"  -- ambient prop in suburbs
 
 -- ===== MARKETING =====
 AssetIds.game_icon                = "rbxassetid://112119672948925"

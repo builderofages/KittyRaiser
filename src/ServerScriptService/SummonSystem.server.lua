@@ -8,8 +8,14 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
-local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+local Remotes     = require(ReplicatedStorage.Modules.RemoteEvents)
+local GameConfig  = require(ReplicatedStorage.Modules.GameConfig)
+local AssetIds    = require(ReplicatedStorage.Modules.AssetIds)
+local AudioGroups
+do
+    local m = ReplicatedStorage.Modules:WaitForChild("AudioGroups", 5)
+    if m then local ok, mod = pcall(require, m); if ok then AudioGroups = mod end end
+end
 
 local SummonSystem = {}
 
@@ -314,12 +320,21 @@ function SummonSystem.summon(player)
 
     wanderAI(npc)
 
-    -- Boss: build floating HP bar after the drop-in finishes
+    -- Boss: build floating HP bar after the drop-in finishes + play warning stinger
     if npc:GetAttribute("Boss") then
         task.delay(0.6, function()
             if not npc.Parent then return end
             makeBossHpBar(npc)
         end)
+        if AssetIds.has("boss_warning") then
+            local s = Instance.new("Sound")
+            s.SoundId = AssetIds.boss_warning
+            s.Volume = 1.0
+            if AudioGroups then AudioGroups.assign(s, "SFX") end
+            s.Parent = npc:FindFirstChild("Head") or npc
+            s:Play()
+            game:GetService("Debris"):AddItem(s, 5)
+        end
     end
 
     return true, npc

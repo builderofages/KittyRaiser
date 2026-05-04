@@ -10,6 +10,14 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Remotes      = require(ReplicatedStorage.Modules.RemoteEvents)
 local QuestConfig  = require(ReplicatedStorage.Modules:WaitForChild("QuestConfig"))
+local AssetIds     = require(ReplicatedStorage.Modules.AssetIds)
+local AudioGroups
+do
+    local m = ReplicatedStorage.Modules:WaitForChild("AudioGroups", 5)
+    if m then local ok, mod = pcall(require, m); if ok then AudioGroups = mod end end
+end
+
+local SoundService = game:GetService("SoundService")
 
 local function waitForGlobal(name)
     while not _G[name] do task.wait() end
@@ -81,6 +89,17 @@ local function awardCompletion(player, q)
         rewardChaos = q.rewardChaos,
         rewardHellTokens = q.rewardHellTokens or 0,
     })
+    -- Quest-complete chime (server-side, attached to player head so spatial)
+    if AssetIds.has("quest_complete") then
+        local s = Instance.new("Sound")
+        s.SoundId = AssetIds.quest_complete
+        s.Volume = 0.9
+        if AudioGroups then AudioGroups.assign(s, "UI") end
+        local head = player.Character and player.Character:FindFirstChild("Head")
+        s.Parent = head or SoundService
+        s:Play()
+        game:GetService("Debris"):AddItem(s, 4)
+    end
 end
 
 local function bump(player, kind, amount, prankName)

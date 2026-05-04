@@ -32,7 +32,27 @@ local function ragdoll(npc, fromPos)
     Debris:AddItem(npc, 3)
 end
 
+local AudioGroups
+do
+    local m = ReplicatedStorage.Modules:WaitForChild("AudioGroups", 5)
+    if m then local ok, mod = pcall(require, m); if ok then AudioGroups = mod end end
+end
+
 local function spawnCoinLoot(pos, count)
+    -- One coin pickup chime per cluster (not per coin — would be deafening).
+    if AssetIds.has("coin_pickup") then
+        local s = Instance.new("Sound")
+        s.SoundId = AssetIds.coin_pickup
+        s.Volume = 0.7
+        if AudioGroups then AudioGroups.assign(s, "SFX") end
+        local p = Instance.new("Part")
+        p.Anchored = true; p.CanCollide = false; p.Transparency = 1
+        p.Size = Vector3.new(0.1, 0.1, 0.1); p.Position = pos
+        p.Parent = Workspace
+        s.Parent = p
+        s:Play()
+        Debris:AddItem(p, 3)
+    end
     for i = 1, count do
         -- Cylinder long-axis is X; rotating 90° around Z makes it stand vertically
         -- with flat faces front/back — that's our "coin face the camera" look.

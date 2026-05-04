@@ -41,9 +41,17 @@ local function extractFromModelAsset(modelAssetId)
 end
 
 local NAMES = {
+    -- Cat
     "mesh_cat_body", "mesh_cat_head", "mesh_cat_ear", "mesh_cat_leg", "mesh_cat_tail",
-    "mesh_anvil", "mesh_brownstone", "mesh_skyscraper", "mesh_taxi",
-    "mesh_trashcan", "mesh_hydrant", "mesh_mailbox", "mesh_pie",
+    -- Pranks
+    "mesh_anvil", "mesh_pie",
+    -- World props
+    "mesh_brownstone", "mesh_skyscraper",
+    "mesh_taxi", "mesh_trashcan", "mesh_hydrant", "mesh_mailbox",
+    -- New (will silently skip if AssetIds entry is "rbxassetid://0")
+    "mesh_cop_car", "mesh_streetlamp", "mesh_park_bench",
+    "mesh_oak_tree", "mesh_palm_tree", "mesh_donut", "mesh_coffee",
+    "mesh_manhole", "mesh_fire_truck",
 }
 
 local loaded = 0
