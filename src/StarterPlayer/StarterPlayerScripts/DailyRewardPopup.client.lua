@@ -47,19 +47,20 @@ dim.BackgroundTransparency = 0.5
 dim.Parent = popup
 
 local card = Instance.new("Frame")
-card.Size = UDim2.new(0, 480, 0, 380)
-card.Position = UDim2.new(0.5, -240, 0.5, -190)
-card.BackgroundColor3 = Color3.fromRGB(40, 20, 70)
+card.Size = UIUtil.modalSize(480, 380, 24)
+card.AnchorPoint = Vector2.new(0.5, 0.5)
+card.Position = UDim2.new(0.5, 0, 0.5, 0)
+card.BackgroundColor3 = UIUtil.Palette.bgMid
 card.BorderSizePixel = 0
 card.Parent = popup
-Instance.new("UICorner", card).CornerRadius = UDim.new(0, 16)
+Instance.new("UICorner", card).CornerRadius = UIUtil.Token.cornerLg
 local cardStroke = Instance.new("UIStroke", card)
-cardStroke.Thickness = 3
-cardStroke.Color = Color3.fromRGB(255, 215, 0)
+cardStroke.Thickness = UIUtil.Token.strokeBold
+cardStroke.Color = UIUtil.Palette.gold
 local cardGrad = Instance.new("UIGradient", card)
 cardGrad.Color = ColorSequence.new{
-  ColorSequenceKeypoint.new(0, Color3.fromRGB(70, 30, 130)),
-  ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 10, 50)),
+  ColorSequenceKeypoint.new(0, UIUtil.Palette.panel),
+  ColorSequenceKeypoint.new(1, UIUtil.Palette.bgDark),
 }
 cardGrad.Rotation = 90
 
@@ -101,32 +102,34 @@ streakLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
 streakLabel.Parent = card
 bound(streakLabel, 14, 22)
 
--- 7-day strip
+-- 7-day strip — boxes auto-fit horizontally regardless of card width
 local strip = Instance.new("Frame")
 strip.Size = UDim2.new(1, -40, 0, 90)
 strip.Position = UDim2.new(0, 20, 0, 100)
 strip.BackgroundTransparency = 1
 strip.Parent = card
-local stripLayout = Instance.new("UIListLayout", strip)
-stripLayout.FillDirection = Enum.FillDirection.Horizontal
+local stripLayout = Instance.new("UIGridLayout", strip)
+stripLayout.CellSize = UDim2.new(1/7, -6, 1, 0)  -- 7 equal columns with gap
+stripLayout.CellPadding = UDim2.new(0, 6, 0, 0)
+stripLayout.SortOrder = Enum.SortOrder.LayoutOrder
 stripLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-stripLayout.Padding = UDim.new(0, 4)
 
 for i = 1, 7 do
   local box = Instance.new("Frame")
-  box.Size = UDim2.new(0, 56, 0, 80)
-  box.BackgroundColor3 = (i <= dayIndex) and Color3.fromRGB(50, 200, 100) or Color3.fromRGB(60, 30, 90)
+  box.LayoutOrder = i
+  box.BackgroundColor3 = (i <= dayIndex) and UIUtil.Palette.accent or UIUtil.Palette.panel
   box.BorderSizePixel = 0
   box.Parent = strip
-  Instance.new("UICorner", box).CornerRadius = UDim.new(0, 8)
+  Instance.new("UICorner", box).CornerRadius = UIUtil.Token.cornerSm
   if i == dayIndex then
     local s = Instance.new("UIStroke", box)
-    s.Thickness = 3
-    s.Color = Color3.fromRGB(255, 215, 0)
-    -- Pulse
+    s.Thickness = UIUtil.Token.strokeBold
+    s.Color = UIUtil.Palette.gold
+    -- Subtle pulse via background transparency (doesn't fight the grid layout)
     task.spawn(function()
       while box.Parent do
-        TweenService:Create(box, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Size = UDim2.new(0, 60, 0, 84)}):Play()
+        TweenService:Create(box, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+          {BackgroundTransparency = 0.15}):Play()
         task.wait(1.2)
       end
     end)
@@ -136,19 +139,19 @@ for i = 1, 7 do
   dl.Position = UDim2.fromScale(0, 0)
   dl.BackgroundTransparency = 1
   dl.Text = "D" .. i
-  dl.Font = Enum.Font.GothamBold
+  dl.Font = UIUtil.Token.fontLabel
   dl.TextScaled = true
-  dl.TextColor3 = Color3.fromRGB(255, 255, 255)
-  bound(dl, 12, 18)
+  dl.TextColor3 = UIUtil.Palette.textHi
+  UIUtil.TextSize.small(dl)
   local rl = Instance.new("TextLabel", box)
   rl.Size = UDim2.fromScale(1, 0.6)
   rl.Position = UDim2.fromScale(0, 0.4)
   rl.BackgroundTransparency = 1
   rl.Text = (DAY_REWARDS[i].chaos >= 1000) and (math.floor(DAY_REWARDS[i].chaos/1000) .. "K") or tostring(DAY_REWARDS[i].chaos)
-  rl.Font = Enum.Font.Gotham
+  rl.Font = UIUtil.Token.fontBody
   rl.TextScaled = true
-  rl.TextColor3 = Color3.fromRGB(255, 230, 200)
-  bound(rl, 11, 16)
+  rl.TextColor3 = UIUtil.Palette.textMuted
+  UIUtil.TextSize.tiny(rl)
 end
 
 -- Today's reward big text
@@ -188,16 +191,32 @@ claimBtn.MouseButton1Click:Connect(function()
   popup:Destroy()
 end)
 
--- X dismiss
+-- X dismiss (48x48 touch target)
 local x = Instance.new("TextButton")
-x.Size = UDim2.new(0, 36, 0, 36)
-x.Position = UDim2.new(1, -42, 0, 6)
-x.BackgroundTransparency = 1
+x.Size = UDim2.new(0, 48, 0, 48)
+x.Position = UDim2.new(1, -56, 0, 8)
+x.BackgroundColor3 = UIUtil.Palette.danger
+x.AutoButtonColor = false
 x.Text = "X"
-x.Font = Enum.Font.GothamBold
+x.Font = UIUtil.Token.fontHeader
 x.TextScaled = true
-x.TextColor3 = Color3.fromRGB(255, 200, 200)
+x.TextColor3 = UIUtil.Palette.textHi
+Instance.new("UICorner", x).CornerRadius = UIUtil.Token.cornerSm
+local xStroke = Instance.new("UIStroke", x)
+xStroke.Thickness = UIUtil.Token.strokeReg
+xStroke.Color = UIUtil.Palette.stroke
+UIUtil.boundText(x, 18, 26)
 x.Parent = card
 x.MouseButton1Click:Connect(function() popup:Destroy() end)
+
+-- Re-clamp card on viewport resize
+local cam = workspace.CurrentCamera
+if cam then
+  cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+    if card and card.Parent then
+      card.Size = UIUtil.modalSize(480, 380, 24)
+    end
+  end)
+end
 
 print("[DailyRewardPopup] showed daily reward streak " .. streak .. ", day " .. dayIndex)

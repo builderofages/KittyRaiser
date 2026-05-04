@@ -17,9 +17,19 @@ feed.ResetOnSpawn = false
 feed.DisplayOrder = UIUtil.DisplayOrder.KillFeed
 feed.Parent = playerGui
 
+-- Container is right-anchored and clamped to fit narrow phones.
+-- Uses Scale anchor on X so it always sits at right edge with a fixed margin.
+local function computeContainerWidth()
+  local vp = UIUtil.viewportSize()
+  -- Cap at 320 on desktop; on phones leave room for prank column on right side
+  -- of the screen (which is ~80px wide). So feed sits to the LEFT of prank column.
+  return math.max(220, math.min(320, vp.X - 120))
+end
+
 local container = Instance.new("Frame")
-container.Size = UDim2.new(0, 320, 0, 220)
-container.Position = UDim2.new(1, -340, 0, 300)
+container.AnchorPoint = Vector2.new(1, 0)
+container.Size = UDim2.new(0, computeContainerWidth(), 0, 240)
+container.Position = UDim2.new(1, -100, 0, 110)  -- left of prank column, below TopBar
 container.BackgroundTransparency = 1
 container.Parent = feed
 local layout = Instance.new("UIListLayout", container)
@@ -28,19 +38,28 @@ layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 layout.Padding = UDim.new(0, 4)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 
+-- Re-clamp on viewport resize (window dragged, mobile rotation, etc.)
+local cam = workspace.CurrentCamera
+if cam then
+  cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+    container.Size = UDim2.new(0, computeContainerWidth(), 0, 240)
+  end)
+end
+
 local entries = {}
 local nextOrder = 0
 
 local function addEntry(text, color)
   nextOrder = nextOrder - 1
   local row = Instance.new("Frame")
-  row.Size = UDim2.new(0, 320, 0, 30)
+  -- Fill the container width so rows reflow when viewport changes
+  row.Size = UDim2.new(1, 0, 0, 30)
   row.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
   row.BackgroundTransparency = 0.4
   row.BorderSizePixel = 0
   row.LayoutOrder = nextOrder
   row.Parent = container
-  Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+  Instance.new("UICorner", row).CornerRadius = UIUtil.Token.cornerSm
   local bar = Instance.new("Frame", row)
   bar.Size = UDim2.new(0, 4, 1, 0)
   bar.BackgroundColor3 = color or Color3.fromRGB(255, 100, 200)

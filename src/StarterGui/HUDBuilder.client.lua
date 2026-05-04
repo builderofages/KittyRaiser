@@ -31,7 +31,10 @@ local playerGui = player:WaitForChild("PlayerGui")
 local existing = playerGui:FindFirstChild("MainHUD")
 if existing then existing:Destroy() end
 
-local IS_MOBILE = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+-- IS_MOBILE = phone OR tablet (anything we should make touch-friendly)
+local PLATFORM   = UIUtil.platform()
+local IS_MOBILE  = (PLATFORM == "phone") or (PLATFORM == "tablet")
+local IS_PHONE   = PLATFORM == "phone"
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "MainHUD"
@@ -471,40 +474,43 @@ local toastFrame = makeFrame({
     Parent = screenGui,
 })
 
--- ===== SHOP MODAL (hidden by default) =====
+-- ===== SHOP MODAL (responsive: clamp to viewport) =====
 local shopModal = makeFrame({
     Name = "ShopModal",
-    Size = UDim2.new(0, 600, 0, 500),
+    Size = UIUtil.modalSize(600, 500, 24),
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.new(0.5, 0, 0.5, 0),
-    BackgroundColor3 = Color3.fromRGB(50, 35, 25),
+    BackgroundColor3 = UIUtil.Palette.bgMid,
     BorderSizePixel = 0,
     Visible = false,
     Parent = screenGui,
 })
-Instance.new("UICorner", shopModal).CornerRadius = UDim.new(0, 16)
+Instance.new("UICorner", shopModal).CornerRadius = UIUtil.Token.cornerLg
 local shopStroke = Instance.new("UIStroke")
-shopStroke.Thickness = 3
-shopStroke.Color = GameConfig.HUD_PRIMARY_COLOR
+shopStroke.Thickness = UIUtil.Token.strokeBold
+shopStroke.Color = UIUtil.Palette.primary
 shopStroke.Parent = shopModal
 
 bind(makeLabel({
     Name = "ShopTitle",
-    Size = UDim2.new(1, -20, 0, 50),
-    Position = UDim2.new(0, 10, 0, 10),
+    Size = UDim2.new(1, -80, 0, 50),
+    Position = UDim2.new(0, 16, 0, 12),
     Text = "COSMETIC SHOP",
-    TextColor3 = GameConfig.HUD_ACCENT_COLOR,
+    TextColor3 = UIUtil.Palette.primary,
+    TextXAlignment = Enum.TextXAlignment.Left,
     Parent = shopModal,
-}), 18, 36)
+}), 18, 32)
 
+-- 48x48 close button (Apple HIG min touch target)
 local shopClose = makeButton({
     Name = "CloseButton",
-    Size = UDim2.new(0, 40, 0, 40),
-    Position = UDim2.new(1, -50, 0, 10),
+    Size = UDim2.new(0, 48, 0, 48),
+    Position = UDim2.new(1, -56, 0, 8),
     BackgroundColor3 = PALETTE_DANGER,
     Text = "X",
     Parent = shopModal,
 })
+bind(shopClose, 18, 26)
 
 local shopList = Instance.new("ScrollingFrame")
 shopList.Name = "ShopList"
@@ -524,36 +530,38 @@ shopLayout.Parent = shopList
 -- ===== LEADERBOARD MODAL =====
 local lbModal = makeFrame({
     Name = "LeaderboardModal",
-    Size = UDim2.new(0, 360, 0, 480),
+    Size = UIUtil.modalSize(420, 540, 24),
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.new(0.5, 0, 0.5, 0),
-    BackgroundColor3 = Color3.fromRGB(50, 35, 25),
+    BackgroundColor3 = UIUtil.Palette.bgMid,
     BorderSizePixel = 0,
     Visible = false,
     Parent = screenGui,
 })
-Instance.new("UICorner", lbModal).CornerRadius = UDim.new(0, 16)
+Instance.new("UICorner", lbModal).CornerRadius = UIUtil.Token.cornerLg
 local lbStroke = Instance.new("UIStroke")
-lbStroke.Thickness = 3
-lbStroke.Color = GameConfig.HUD_ACCENT_COLOR
+lbStroke.Thickness = UIUtil.Token.strokeBold
+lbStroke.Color = UIUtil.Palette.accent
 lbStroke.Parent = lbModal
 
 bind(makeLabel({
     Name = "LBTitle",
-    Size = UDim2.new(1, -20, 0, 50),
-    Position = UDim2.new(0, 10, 0, 10),
+    Size = UDim2.new(1, -80, 0, 50),
+    Position = UDim2.new(0, 16, 0, 12),
     Text = "TOP CHAOS",
-    TextColor3 = GameConfig.HUD_ACCENT_COLOR,
+    TextColor3 = UIUtil.Palette.accent,
+    TextXAlignment = Enum.TextXAlignment.Left,
     Parent = lbModal,
-}), 18, 36)
+}), 18, 32)
 local lbClose = makeButton({
     Name = "CloseButton",
-    Size = UDim2.new(0, 40, 0, 40),
-    Position = UDim2.new(1, -50, 0, 10),
+    Size = UDim2.new(0, 48, 0, 48),
+    Position = UDim2.new(1, -56, 0, 8),
     BackgroundColor3 = PALETTE_DANGER,
     Text = "X",
     Parent = lbModal,
 })
+bind(lbClose, 18, 26)
 local lbList = Instance.new("Frame")
 lbList.Name = "LBList"
 lbList.Size = UDim2.new(1, -20, 1, -80)
@@ -586,7 +594,22 @@ local tutLabel = bind(makeLabel({
     Parent = tutorial,
 }), 14, 26)
 
-print("[HUDBuilder] MainHUD constructed")
+-- ===== VIEWPORT-AWARE RECLAMP =====
+-- When the window is resized or device rotated, re-clamp modal sizes so they
+-- stay within the viewport.
+local cam = workspace.CurrentCamera
+if cam then
+    cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+        if shopModal and shopModal.Parent then
+            shopModal.Size = UIUtil.modalSize(600, 500, 24)
+        end
+        if lbModal and lbModal.Parent then
+            lbModal.Size = UIUtil.modalSize(420, 540, 24)
+        end
+    end)
+end
+
+print("[HUDBuilder] MainHUD constructed (responsive)")
 
 -- Expose remote-controlled refs (other client scripts find by Name)
 return screenGui

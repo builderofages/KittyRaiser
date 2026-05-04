@@ -6,6 +6,7 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UIUtil = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("UIUtil"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -44,7 +45,7 @@ local lobby = Instance.new("ScreenGui")
 lobby.Name = "PreSpawnLobby"
 lobby.IgnoreGuiInset = true
 lobby.ResetOnSpawn = false
-lobby.DisplayOrder = 50
+lobby.DisplayOrder = UIUtil.DisplayOrder.PreSpawnLobby
 lobby.Parent = playerGui
 
 -- Sunny daytime sky background (gradient)
@@ -352,16 +353,19 @@ rarityBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
 rarityBadge.Parent = lobby
 Instance.new("UICorner", rarityBadge).CornerRadius = UDim.new(0, 6)
 
--- Color picker
+-- Color picker — width-flex so it fits any screen, wraps on phone if needed.
 local pickerRow = Instance.new("Frame")
-pickerRow.Size = UDim2.new(0, 920, 0, 80)
-pickerRow.Position = UDim2.new(0.5, -460, 0.74, 0)
+pickerRow.Size = UDim2.new(0.94, 0, 0, 150)  -- 94% of screen width, 150px tall (room for 2 rows on phone)
+pickerRow.AnchorPoint = Vector2.new(0.5, 0)
+pickerRow.Position = UDim2.new(0.5, 0, 0.74, 0)
 pickerRow.BackgroundTransparency = 1
 pickerRow.Parent = lobby
 local layout = Instance.new("UIListLayout", pickerRow)
 layout.FillDirection = Enum.FillDirection.Horizontal
 layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.VerticalAlignment = Enum.VerticalAlignment.Top
 layout.Padding = UDim.new(0, 8)
+layout.Wraps = true  -- wrap to next row when out of space (phone)
 
 local function setSelected(i)
   selectedIndex = i
