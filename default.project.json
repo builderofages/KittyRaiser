@@ -35,6 +35,9 @@
         },
         "AchievementConfig": {
           "$path": "src/ReplicatedStorage/Modules/AchievementConfig.lua"
+        },
+        "BattlePassConfig": {
+          "$path": "src/ReplicatedStorage/Modules/BattlePassConfig.lua"
         }
       }
     },
@@ -141,6 +144,27 @@
       },
       "AchievementSystem": {
         "$path": "src/ServerScriptService/AchievementSystem.server.lua"
+      },
+      "AmbientTraffic": {
+        "$path": "src/ServerScriptService/AmbientTraffic.server.lua"
+      },
+      "BattlePassSystem": {
+        "$path": "src/ServerScriptService/BattlePassSystem.server.lua"
+      },
+      "CatProceduralAnimator": {
+        "$path": "src/ServerScriptService/CatProceduralAnimator.server.lua"
+      },
+      "CodeRedemption": {
+        "$path": "src/ServerScriptService/CodeRedemption.server.lua"
+      },
+      "DayNightCycle": {
+        "$path": "src/ServerScriptService/DayNightCycle.server.lua"
+      },
+      "EventScheduler": {
+        "$path": "src/ServerScriptService/EventScheduler.server.lua"
+      },
+      "PetSystem": {
+        "$path": "src/ServerScriptService/PetSystem.server.lua"
       }
     },
     "StarterGui": {
@@ -221,6 +245,24 @@
         },
         "ChatHider": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/ChatHider.client.lua"
+        },
+        "AchievementsViewer": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/AchievementsViewer.client.lua"
+        },
+        "BattlePassPanel": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/BattlePassPanel.client.lua"
+        },
+        "EventBanner": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/EventBanner.client.lua"
+        },
+        "MultiplayerFeel": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/MultiplayerFeel.client.lua"
+        },
+        "PhotoMode": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/PhotoMode.client.lua"
+        },
+        "ReactionBubbles": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/ReactionBubbles.client.lua"
         }
       }
     },
