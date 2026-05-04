@@ -93,9 +93,37 @@ for _, btn in ipairs(prankCol:GetChildren()) do
     end
 end
 
--- Keyboard shortcuts (PC) for power users
+-- v3.60 fix: click-to-attack. Players didn't realize they could prank, so
+-- mouse-click anywhere fires the strongest UNLOCKED prank against the
+-- nearest valid NPC. Falls through to default click behavior if no NPC
+-- in range. ButtonOrder priority: latest unlocked = strongest.
+local function bestUnlockedPrank()
+    -- Read from actual UI state so we match what the player sees. Iterate
+    -- highest-tier first; first unlocked button wins.
+    for i = #PrankConfig.Order, 1, -1 do
+        local name = PrankConfig.Order[i]
+        local b = prankCol:FindFirstChild("Prank_" .. name)
+        if b and not b:GetAttribute("Locked") then return name end
+    end
+    return nil
+end
+local lastMouseFire = 0
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+       or input.UserInputType == Enum.UserInputType.Touch then
+        local now = os.clock()
+        if now - lastMouseFire < 0.3 then return end
+        local prankName = bestUnlockedPrank()
+        if not prankName then return end
+        local prank = PrankConfig.Pranks[prankName]
+        local npc = nearestNPC(prank.rangeStuds)
+        if npc then
+            lastMouseFire = now
+            Remotes.RequestPrank:FireServer(prankName, npc)
+        end
+        return
+    end
     if input.KeyCode == Enum.KeyCode.E then
         Remotes.RequestSummonHuman:FireServer()
     elseif input.KeyCode == Enum.KeyCode.One then

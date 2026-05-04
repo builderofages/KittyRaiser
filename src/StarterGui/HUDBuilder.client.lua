@@ -367,7 +367,6 @@ for i, prankName in ipairs(PrankConfig.Order) do
         Parent = prankColumn,
     })
     btn:SetAttribute("PrankName", prankName)
-    btn:SetAttribute("Locked", true)
     btn:SetAttribute("UnlockLevel", prank.unlockLevel)
 
     -- Real icon asset preferred; ASCII abbreviation fallback.
@@ -400,14 +399,20 @@ for i, prankName in ipairs(PrankConfig.Order) do
         btn.TextScaled = true
         bind(btn, 16, 28)
     end
-    -- Locked overlay: dark scrim + bold "Lv N" text (no padlock emoji)
+    -- Locked overlay: dark scrim + bold "Lv N" text. Initial visibility is
+    -- set by unlockLevel so first prank (unlockLevel=1) is immediately
+    -- visible at spawn even before UpdatePlayerData arrives. HUDController
+    -- toggles overlay.Visible later as level changes.
+    local startsLocked = (prank.unlockLevel or 1) > 1
+    btn:SetAttribute("Locked", startsLocked)
     local lock = makeFrame({
         Name = "LockOverlay",
         Size = UDim2.new(1, 0, 1, 0),
         Position = UDim2.new(0, 0, 0, 0),
         BackgroundColor3 = Color3.fromRGB(20, 14, 8),
-        BackgroundTransparency = 0.45,
+        BackgroundTransparency = 0.55,
         BorderSizePixel = 0,
+        Visible = startsLocked,
     })
     Instance.new("UICorner", lock).CornerRadius = UDim.new(0, 12)
     lock.Parent = btn

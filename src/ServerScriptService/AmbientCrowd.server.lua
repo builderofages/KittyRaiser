@@ -127,36 +127,26 @@ end
 local function attachNameTag(model, archetype, displayName)
     local head = model:FindFirstChild("Head")
     if not head then return end
+    -- v3.60 fix: tags were piling on top of each other in clustered groups
+    -- and reading as overlapping garbage like 'DELIVERYDOJEREYJOGGERLOCAL'.
+    -- Smaller tag (single line, archetype only) + MaxDistance fade-cull so
+    -- distant tags don't render at all. Reduces visible clutter to near-zero.
     local g = Instance.new("BillboardGui", head)
     g.Name = "ArchTag"
-    g.Size = UDim2.new(0, 140, 0, 28)
-    g.StudsOffset = Vector3.new(0, 1.6, 0)
-    g.AlwaysOnTop = true
-    -- Two-line: archetype label + display name
+    g.Size = UDim2.new(0, 80, 0, 14)
+    g.StudsOffset = Vector3.new(0, 1.4, 0)
+    g.AlwaysOnTop = false
+    g.MaxDistance = 35
     local arch = Instance.new("TextLabel", g)
-    arch.AnchorPoint = Vector2.new(0.5, 0)
-    arch.Position = UDim2.new(0.5, 0, 0, 0)
-    arch.Size = UDim2.new(1, 0, 0.5, 0)
+    arch.Size = UDim2.fromScale(1, 1)
     arch.BackgroundTransparency = 1
     arch.Text = archetype.label
-    arch.Font = Enum.Font.GothamBold
-    arch.TextColor3 = Color3.fromRGB(255, 215, 100)
-    arch.TextStrokeTransparency = 0
+    arch.Font = Enum.Font.GothamMedium
+    arch.TextColor3 = Color3.fromRGB(255, 220, 150)
+    arch.TextStrokeTransparency = 0.4
     arch.TextStrokeColor3 = Color3.fromRGB(40, 25, 10)
     arch.TextScaled = true
-    local ac = Instance.new("UITextSizeConstraint", arch); ac.MinTextSize = 8; ac.MaxTextSize = 12
-    local nm = Instance.new("TextLabel", g)
-    nm.AnchorPoint = Vector2.new(0.5, 1)
-    nm.Position = UDim2.new(0.5, 0, 1, 0)
-    nm.Size = UDim2.new(1, 0, 0.5, 0)
-    nm.BackgroundTransparency = 1
-    nm.Text = displayName
-    nm.Font = Enum.Font.GothamMedium
-    nm.TextColor3 = Color3.fromRGB(245, 235, 220)
-    nm.TextStrokeTransparency = 0.2
-    nm.TextStrokeColor3 = Color3.fromRGB(40, 25, 10)
-    nm.TextScaled = true
-    local nc = Instance.new("UITextSizeConstraint", nm); nc.MinTextSize = 8; nc.MaxTextSize = 12
+    local ac = Instance.new("UITextSizeConstraint", arch); ac.MinTextSize = 7; ac.MaxTextSize = 10
 end
 
 local function buildPed(archKey)
@@ -202,14 +192,23 @@ local function buildPed(archKey)
     m:SetAttribute("Behavior", pickWeighted(archetype.weights))
     m:SetAttribute("LastWanderTime", os.clock())
 
-    -- Strip default cosmetics
-    for _, c in ipairs(m:GetChildren()) do
-        if c:IsA("Shirt") or c:IsA("Pants") or c:IsA("ShirtGraphic") or c:IsA("Accessory") or c:IsA("Hat") then
+    -- Strip default cosmetics. Also strip CharacterMesh so the underlying
+    -- BasePart Color we set later actually shows (CharacterMesh overrides).
+    for _, c in ipairs(m:GetDescendants()) do
+        if c:IsA("Shirt") or c:IsA("Pants") or c:IsA("ShirtGraphic")
+           or c:IsA("Accessory") or c:IsA("Hat") or c:IsA("CharacterMesh") then
             c:Destroy()
         end
     end
 
+    -- Tint TWICE: once now, once after a short yield. Players reported the
+    -- NPCs rendering as flat grey blobs even after the v3.46 description
+    -- bake. Cause was tintPed running before all descendants finished
+    -- their Roblox-side default-asset application. Belt and suspenders.
     pcall(tintPed, m, archetype)
+    task.delay(0.1, function()
+        if m.Parent then pcall(tintPed, m, archetype) end
+    end)
     pcall(attachNameTag, m, archetype, displayName)
 
     local hum = m:FindFirstChildOfClass("Humanoid")
