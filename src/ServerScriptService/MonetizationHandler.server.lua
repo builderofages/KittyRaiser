@@ -112,6 +112,25 @@ MarketplaceService.ProcessReceipt = function(receiptInfo)
 
     local handled = pcall(function() handler(player) end)
     if handled then
+        -- First-purchase bonus: any first dev product purchase grants
+        -- +5K chaos + 10 HT + 'GRATEFUL_CAT' tag. Detect first via flag.
+        local awarded = false
+        DataHandler.modify(player, function(d)
+            if not d.firstPurchaseClaimed then
+                d.firstPurchaseClaimed = true
+                d.chaosPoints = (d.chaosPoints or 0) + 5000
+                d.hellTokens  = (d.hellTokens  or 0) + 10
+                d.tags = d.tags or {}
+                if not table.find(d.tags, "GRATEFUL_CAT") then
+                    table.insert(d.tags, "GRATEFUL_CAT")
+                end
+                awarded = true
+            end
+        end)
+        if awarded and Remotes.NotifyClient then
+            Remotes.NotifyClient:FireClient(player,
+                "FIRST PURCHASE BONUS  -  +5,000 CHAOS +10 HT", "good")
+        end
         return Enum.ProductPurchaseDecision.PurchaseGranted
     end
     return Enum.ProductPurchaseDecision.NotProcessedYet
