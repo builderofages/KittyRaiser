@@ -313,27 +313,24 @@ end)
 -- =====================================================================
 -- PLAZA  (sunny park-style plaza, NOT pink-neon-glow)
 -- =====================================================================
+-- =====================================================================
+-- PLAZA — sunny cobblestone-tan square (NO wooden disc).
+-- Diagnostic: this used to have an inner Brick-material disc that read as
+-- a wooden stage in playtest. Removed. Plaza is now a single warm cobblestone
+-- square with a marble fountain in the middle.
+-- =====================================================================
 local plaza = Workspace:FindFirstChild("Plaza") or Instance.new("Folder", Workspace)
 plaza.Name = "Plaza"
 plaza:ClearAllChildren()
 
--- Floor: warm cobblestone
+-- Floor: warm cobblestone-tan square
 local pf = Instance.new("Part", plaza)
 pf.Name = "PlazaFloor"
 pf.Anchored = true; pf.CanCollide = true
 pf.Size = Vector3.new(140, 2, 140)
 pf.Position = Vector3.new(0, 1.5, 0)
 pf.Material = Enum.Material.Cobblestone
-pf.Color = Color3.fromRGB(165, 155, 140)
-
--- Inner brick circle (visual interest)
-local innerCircle = Instance.new("Part", plaza)
-innerCircle.Anchored = true; innerCircle.CanCollide = false
-innerCircle.Shape = Enum.PartType.Cylinder
-innerCircle.Size = Vector3.new(0.3, 60, 60)
-innerCircle.CFrame = CFrame.new(0, 2.6, 0) * CFrame.Angles(0, 0, math.rad(90))
-innerCircle.Material = Enum.Material.Brick
-innerCircle.Color = Color3.fromRGB(195, 145, 105)
+pf.Color = Color3.fromRGB(205, 190, 165)  -- brighter tan than before
 
 -- Fountain in the center (cylindrical basin + central spout)
 local basin = Instance.new("Part", plaza)
@@ -430,11 +427,15 @@ for _, treePos in ipairs({
 	crown.Size = Vector3.new(8, 8, 8)
 	crown.Position = treePos + Vector3.new(0, 12, 0)
 	crown.Material = Enum.Material.Grass
-	crown.Color = Color3.fromRGB(80, 140, 70)
+	crown.Color = Color3.fromRGB(115, 175, 95)  -- summer green, not autumn
 end
 
 -- Particle pool kept for prank effects (no neon)
 local pool = Workspace:FindFirstChild("PrankParticlePool") or Instance.new("Folder", Workspace)
 pool.Name = "PrankParticlePool"
 
-print("[CityRebuild v6] sunny daytime cartoon city ready")
+-- Diagnostic: print plaza floor material + color so playtester can verify
+print(("[CityRebuild v7] plaza floor: material=%s color=%s tree_count=%d"):format(
+	tostring(pf.Material), tostring(pf.Color),
+	#plaza:GetChildren()))
+print("[CityRebuild v7] sunny daytime cartoon city ready")
