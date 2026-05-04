@@ -36,7 +36,10 @@ local DEFINITIONS = {
   WeatherChanged = "Event",
   EventBroadcast = "Event",
   SurvivalUpdate = "Event",
-  ForceSpawn = "Event",  -- NEW: force server to spawn cat
+  ForceSpawn = "Event",  -- force server to spawn cat
+  -- Quest system (Server -> Client)
+  QuestUpdate = "Event",      -- server pushes current quest list + progress
+  QuestCompleted = "Event",   -- server fires when a quest gets completed (toast + reward)
 }
 
 -- Find or create folder under ReplicatedStorage

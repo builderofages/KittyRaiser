@@ -58,6 +58,9 @@ local function awardChaosAndXP(player, baseChaos)
                 end
             end
             Remotes.LevelUp:FireClient(player, d.level, unlocked)
+            if _G.KittyRaiserBumpLevelUp then
+                pcall(_G.KittyRaiserBumpLevelUp, player)
+            end
         end
     end)
     return chaosGained, GameConfig.PRANK_XP_PER_HIT
@@ -118,6 +121,12 @@ function PrankSystem.handlePrankRequest(player, prankName, targetModel)
     -- All checks pass — award + mark
     local chaos, xp = awardChaosAndXP(player, prank.baseChaos)
     SummonSystem.markPranked(targetModel)
+
+    -- Quest tracker hook (no-op if QuestSystem hasn't loaded)
+    if _G.KittyRaiserBumpQuest then
+        pcall(_G.KittyRaiserBumpQuest, player, "any_prank", 1)
+        pcall(_G.KittyRaiserBumpQuest, player, "specific_prank", 1, prankName)
+    end
 
     -- Tell client to play effects
     local fxPayload = {
