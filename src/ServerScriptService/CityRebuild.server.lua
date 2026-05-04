@@ -512,6 +512,95 @@ task.spawn(function()
 end)
 
 -- =====================================================================
+-- DISTANT HORIZON SKYLINE (Phase-12) — 12 thin tall dark-blue cubes on a
+-- 600-stud-radius circle around the plaza, behind the active 9x9 grid. Reads
+-- as 'horizon city' so the world doesn't end at the active building edge.
+-- =====================================================================
+task.spawn(function()
+	local horizon = Workspace:FindFirstChild("HorizonSkyline") or Instance.new("Folder", Workspace)
+	horizon.Name = "HorizonSkyline"
+	horizon:ClearAllChildren()
+	for i = 0, 11 do
+		local theta = (i / 12) * math.pi * 2
+		local r = 900
+		local h = 60 + (i % 3) * 25  -- vary height for organic skyline
+		local b = Instance.new("Part", horizon)
+		b.Anchored = true; b.CanCollide = false  -- player can't walk to them anyway
+		b.Size = Vector3.new(40, h, 40)
+		b.Position = Vector3.new(math.cos(theta) * r, h / 2, math.sin(theta) * r)
+		b.Material = Enum.Material.SmoothPlastic
+		b.Color = Color3.fromRGB(45, 50, 70)  -- dark plum/navy
+		-- Top window glow row for that "city at golden hour" silhouette feel
+		local glow = Instance.new("Part", horizon)
+		glow.Anchored = true; glow.CanCollide = false
+		glow.Size = Vector3.new(40, 4, 40)
+		glow.Position = b.Position + Vector3.new(0, h / 2 - 8, 0)
+		glow.Material = Enum.Material.Neon
+		glow.Color = Color3.fromRGB(255, 200, 130)
+		glow.Transparency = 0.3
+	end
+	print("[CityRebuild v10] horizon skyline placed")
+end)
+
+-- =====================================================================
+-- NEON SHOP FACADES (Phase-12) — SurfaceGui labels on the 4 downtown
+-- skyscraper_chunks so the city has visible storefronts/business names.
+-- No new mesh assets needed; uses TextLabel + UIGradient.
+-- =====================================================================
+task.spawn(function()
+	for _ = 1, 30 do
+		if cityFolder:FindFirstChildWhichIsA("BasePart") then break end
+		task.wait(0.5)
+	end
+	local SHOP_NAMES = {"PURRFECT EATS","9TH LIFE LOFTS","CATNIP CO","MEOW BANK",
+	                    "WHISKER WORKS","KITTY AVE","FUR GALLERY","CLAW CO"}
+	local NEON_COLORS = {
+		Color3.fromRGB(255, 110, 130),  -- hot pink
+		Color3.fromRGB(120, 220, 255),  -- cyan
+		Color3.fromRGB(255, 200, 90),   -- amber
+		Color3.fromRGB(180, 255, 140),  -- lime
+		Color3.fromRGB(255, 150, 80),   -- orange
+		Color3.fromRGB(200, 140, 255),  -- violet
+	}
+	local rng = Random.new(2026)
+	local placed = 0
+	for _, p in ipairs(cityFolder:GetChildren()) do
+		if placed >= 8 then break end
+		if p:IsA("BasePart") and p:GetAttribute("Zone") == "downtown" and p.Size.Y > 80 then
+			-- Pick a random face for the sign
+			local face = (rng:NextInteger(1, 2) == 1) and Enum.NormalId.Front or Enum.NormalId.Back
+			local sg = Instance.new("SurfaceGui", p)
+			sg.Face = face
+			sg.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+			sg.CanvasSize = Vector2.new(640, 200)
+			sg.LightInfluence = 0  -- pure-emit neon
+			sg.AlwaysOnTop = false
+			local container = Instance.new("Frame", sg)
+			container.Size = UDim2.new(0.7, 0, 0.12, 0)
+			container.Position = UDim2.new(0.15, 0, 0.45, 0)
+			container.BackgroundColor3 = Color3.fromRGB(20, 18, 30)
+			container.BackgroundTransparency = 0.2
+			Instance.new("UICorner", container).CornerRadius = UDim.new(0, 8)
+			local stroke = Instance.new("UIStroke", container)
+			stroke.Thickness = 3
+			stroke.Color = NEON_COLORS[rng:NextInteger(1, #NEON_COLORS)]
+			stroke.Transparency = 0
+			local lbl = Instance.new("TextLabel", container)
+			lbl.Size = UDim2.fromScale(1, 1)
+			lbl.BackgroundTransparency = 1
+			lbl.Text = SHOP_NAMES[rng:NextInteger(1, #SHOP_NAMES)]
+			lbl.Font = Enum.Font.GothamBlack
+			lbl.TextScaled = true
+			lbl.TextColor3 = stroke.Color
+			lbl.TextStrokeTransparency = 0.3
+			lbl.TextStrokeColor3 = Color3.fromRGB(20, 18, 30)
+			placed = placed + 1
+		end
+	end
+	print("[CityRebuild v10] " .. placed .. " neon shop facades placed")
+end)
+
+-- =====================================================================
 -- PLAZA  (sunny park-style plaza, NOT pink-neon-glow)
 -- =====================================================================
 -- =====================================================================

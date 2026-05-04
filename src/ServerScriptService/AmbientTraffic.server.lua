@@ -65,6 +65,38 @@ task.spawn(function()
 			end
 			part.Name = "AmbientCar_" .. id
 			part.Color = CAR_COLORS[rng:NextInteger(1, #CAR_COLORS)]
+			-- Cars hit player -> damage (Phase-12b directive). Enable Touched
+			-- by leaving Anchored=true + a per-car hitbox check on Heartbeat.
+			-- Touched events on anchored parts work in Roblox.
+			part.CanCollide = false  -- don't block movement; just register touches
+			local lastHitT = {}  -- [userId] = clock
+			part.Touched:Connect(function(hit)
+				local model = hit:FindFirstAncestorOfClass("Model")
+				if not model then return end
+				local hum = model:FindFirstChildOfClass("Humanoid")
+				if not hum then return end
+				local p = game:GetService("Players"):GetPlayerFromCharacter(model)
+				if not p then return end
+				local now = os.clock()
+				if lastHitT[p.UserId] and now - lastHitT[p.UserId] < 1.5 then return end
+				lastHitT[p.UserId] = now
+				-- Knock the cat back + damage
+				hum:TakeDamage(25)
+				local hrp = model:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					local push = (hrp.Position - part.Position).Unit * 60 + Vector3.new(0, 30, 0)
+					hrp.AssemblyLinearVelocity = push
+				end
+				-- Toast the player
+				local Modules = game:GetService("ReplicatedStorage"):FindFirstChild("Modules")
+				local RE = Modules and Modules:FindFirstChild("RemoteEvents")
+				if RE then
+					local ok, Remotes = pcall(require, RE)
+					if ok and Remotes and Remotes.NotifyClient then
+						Remotes.NotifyClient:FireClient(p, "HIT BY CAR  -  -25 HP", "warn")
+					end
+				end
+			end)
 			-- Staggered Z offset so cars share the lane without overlapping
 			local offset = rng:NextInteger(-200, 200)
 			local startX = direction == 1 and -700 or 700

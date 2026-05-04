@@ -15,8 +15,10 @@ Lighting.ClockTime = 13.0          -- early afternoon sun, high overhead
 Lighting.GeographicLatitude = 25
 Lighting.GlobalShadows = true
 Lighting.ShadowSoftness = 0.30
-Lighting.ColorShift_Top    = Color3.fromRGB(255, 240, 220)  -- warm sun tint
-Lighting.ColorShift_Bottom = Color3.fromRGB(190, 200, 220)  -- cool sky bounce
+-- Phase-12: golden-hour color grade. Warm cream up top, cool plum bottom
+-- so the world reads as 'late afternoon NYC', not sterile noon.
+Lighting.ColorShift_Top    = Color3.fromRGB(255, 210, 160)  -- warm cream sun
+Lighting.ColorShift_Bottom = Color3.fromRGB(140, 130, 180)  -- cool plum bounce
 Lighting.FogColor = Color3.fromRGB(220, 230, 240)
 Lighting.FogStart = 600
 Lighting.FogEnd = 2400
