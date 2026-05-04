@@ -41,6 +41,14 @@ CosmeticConfig.Skins = {
     Neon = {id="Neon", displayName="Neon Cat", cost=0, currency="robux", gamepassKey="NEON_SKIN", bodyColors={HeadColor=rgb(0,200,255), TorsoColor=rgb(255,0,200), LeftArmColor=rgb(0,255,100), RightArmColor=rgb(255,200,0), LeftLegColor=rgb(0,200,255), RightLegColor=rgb(255,0,200)}, chaosMultiplier=2.0, rarity="Legendary", glowEffect=true, material=Enum.Material.Neon},
     Hellborn = {id="Hellborn", displayName="Hellborn", cost=0, currency="robux", gamepassKey="HELLBORN_SKIN", bodyColors=uniformBody(rgb(255,40,0)), chaosMultiplier=2.5, rarity="Legendary", glowEffect=true, material=Enum.Material.Neon},
 
+    -- LEGENDARY (Robux GamePass — wired via PEARL_SKIN / EMBER_SKIN / GOLD_SKIN gamepasses, currently live)
+    Pearl = {id="Pearl", displayName="Pearl", cost=0, currency="robux", gamepassKey="PEARL_SKIN", bodyColors=uniformBody(rgb(245,235,225)), chaosMultiplier=1.6, rarity="Legendary", glowEffect=true, material=Enum.Material.Marble},
+    Ember = {id="Ember", displayName="Ember", cost=0, currency="robux", gamepassKey="EMBER_SKIN", bodyColors=uniformBody(rgb(225,90,40)), chaosMultiplier=1.7, rarity="Legendary", glowEffect=true, material=Enum.Material.Neon},
+    Gold = {id="Gold", displayName="Gold", cost=0, currency="robux", gamepassKey="GOLD_SKIN", bodyColors=uniformBody(rgb(225,180,75)), chaosMultiplier=1.8, rarity="Legendary", glowEffect=true, material=Enum.Material.Metal},
+
+    -- COSMETIC ONLY (Gang Leader gamepass — name tag glow, no body change)
+    GangLeader = {id="GangLeader", displayName="Gang Leader", cost=0, currency="robux", gamepassKey="GANG_LEADER", bodyColors=uniformBody(rgb(160,30,30)), chaosMultiplier=1.3, rarity="Legendary", glowEffect=true},
+
     -- MYTHIC (event-only / season pass — placeholders for v2)
     GalaxyKing = {id="GalaxyKing", displayName="Galaxy King", cost=999999, currency="chaos", bodyColors=uniformBody(rgb(80,40,180)), chaosMultiplier=3.0, rarity="Mythic", glowEffect=true, material=Enum.Material.ForceField, eventOnly=true},
     PhoenixCat = {id="PhoenixCat", displayName="Phoenix Cat", cost=500, currency="helltokens", bodyColors=uniformBody(rgb(255,120,0)), chaosMultiplier=3.0, rarity="Mythic", glowEffect=true, material=Enum.Material.Neon, eventOnly=true},
@@ -53,6 +61,7 @@ CosmeticConfig.Order = {
     "Calico","Tuxedo","Ginger","Mint","Lilac",
     "SiameseRoyal","Sphinx","SpacePaws","GoldenTabby",
     "Skeleton","Zombie","Vampire","Mummy",
+    "Pearl","Ember","Gold","GangLeader",
     "Demon","Neon","Hellborn",
     "GalaxyKing","PhoenixCat","VoidCat","KittyRaiser",
 }
