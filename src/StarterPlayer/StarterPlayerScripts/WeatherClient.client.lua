@@ -7,24 +7,50 @@ local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local UIUtil  = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
 
 local player = Players.LocalPlayer
 local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
 if not hud then return end
 
+-- Banner with warm-cartoon palette, sits below TopBar
 local banner = Instance.new("TextLabel")
-banner.Size = UDim2.new(0, 300, 0, 50)
+banner.Name = "WeatherBanner"
+banner.Size = UDim2.new(0, 320, 0, 44)
 banner.AnchorPoint = Vector2.new(0.5, 0)
-banner.Position = UDim2.new(0.5, 0, 0, 90)
-banner.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
-banner.BackgroundTransparency = 0.2
-banner.TextColor3 = Color3.fromRGB(255, 200, 0)
-banner.Font = Enum.Font.GothamBlack
+banner.Position = UDim2.new(0.5, 0, 0, 96)
+banner.BackgroundColor3 = UIUtil.Palette.bgMid
+banner.BackgroundTransparency = 0.1
+banner.TextColor3 = UIUtil.Palette.textHi
+banner.Font = UIUtil.Token.fontHeader
 banner.TextScaled = true
+banner.TextStrokeTransparency = 0.4
+banner.TextStrokeColor3 = UIUtil.Palette.stroke
 banner.Visible = false
 banner.Text = ""
-Instance.new("UICorner", banner).CornerRadius = UDim.new(0, 12)
+Instance.new("UICorner", banner).CornerRadius = UIUtil.Token.cornerMd
+local bStroke = Instance.new("UIStroke", banner)
+bStroke.Thickness = UIUtil.Token.strokeReg
+bStroke.Color = UIUtil.Palette.hairline
 banner.Parent = hud
+UIUtil.TextSize.label(banner)
+
+local function showBanner(text, accentColor, holdSec)
+    banner.Text = text
+    if accentColor then bStroke.Color = accentColor end
+    banner.Visible = true
+    banner.BackgroundTransparency = 1
+    banner.TextTransparency = 1
+    banner.TextStrokeTransparency = 1
+    TweenService:Create(banner, UIUtil.Token.easeOut,
+        {BackgroundTransparency = 0.1, TextTransparency = 0, TextStrokeTransparency = 0.4}):Play()
+    task.delay(holdSec or 4, function()
+        TweenService:Create(banner, UIUtil.Token.easeFade,
+            {BackgroundTransparency = 1, TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+        task.wait(0.5)
+        banner.Visible = false
+    end)
+end
 
 local activeFX = nil
 
@@ -94,15 +120,13 @@ end
 
 Remotes.WeatherChanged.OnClientEvent:Connect(function(weather)
     clearFX()
-    banner.Text = weather:upper()
-    banner.TextColor3 = ({
-        Sunny = Color3.fromRGB(255, 220, 80),
-        Rainy = Color3.fromRGB(120, 180, 255),
-        Foggy = Color3.fromRGB(220, 220, 220),
-        RedMist = Color3.fromRGB(255, 50, 50),
-    })[weather] or Color3.fromRGB(255, 200, 0)
-    banner.Visible = true
-    task.delay(4, function() banner.Visible = false end)
+    local color = ({
+        Sunny   = UIUtil.Palette.primary,
+        Rainy   = Color3.fromRGB(120, 180, 220),
+        Foggy   = UIUtil.Palette.textMuted,
+        RedMist = UIUtil.Palette.danger,
+    })[weather] or UIUtil.Palette.primary
+    showBanner(weather:upper(), color, 4)
 
     if weather == "Rainy" then activeFX = rainFX()
     elseif weather == "Foggy" then activeFX = fogFX()
@@ -110,9 +134,7 @@ Remotes.WeatherChanged.OnClientEvent:Connect(function(weather)
 end)
 
 Remotes.EventBroadcast.OnClientEvent:Connect(function(message)
-    banner.Text = message
-    banner.Visible = true
-    task.delay(5, function() banner.Visible = false end)
+    showBanner(message, UIUtil.Palette.primary, 5)
 end)
 
 return true

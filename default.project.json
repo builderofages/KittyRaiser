@@ -147,9 +147,6 @@
         "EmoteWheel": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/EmoteWheel.client.lua"
         },
-        "DailyRewardUI": {
-          "$path": "src/StarterPlayer/StarterPlayerScripts/DailyRewardUI.client.lua"
-        },
         "WeatherClient": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/WeatherClient.client.lua"
         },

@@ -1,65 +1,106 @@
--- SurvivalUI.client.lua
--- Hunger + thirst bars on HUD. Listens to SurvivalUpdate events.
--- Place in: StarterPlayer > StarterPlayerScripts > SurvivalUI (LocalScript)
+-- SurvivalUI.client.lua  v2 — hunger + thirst bars, warm theme, responsive.
+-- Sits below the TopBar on the left side. Bars use icons + smooth tweens.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local Remotes  = require(ReplicatedStorage.Modules.RemoteEvents)
+local UIUtil   = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
+local AssetIds = require(ReplicatedStorage.Modules.AssetIds)
 
 local player = Players.LocalPlayer
-local hud = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
+local hud    = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
 if not hud then return end
 
-local function makeBar(name, color, posY)
-    local container = Instance.new("Frame")
-    container.Name = name .. "BarContainer"
-    container.Size = UDim2.new(0, 220, 0, 22)
-    container.Position = UDim2.new(0, 12, 0, posY)
-    container.BackgroundTransparency = 1
-    container.Parent = hud
+-- Container holds both bars vertically just under the TopBar
+local container = Instance.new("Frame")
+container.Name = "SurvivalContainer"
+container.Size = UDim2.new(0, 232, 0, 60)
+container.Position = UDim2.new(0, 12, 0, 88)  -- below TopBar (70-80px)
+container.BackgroundTransparency = 1
+container.Parent = hud
+local listLayout = Instance.new("UIListLayout", container)
+listLayout.FillDirection = Enum.FillDirection.Vertical
+listLayout.Padding = UDim.new(0, 4)
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(0, 60, 1, 0)
+local function makeBar(name, color, iconKey, layoutOrder)
+    local row = Instance.new("Frame")
+    row.Name = name .. "BarContainer"
+    row.Size = UDim2.new(1, 0, 0, 26)
+    row.BackgroundTransparency = 1
+    row.LayoutOrder = layoutOrder
+    row.Parent = container
+
+    local iconWidth = 0
+    if iconKey and AssetIds.has(iconKey) then
+        local icon = Instance.new("ImageLabel", row)
+        icon.BackgroundTransparency = 1
+        icon.Size = UDim2.new(0, 22, 0, 22)
+        icon.Position = UDim2.new(0, 0, 0.5, -11)
+        icon.Image = AssetIds[iconKey]
+        icon.ImageColor3 = color
+        icon.ScaleType = Enum.ScaleType.Fit
+        iconWidth = 26
+    end
+
+    local lbl = Instance.new("TextLabel", row)
+    lbl.Size = UDim2.new(0, 64, 1, 0)
+    lbl.Position = UDim2.new(0, iconWidth, 0, 0)
     lbl.BackgroundTransparency = 1
     lbl.Text = name
     lbl.TextColor3 = color
-    lbl.Font = Enum.Font.GothamBlack
+    lbl.Font = UIUtil.Token.fontHeader
     lbl.TextScaled = true
     lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.TextStrokeTransparency = 0
-    lbl.Parent = container
+    lbl.TextStrokeTransparency = 0.4
+    lbl.TextStrokeColor3 = UIUtil.Palette.stroke
+    UIUtil.TextSize.small(lbl)
 
-    local bg = Instance.new("Frame")
-    bg.Size = UDim2.new(0, 150, 0.7, 0)
-    bg.Position = UDim2.new(0, 65, 0.15, 0)
-    bg.BackgroundColor3 = Color3.fromRGB(40, 20, 60)
+    local bg = Instance.new("Frame", row)
+    bg.Size = UDim2.new(1, -(iconWidth + 70), 0.65, 0)
+    bg.Position = UDim2.new(0, iconWidth + 68, 0.175, 0)
+    bg.BackgroundColor3 = UIUtil.Palette.bgDark
     bg.BorderSizePixel = 0
-    bg.Parent = container
     Instance.new("UICorner", bg).CornerRadius = UDim.new(1, 0)
+    local bgStroke = Instance.new("UIStroke", bg)
+    bgStroke.Thickness = UIUtil.Token.strokeThin
+    bgStroke.Color = UIUtil.Palette.hairline
 
-    local fill = Instance.new("Frame")
+    local fill = Instance.new("Frame", bg)
     fill.Name = "Fill"
     fill.Size = UDim2.new(1, 0, 1, 0)
     fill.BackgroundColor3 = color
     fill.BorderSizePixel = 0
-    fill.Parent = bg
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
-
+    local g = Instance.new("UIGradient", fill)
+    g.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255):Lerp(color, 0.5)),
+        ColorSequenceKeypoint.new(1, color),
+    }
+    g.Rotation = 90
     return fill
 end
 
-local hungerFill = makeBar("HUNGER", Color3.fromRGB(255, 150, 60), 90)
-local thirstFill = makeBar("THIRST", Color3.fromRGB(60, 180, 255), 116)
+local hungerFill = makeBar("HUNGER", Color3.fromRGB(230, 140, 60), "fish", 1)
+local thirstFill = makeBar("THIRST", Color3.fromRGB(80, 160, 220), "slushie", 2)
 
 Remotes.SurvivalUpdate.OnClientEvent:Connect(function(hunger, thirst)
-    TweenService:Create(hungerFill, TweenInfo.new(0.4), {Size = UDim2.new(math.clamp(hunger/100,0,1), 0, 1, 0)}):Play()
-    TweenService:Create(thirstFill, TweenInfo.new(0.4), {Size = UDim2.new(math.clamp(thirst/100,0,1), 0, 1, 0)}):Play()
+    TweenService:Create(hungerFill, UIUtil.Token.easeOut,
+        {Size = UDim2.new(math.clamp(hunger/100, 0, 1), 0, 1, 0)}):Play()
+    TweenService:Create(thirstFill, UIUtil.Token.easeOut,
+        {Size = UDim2.new(math.clamp(thirst/100, 0, 1), 0, 1, 0)}):Play()
 end)
 
 Remotes.UpdatePlayerData.OnClientEvent:Connect(function(d)
-    TweenService:Create(hungerFill, TweenInfo.new(0.4), {Size = UDim2.new(math.clamp((d.hunger or 100)/100,0,1), 0, 1, 0)}):Play()
-    TweenService:Create(thirstFill, TweenInfo.new(0.4), {Size = UDim2.new(math.clamp((d.thirst or 100)/100,0,1), 0, 1, 0)}):Play()
+    if d.hunger then
+        TweenService:Create(hungerFill, UIUtil.Token.easeOut,
+            {Size = UDim2.new(math.clamp(d.hunger/100, 0, 1), 0, 1, 0)}):Play()
+    end
+    if d.thirst then
+        TweenService:Create(thirstFill, UIUtil.Token.easeOut,
+            {Size = UDim2.new(math.clamp(d.thirst/100, 0, 1), 0, 1, 0)}):Play()
+    end
 end)
 
-return true
+print("[SurvivalUI v2] hunger + thirst bars, warm theme")
