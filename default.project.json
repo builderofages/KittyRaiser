@@ -218,6 +218,9 @@
         },
         "ZoneAmbience": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/ZoneAmbience.client.lua"
+        },
+        "ChatHider": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/ChatHider.client.lua"
         }
       }
     },
