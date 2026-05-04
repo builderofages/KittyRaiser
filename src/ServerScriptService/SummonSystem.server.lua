@@ -247,8 +247,10 @@ function SummonSystem.summon(player)
 
     local npc = buildHumanNPC()
 
-    -- 1-in-8 chance of being a BOSS variant
+    -- 1-in-8 chance of being a BOSS variant. EventScheduler "BOSS SURGE"
+    -- buff forces 100% boss spawn for the duration.
     local isBoss = math.random(1, 8) == 1
+    if workspace:GetAttribute("EventBossSurge") then isBoss = true end
     if isBoss then
         npc:SetAttribute("Boss", true)
         npc:SetAttribute("BossHP", BOSS_HP)

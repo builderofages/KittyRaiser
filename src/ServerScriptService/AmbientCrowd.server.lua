@@ -364,7 +364,13 @@ task.spawn(function()
         for _, c in ipairs(crowdFolder:GetChildren()) do
             if c:GetAttribute("AmbientNPC") and not c:GetAttribute("Pranked") then count = count + 1 end
         end
-        local need = TARGET_VISIBLE - count
+        -- CROWD WAVE buff: EventScheduler sets the workspace attribute to
+        -- temporarily double the on-street ambient crowd.
+        local effectiveTarget = TARGET_VISIBLE
+        if workspace:GetAttribute("EventCrowdWave") then
+            effectiveTarget = TARGET_VISIBLE * 2
+        end
+        local need = effectiveTarget - count
         local attempts = 0
         while need > 0 and attempts < need * 4 do
             attempts = attempts + 1

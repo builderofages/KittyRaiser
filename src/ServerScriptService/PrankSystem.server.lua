@@ -124,6 +124,10 @@ function PrankSystem.handlePrankRequest(player, prankName, targetModel)
     -- All checks pass — award + mark.
     -- Boss targets give bigger chaos via SummonSystem.getRewardMultiplier.
     local rewardMult = (SummonSystem.getRewardMultiplier and SummonSystem.getRewardMultiplier(targetModel)) or 1
+    -- EventScheduler "RUSH HOUR" buff: workspace.EventRushHour=true -> 1.5x.
+    if workspace:GetAttribute("EventRushHour") then
+        rewardMult = rewardMult * 1.5
+    end
     local chaos, xp = awardChaosAndXP(player, prank.baseChaos * rewardMult)
     SummonSystem.markPranked(targetModel)
 
