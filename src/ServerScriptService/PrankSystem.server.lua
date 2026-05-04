@@ -138,12 +138,50 @@ function PrankSystem.handlePrankRequest(player, prankName, targetModel)
         pcall(_G.KittyRaiserAddHeat, player)
     end
 
+    -- Squad-combo detection (Phase-12): if any other player pranked within
+    -- 3s and 80 studs, broadcast SQUAD COMBO to both/all.
+    local now = os.clock()
+    PrankSystem._recentPranks = PrankSystem._recentPranks or {}
+    local squadHits = {}
+    for _, recent in ipairs(PrankSystem._recentPranks) do
+        if (now - recent.t) <= 3.0
+           and recent.userId ~= player.UserId
+           and (recent.pos - primary.Position).Magnitude <= 80 then
+            table.insert(squadHits, recent.userId)
+        end
+    end
+    table.insert(PrankSystem._recentPranks, {
+        userId = player.UserId, t = now, pos = primary.Position
+    })
+    if #PrankSystem._recentPranks > 32 then
+        table.remove(PrankSystem._recentPranks, 1)
+    end
+    local squadBonusMult = 1
+    if #squadHits > 0 then
+        squadBonusMult = 1.5
+        local participants = { player.UserId }
+        for _, uid in ipairs(squadHits) do table.insert(participants, uid) end
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Character and p.Character.PrimaryPart
+               and (p.Character.PrimaryPart.Position - primary.Position).Magnitude < 200 then
+                Remotes.EventBroadcast:FireClient(p, "squad_combo", {
+                    count = #participants,
+                    actorName = player.DisplayName,
+                    targetCFrame = primary.CFrame,
+                })
+            end
+        end
+    end
+
     -- Tell client to play effects
     local fxPayload = {
         prank = prankName,
         targetCFrame = primary.CFrame,
         chaosGained = chaos,
         screenShake = prank.screenShake,
+        actorName = player.DisplayName,
+        actorUserId = player.UserId,
+        squadMult = squadBonusMult,
     }
     Remotes.PrankRegistered:FireClient(player, prankName, targetModel, chaos, fxPayload)
 
