@@ -6,6 +6,8 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+local UIUtil  = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
+local function verb(touch, mouse) return UIUtil.isMobile() and touch or mouse end
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -29,7 +31,7 @@ end
 -- Initial step
 task.delay(2, function()
     if not seenSummon then
-        show("Tap SUMMON HUMAN to spawn your first victim.")
+        show(verb("Tap", "Click") .. " SUMMON HUMAN to spawn your first victim.")
     end
 end)
 
@@ -57,7 +59,7 @@ task.spawn(function()
             for _, m in ipairs(folder:GetChildren()) do
                 if m:GetAttribute("SummonedBy") == player.UserId then
                     seenSummon = true
-                    show("Walk close, then tap a PRANK to attack.", 6000)
+                    show("Walk close, then " .. verb("tap", "click") .. " a PRANK to attack.", 6000)
                     return
                 end
             end

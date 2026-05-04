@@ -13,6 +13,7 @@ local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
 local CosmeticConfig = require(ReplicatedStorage.Modules.CosmeticConfig)
 local UIUtil       = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
 local AssetIds     = require(ReplicatedStorage.Modules:WaitForChild("AssetIds"))
+local AudioGroups  = require(ReplicatedStorage.Modules:WaitForChild("AudioGroups"))
 local SoundService = game:GetService("SoundService")
 local Debris       = game:GetService("Debris")
 
@@ -21,6 +22,7 @@ local function playSoundIfHas(name, vol)
     local s = Instance.new("Sound")
     s.SoundId = AssetIds[name]
     s.Volume = vol or 0.7
+    AudioGroups.assign(s, "UI")
     s.Parent = SoundService
     s:Play()
     Debris:AddItem(s, 4)

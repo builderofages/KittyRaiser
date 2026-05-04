@@ -13,6 +13,7 @@ local Remotes      = require(ReplicatedStorage:WaitForChild("Modules"):WaitForCh
 local AssetIds     = require(ReplicatedStorage.Modules:WaitForChild("AssetIds"))
 local PrankConfig  = require(ReplicatedStorage.Modules.PrankConfig)
 local UIUtil       = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
+local AudioGroups  = require(ReplicatedStorage.Modules:WaitForChild("AudioGroups"))
 
 local player    = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -181,6 +182,7 @@ local function playPrankSound(prankName)
 		local s = Instance.new("Sound")
 		s.SoundId = id
 		s.Volume = 1.0
+		AudioGroups.assign(s, "SFX")
 		s.Parent = SoundService
 		s:Play()
 		Debris:AddItem(s, 4)

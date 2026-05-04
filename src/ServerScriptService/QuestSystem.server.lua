@@ -20,19 +20,24 @@ local DataHandler = waitForGlobal("KittyRaiserData")
 
 -- =====================================================================
 -- STATE
--- progress[userId] = { dayKey = "2026-05-04", entries = { [questId] = number } }
+-- progress[userId] = { cycleKey = "2026-05-04T16", entries = { [questId] = number } }
+-- Cycle resets every 4 hours (UTC), so "daily" quests refresh 6 times per day.
 -- =====================================================================
 local progress = {}
 
-local function todayKey()
-    return os.date("!%Y-%m-%d")
+local CYCLE_HOURS = 4
+
+local function cycleKey()
+    local now = os.time()
+    local bucket = math.floor(now / (CYCLE_HOURS * 3600)) * (CYCLE_HOURS * 3600)
+    return os.date("!%Y-%m-%dT%H", bucket)
 end
 
 local function ensure(player)
     local uid = player.UserId
     local p = progress[uid]
-    if not p or p.dayKey ~= todayKey() then
-        progress[uid] = { dayKey = todayKey(), entries = {}, claimed = {} }
+    if not p or p.cycleKey ~= cycleKey() then
+        progress[uid] = { cycleKey = cycleKey(), entries = {}, claimed = {} }
     end
     return progress[uid]
 end

@@ -14,6 +14,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 Players.CharacterAutoLoads = true
 
+-- Ensure server creates SoundGroups so all sounds (server + client) can be
+-- routed and the per-channel volume sliders in the settings menu work.
+local AudioGroups
+do
+	local mods = ReplicatedStorage:WaitForChild("Modules", 5)
+	local m = mods and mods:WaitForChild("AudioGroups", 5)
+	if m then local ok, mod = pcall(require, m); if ok then AudioGroups = mod end end
+end
+
 local FUR_COLORS = {
 	Color3.fromRGB(220, 130, 50),
 	Color3.fromRGB(80, 60, 50),
@@ -252,6 +261,7 @@ local function playSpawnChime(character)
 	local s = Instance.new("Sound")
 	s.SoundId = AssetIds.spawn_chime
 	s.Volume = 0.7
+	if AudioGroups then AudioGroups.assign(s, "UI") end
 	s.Parent = head or character
 	s:Play()
 	game:GetService("Debris"):AddItem(s, 4)

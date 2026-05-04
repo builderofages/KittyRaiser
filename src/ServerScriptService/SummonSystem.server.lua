@@ -168,6 +168,54 @@ local function wanderAI(model)
     end)
 end
 
+-- =====================================================================
+-- BOSS NPC: bigger, brighter, with a floating HP bar that drains as the
+-- player pranks them. Boss survives multiple pranks (5 hits) and pays out
+-- ~10x normal chaos when finally pranked.
+-- =====================================================================
+local BOSS_HP = 5
+local BOSS_REWARD_MULT = 3  -- 5 hits * 3x base = 15x total reward
+
+local function makeBossHpBar(npc)
+    local head = npc:FindFirstChild("Head")
+    if not head then return end
+    local g = Instance.new("BillboardGui")
+    g.Name = "BossHpBar"
+    g.Size = UDim2.new(0, 180, 0, 28)
+    g.StudsOffset = Vector3.new(0, 2.6, 0)
+    g.AlwaysOnTop = true
+    g.Parent = head
+    local panel = Instance.new("Frame", g)
+    panel.Size = UDim2.fromScale(1, 1)
+    panel.BackgroundColor3 = Color3.fromRGB(28, 18, 12)
+    panel.BorderSizePixel = 0
+    Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 6)
+    local label = Instance.new("TextLabel", panel)
+    label.AnchorPoint = Vector2.new(0.5, 0)
+    label.Size = UDim2.new(1, -8, 0, 12)
+    label.Position = UDim2.new(0.5, 0, 0, 1)
+    label.BackgroundTransparency = 1
+    label.Text = "BOSS"
+    label.TextColor3 = Color3.fromRGB(255, 220, 80)
+    label.Font = Enum.Font.GothamBlack
+    label.TextScaled = true
+    local lc = Instance.new("UITextSizeConstraint", label); lc.MinTextSize = 10; lc.MaxTextSize = 14
+    local barBg = Instance.new("Frame", panel)
+    barBg.AnchorPoint = Vector2.new(0.5, 1)
+    barBg.Size = UDim2.new(1, -8, 0, 10)
+    barBg.Position = UDim2.new(0.5, 0, 1, -3)
+    barBg.BackgroundColor3 = Color3.fromRGB(60, 40, 25)
+    barBg.BorderSizePixel = 0
+    Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
+    local fill = Instance.new("Frame", barBg)
+    fill.Name = "Fill"
+    fill.Size = UDim2.new(1, 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(220, 80, 70)
+    fill.BorderSizePixel = 0
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+    return fill
+end
+
 -- Public: summon an NPC for a player
 function SummonSystem.summon(player)
     local now = os.clock()
@@ -183,6 +231,34 @@ function SummonSystem.summon(player)
     end
 
     local npc = buildHumanNPC()
+
+    -- 1-in-8 chance of being a BOSS variant
+    local isBoss = math.random(1, 8) == 1
+    if isBoss then
+        npc:SetAttribute("Boss", true)
+        npc:SetAttribute("BossHP", BOSS_HP)
+        -- Make the boss bigger + golden tint
+        local hum = npc:FindFirstChildOfClass("Humanoid")
+        if hum then
+            for sname, sval in pairs({
+                BodyDepthScale=1.20, BodyWidthScale=1.50, BodyHeightScale=1.25,
+                HeadScale=1.80,
+            }) do
+                local nv = hum:FindFirstChild(sname)
+                if nv and nv:IsA("NumberValue") then nv.Value = sval end
+            end
+            hum.MaxHealth = BOSS_HP * 100
+            hum.Health = hum.MaxHealth
+        end
+        -- Tint shirt parts gold to mark boss
+        for _, p in ipairs(npc:GetDescendants()) do
+            if p:IsA("BasePart") and (p.Name == "UpperTorso" or p.Name == "LowerTorso" or p.Name == "Torso") then
+                p.Color = Color3.fromRGB(225, 175, 75)
+            end
+        end
+        npc.Name = "PrankBoss"
+    end
+
     local spawnPos
     if #pads > 0 then
         local pad = pads[math.random(1, #pads)]
@@ -237,16 +313,55 @@ function SummonSystem.summon(player)
     end)
 
     wanderAI(npc)
+
+    -- Boss: build floating HP bar after the drop-in finishes
+    if npc:GetAttribute("Boss") then
+        task.delay(0.6, function()
+            if not npc.Parent then return end
+            makeBossHpBar(npc)
+        end)
+    end
+
     return true, npc
 end
 
--- Despawn pranked NPC after a delay
+-- Despawn pranked NPC after a delay.
+-- For bosses: drain HP first; only mark Pranked when HP hits 0. The PrankSystem
+-- still calls this on every hit, so we tap HP and rebuild the bar instead.
 function SummonSystem.markPranked(npc)
     if not npc then return end
+    if npc:GetAttribute("Boss") and not npc:GetAttribute("BossDefeated") then
+        local hp = (npc:GetAttribute("BossHP") or BOSS_HP) - 1
+        npc:SetAttribute("BossHP", math.max(0, hp))
+        local head = npc:FindFirstChild("Head")
+        local bar = head and head:FindFirstChild("BossHpBar")
+        if bar then
+            local fill = bar:FindFirstChild("Frame") and bar.Frame:FindFirstChild("Fill")
+            if fill then
+                local pct = hp / BOSS_HP
+                game:GetService("TweenService"):Create(fill,
+                    TweenInfo.new(0.25),
+                    {Size = UDim2.new(math.max(0, pct), 0, 1, 0),
+                     BackgroundColor3 = (pct < 0.4)
+                        and Color3.fromRGB(255, 80, 60)
+                        or Color3.fromRGB(220, 80, 70)}):Play()
+            end
+        end
+        if hp > 0 then
+            return  -- still alive, don't mark Pranked
+        end
+        npc:SetAttribute("BossDefeated", true)
+    end
     npc:SetAttribute("Pranked", true)
     task.delay(2, function()
         if npc.Parent then npc:Destroy() end
     end)
+end
+
+-- Public: get bonus chaos multiplier for a target
+function SummonSystem.getRewardMultiplier(npc)
+    if npc and npc:GetAttribute("Boss") then return BOSS_REWARD_MULT end
+    return 1
 end
 
 -- Wire remote

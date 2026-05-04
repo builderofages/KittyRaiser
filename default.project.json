@@ -29,6 +29,9 @@
         },
         "QuestConfig": {
           "$path": "src/ReplicatedStorage/Modules/QuestConfig.lua"
+        },
+        "AudioGroups": {
+          "$path": "src/ReplicatedStorage/Modules/AudioGroups.lua"
         }
       }
     },
@@ -123,6 +126,9 @@
       },
       "NpcReactions": {
         "$path": "src/ServerScriptService/NpcReactions.server.lua"
+      },
+      "CopSystem": {
+        "$path": "src/ServerScriptService/CopSystem.server.lua"
       }
     },
     "StarterGui": {

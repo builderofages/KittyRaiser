@@ -118,14 +118,21 @@ function PrankSystem.handlePrankRequest(player, prankName, targetModel)
         return
     end
 
-    -- All checks pass — award + mark
-    local chaos, xp = awardChaosAndXP(player, prank.baseChaos)
+    -- All checks pass — award + mark.
+    -- Boss targets give bigger chaos via SummonSystem.getRewardMultiplier.
+    local rewardMult = (SummonSystem.getRewardMultiplier and SummonSystem.getRewardMultiplier(targetModel)) or 1
+    local chaos, xp = awardChaosAndXP(player, prank.baseChaos * rewardMult)
     SummonSystem.markPranked(targetModel)
 
     -- Quest tracker hook (no-op if QuestSystem hasn't loaded)
     if _G.KittyRaiserBumpQuest then
         pcall(_G.KittyRaiserBumpQuest, player, "any_prank", 1)
         pcall(_G.KittyRaiserBumpQuest, player, "specific_prank", 1, prankName)
+    end
+
+    -- Heat / cop pursuit hook
+    if _G.KittyRaiserAddHeat then
+        pcall(_G.KittyRaiserAddHeat, player)
     end
 
     -- Tell client to play effects

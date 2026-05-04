@@ -14,6 +14,7 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UIUtil   = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("UIUtil"))
 local AssetIds = require(ReplicatedStorage.Modules.AssetIds)
+local AudioGroups = require(ReplicatedStorage.Modules:WaitForChild("AudioGroups"))
 
 local player    = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -21,12 +22,19 @@ local hud       = playerGui:WaitForChild("MainHUD", 30)
 if not hud then return end
 
 -- Defaults
-player:SetAttribute("MasterVolume",    player:GetAttribute("MasterVolume")    or 0.7)
+player:SetAttribute("MasterVolume",    player:GetAttribute("MasterVolume")    or 0.8)
+player:SetAttribute("MusicVolume",     player:GetAttribute("MusicVolume")     or 0.6)
+player:SetAttribute("SFXVolume",       player:GetAttribute("SFXVolume")       or 0.9)
+player:SetAttribute("UIVolume",        player:GetAttribute("UIVolume")        or 0.8)
 player:SetAttribute("GraphicsQuality", player:GetAttribute("GraphicsQuality") or "med")
 player:SetAttribute("MotionShake",     player:GetAttribute("MotionShake")     ~= false)  -- default true
 
 local function applyVolume()
-    SoundService.Volume = player:GetAttribute("MasterVolume") or 0.7
+    -- Master scales SoundService; per-channel sliders scale the SoundGroup volumes.
+    SoundService.Volume = player:GetAttribute("MasterVolume") or 0.8
+    AudioGroups.setChannelVolume("Music", player:GetAttribute("MusicVolume") or 0.6)
+    AudioGroups.setChannelVolume("SFX",   player:GetAttribute("SFXVolume")   or 0.9)
+    AudioGroups.setChannelVolume("UI",    player:GetAttribute("UIVolume")    or 0.8)
 end
 local function applyGraphics()
     local q = player:GetAttribute("GraphicsQuality") or "med"
@@ -52,6 +60,9 @@ applyVolume()
 applyGraphics()
 
 player:GetAttributeChangedSignal("MasterVolume"):Connect(applyVolume)
+player:GetAttributeChangedSignal("MusicVolume"):Connect(applyVolume)
+player:GetAttributeChangedSignal("SFXVolume"):Connect(applyVolume)
+player:GetAttributeChangedSignal("UIVolume"):Connect(applyVolume)
 player:GetAttributeChangedSignal("GraphicsQuality"):Connect(applyGraphics)
 
 -- ============================================================
@@ -59,7 +70,7 @@ player:GetAttributeChangedSignal("GraphicsQuality"):Connect(applyGraphics)
 -- ============================================================
 local modal = Instance.new("Frame")
 modal.Name = "SettingsModal"
-modal.Size = UIUtil.modalSize(420, 460, 24)
+modal.Size = UIUtil.modalSize(440, 580, 24)
 modal.AnchorPoint = Vector2.new(0.5, 0.5)
 modal.Position = UDim2.new(0.5, 0, 0.5, 0)
 modal.BackgroundColor3 = UIUtil.Palette.bgMid
@@ -74,7 +85,7 @@ modal.Parent = hud
 local cam = workspace.CurrentCamera
 if cam then
     cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-        modal.Size = UIUtil.modalSize(420, 460, 24)
+        modal.Size = UIUtil.modalSize(440, 580, 24)
     end)
 end
 
@@ -136,70 +147,105 @@ local function makeRow(name, layoutOrder, height)
     return r
 end
 
--- ----- VOLUME SLIDER -----
-local volRow = makeRow("VOLUME", 1, 56)
-local sliderTrack = Instance.new("Frame", volRow)
-sliderTrack.Size = UDim2.new(0.55, -12, 0, 12)
-sliderTrack.AnchorPoint = Vector2.new(1, 0.5)
-sliderTrack.Position = UDim2.new(1, -12, 0.5, 0)
-sliderTrack.BackgroundColor3 = UIUtil.Palette.bgDark
-sliderTrack.BorderSizePixel = 0
-Instance.new("UICorner", sliderTrack).CornerRadius = UDim.new(1, 0)
-local sliderFill = Instance.new("Frame", sliderTrack)
-sliderFill.Size = UDim2.new(player:GetAttribute("MasterVolume") or 0.7, 0, 1, 0)
-sliderFill.BackgroundColor3 = UIUtil.Palette.primary
-sliderFill.BorderSizePixel = 0
-Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1, 0)
-local sliderKnob = Instance.new("TextButton", sliderTrack)
-sliderKnob.AnchorPoint = Vector2.new(0.5, 0.5)
-sliderKnob.Size = UDim2.new(0, 24, 0, 24)
-sliderKnob.Position = UDim2.new(player:GetAttribute("MasterVolume") or 0.7, 0, 0.5, 0)
-sliderKnob.BackgroundColor3 = UIUtil.Palette.gold
-sliderKnob.AutoButtonColor = true
-sliderKnob.Text = ""
-Instance.new("UICorner", sliderKnob).CornerRadius = UDim.new(1, 0)
-local sk = Instance.new("UIStroke", sliderKnob); sk.Color = UIUtil.Palette.stroke; sk.Thickness = UIUtil.Token.strokeReg
-
--- Drag logic for the knob
+-- ----- VOLUME SLIDERS (master + 3 channels) -----
 local UserInputService = game:GetService("UserInputService")
-local dragging = false
-sliderKnob.MouseButton1Down:Connect(function() dragging = true end)
-sliderKnob.TouchTap:Connect(function() dragging = true end)
+local activeSlider = nil  -- track which slider is being dragged
+
+local function makeVolumeSlider(label, attrName, layoutOrder)
+    local row = makeRow(label, layoutOrder, 50)
+    local track = Instance.new("Frame", row)
+    track.Size = UDim2.new(0.55, -12, 0, 10)
+    track.AnchorPoint = Vector2.new(1, 0.5)
+    track.Position = UDim2.new(1, -12, 0.5, 0)
+    track.BackgroundColor3 = UIUtil.Palette.bgDark
+    track.BorderSizePixel = 0
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
+    local fill = Instance.new("Frame", track)
+    local val = player:GetAttribute(attrName) or 0.7
+    fill.Size = UDim2.new(val, 0, 1, 0)
+    fill.BackgroundColor3 = UIUtil.Palette.primary
+    fill.BorderSizePixel = 0
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+    local knob = Instance.new("TextButton", track)
+    knob.AnchorPoint = Vector2.new(0.5, 0.5)
+    knob.Size = UDim2.new(0, 22, 0, 22)
+    knob.Position = UDim2.new(val, 0, 0.5, 0)
+    knob.BackgroundColor3 = UIUtil.Palette.gold
+    knob.AutoButtonColor = true
+    knob.Text = ""
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+    local ks = Instance.new("UIStroke", knob); ks.Color = UIUtil.Palette.stroke; ks.Thickness = UIUtil.Token.strokeReg
+
+    local function setRel(rel)
+        rel = math.clamp(rel, 0, 1)
+        fill.Size = UDim2.new(rel, 0, 1, 0)
+        knob.Position = UDim2.new(rel, 0, 0.5, 0)
+        player:SetAttribute(attrName, rel)
+    end
+
+    knob.MouseButton1Down:Connect(function() activeSlider = track end)
+    knob.TouchTap:Connect(function() activeSlider = track end)
+
+    -- Tap-to-set anywhere on the track
+    local trackBtn = Instance.new("TextButton", track)
+    trackBtn.Size = UDim2.fromScale(1, 1)
+    trackBtn.BackgroundTransparency = 1
+    trackBtn.Text = ""
+    trackBtn.MouseButton1Click:Connect(function()
+        local m = player:GetMouse()
+        setRel((m.X - track.AbsolutePosition.X) / track.AbsoluteSize.X)
+    end)
+
+    -- React to external setAttribute (e.g. from server)
+    player:GetAttributeChangedSignal(attrName):Connect(function()
+        local v = player:GetAttribute(attrName) or 0
+        if math.abs(v - (fill.Size.X.Scale or 0)) > 0.001 then
+            fill.Size = UDim2.new(v, 0, 1, 0)
+            knob.Position = UDim2.new(v, 0, 0.5, 0)
+        end
+    end)
+
+    return track, setRel
+end
+
+-- Single global drag listener so all sliders share one input pipeline
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
        or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
+        activeSlider = nil
     end
 end)
 UserInputService.InputChanged:Connect(function(input)
-    if not dragging then return end
+    if not activeSlider then return end
     if input.UserInputType ~= Enum.UserInputType.MouseMovement
        and input.UserInputType ~= Enum.UserInputType.Touch then return end
-    local trackPos = sliderTrack.AbsolutePosition.X
-    local trackW   = sliderTrack.AbsoluteSize.X
-    local rel = math.clamp((input.Position.X - trackPos) / trackW, 0, 1)
-    sliderFill.Size = UDim2.new(rel, 0, 1, 0)
-    sliderKnob.Position = UDim2.new(rel, 0, 0.5, 0)
-    player:SetAttribute("MasterVolume", rel)
+    local rel = math.clamp((input.Position.X - activeSlider.AbsolutePosition.X) / activeSlider.AbsoluteSize.X, 0, 1)
+    -- find the slider's owning row by walking up
+    local fill = activeSlider:FindFirstChildOfClass("Frame")
+    local knob = activeSlider:FindFirstChildOfClass("TextButton")
+    if fill then fill.Size = UDim2.new(rel, 0, 1, 0) end
+    if knob then knob.Position = UDim2.new(rel, 0, 0.5, 0) end
+    -- Walk: track -> row -> body, the row's first child label tells us the attr.
+    -- Simpler: store the attr on the track via attribute.
+    local attr = activeSlider:GetAttribute("VolumeAttr")
+    if attr then player:SetAttribute(attr, rel) end
 end)
 
--- Tap-to-set on the track itself
-sliderTrack.InputBegan = nil  -- (Frames don't have InputBegan; using MouseButton via overlay button)
-local trackBtn = Instance.new("TextButton", sliderTrack)
-trackBtn.Size = UDim2.fromScale(1, 1)
-trackBtn.BackgroundTransparency = 1
-trackBtn.Text = ""
-trackBtn.MouseButton1Click:Connect(function(x, y)
-    -- Use mouse position
-    local m = player:GetMouse()
-    local rel = math.clamp((m.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
-    sliderFill.Size = UDim2.new(rel, 0, 1, 0)
-    sliderKnob.Position = UDim2.new(rel, 0, 0.5, 0)
-    player:SetAttribute("MasterVolume", rel)
-end)
+-- Build the 4 sliders. Tag each track with VolumeAttr so the global listener
+-- knows which attribute to update.
+local masterTrack = makeVolumeSlider("MASTER", "MasterVolume", 1)
+masterTrack:SetAttribute("VolumeAttr", "MasterVolume")
+local musicTrack  = makeVolumeSlider("MUSIC",  "MusicVolume",  2)
+musicTrack:SetAttribute("VolumeAttr", "MusicVolume")
+local sfxTrack    = makeVolumeSlider("SFX",    "SFXVolume",    3)
+sfxTrack:SetAttribute("VolumeAttr", "SFXVolume")
+local uiTrack     = makeVolumeSlider("UI",     "UIVolume",     4)
+uiTrack:SetAttribute("VolumeAttr", "UIVolume")
 
 -- ----- GRAPHICS QUALITY SEGMENTED -----
-local gfxRow = makeRow("GRAPHICS", 2, 56)
+local gfxRow = makeRow("GRAPHICS", 5, 56)
 local seg = Instance.new("Frame", gfxRow)
 seg.Size = UDim2.new(0.55, -12, 0, 36)
 seg.AnchorPoint = Vector2.new(1, 0.5)
@@ -244,7 +290,7 @@ refreshGfxSeg()
 player:GetAttributeChangedSignal("GraphicsQuality"):Connect(refreshGfxSeg)
 
 -- ----- MOTION SHAKE TOGGLE -----
-local shakeRow = makeRow("MOTION FX", 3, 56)
+local shakeRow = makeRow("MOTION FX", 6, 56)
 local toggle = Instance.new("TextButton", shakeRow)
 toggle.AnchorPoint = Vector2.new(1, 0.5)
 toggle.Size = UDim2.new(0, 80, 0, 36)
@@ -270,7 +316,7 @@ toggle.MouseButton1Click:Connect(function()
 end)
 
 -- ----- CONTROLS HELP (read-only text) -----
-local controls = makeRow("CONTROLS", 4, 100)
+local controls = makeRow("CONTROLS", 7, 100)
 local helpLbl = Instance.new("TextLabel", controls)
 helpLbl.AnchorPoint = Vector2.new(1, 0.5)
 helpLbl.Size = UDim2.new(0.55, -12, 1, -12)

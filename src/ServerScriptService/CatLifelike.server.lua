@@ -1,9 +1,105 @@
--- CatLifelike.server.lua  — DISABLED.
--- The previous implementation manipulated CFrames on welded body parts using
--- world-space values captured at spawn time. As the cat moved, the tail/ears
--- got pinned to the spawn position, which made the cat look broken and
--- fought the physics engine. Replaced by the cleaner v5 character pipeline
--- in CatCharacterBuilder.server.lua. This file is intentionally a no-op so
--- it can be deleted later without breaking the project tree.
+-- CatLifelike.server.lua  v2 — physics-safe micro animations for the cat.
+--
+-- The previous version overwrote welded body parts' CFrames with stale
+-- spawn-time values, fighting physics. This version animates ONLY the
+-- standalone CatEar / CatTail / CatTailTip parts (which are *attached* via
+-- WeldConstraint, not part of the R15 Motor6D rig) by tweening the
+-- WeldConstraint-driven part's CFrame through TweenService relative to the
+-- head/torso transform. We sample the parent's CFrame each tick so the wag
+-- follows the cat as it moves.
+--
+-- Place in: ServerScriptService > CatLifelike (Script). Auto-runs.
 
-print("[CatLifelike] disabled (replaced by v5 character pipeline)")
+local Players      = game:GetService("Players")
+local RunService   = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local function setup(char)
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+
+	-- Cat tail wag — find CatTail and its CatTailTip
+	local tail    = char:FindFirstChild("CatTail")
+	local tailTip = char:FindFirstChild("CatTailTip")
+	local anchor  = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+	if tail and anchor and tail:IsA("BasePart") then
+		-- Snapshot the tail's CFrame relative to the torso ONCE.
+		local relCF = anchor.CFrame:ToObjectSpace(tail.CFrame)
+		-- Disable the existing weld so we can drive CFrame manually each frame.
+		for _, w in ipairs(tail:GetChildren()) do
+			if w:IsA("WeldConstraint") then w.Enabled = false end
+		end
+		tail.Anchored = false
+		tail.CanCollide = false
+		tail.Massless = true
+		-- Heartbeat-driven wag using torso-relative CFrame so it follows the cat.
+		local startedAt = os.clock()
+		local conn
+		conn = RunService.Heartbeat:Connect(function()
+			if not (tail.Parent and anchor.Parent) then conn:Disconnect() return end
+			local t = os.clock() - startedAt
+			-- Slow side-to-side wag, with extra wag when moving fast.
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			local speed = 0
+			if hrp then
+				local v = hrp.AssemblyLinearVelocity
+				speed = Vector3.new(v.X, 0, v.Z).Magnitude
+			end
+			local wag = math.sin(t * (3 + speed * 0.05)) * (math.rad(15) + math.rad(speed * 0.6))
+			tail.CFrame = (anchor.CFrame * relCF) * CFrame.Angles(0, wag, 0)
+			if tailTip and tailTip.Parent then
+				-- Tip follows tail with slight lag
+				local tipRel = CFrame.new(0, 0, 1.0)
+				tailTip.CFrame = tail.CFrame * tipRel
+			end
+		end)
+	end
+
+	-- Cat ear twitch — find both CatEar parts
+	local ears = {}
+	for _, c in ipairs(char:GetChildren()) do
+		if c.Name == "CatEar" and c:IsA("BasePart") then
+			table.insert(ears, c)
+		end
+	end
+	for _, ear in ipairs(ears) do
+		-- Snapshot ear's local-to-head transform
+		local head = char:FindFirstChild("Head")
+		if not head then break end
+		local relCF = head.CFrame:ToObjectSpace(ear.CFrame)
+		for _, w in ipairs(ear:GetChildren()) do
+			if w:IsA("WeldConstraint") then w.Enabled = false end
+		end
+		ear.Anchored = false
+		ear.CanCollide = false
+		ear.Massless = true
+		local startedAt = os.clock() + math.random()
+		local conn
+		conn = RunService.Heartbeat:Connect(function()
+			if not (ear.Parent and head.Parent) then conn:Disconnect() return end
+			local t = os.clock() - startedAt
+			-- Mostly still, occasional twitch (every ~6-10s)
+			local twitch = 0
+			local cycle = math.fmod(t, 8)
+			if cycle < 0.4 then
+				twitch = math.sin(cycle / 0.4 * math.pi) * math.rad(15)
+			end
+			ear.CFrame = (head.CFrame * relCF) * CFrame.Angles(twitch, 0, 0)
+		end)
+	end
+
+	print("[CatLifelike v2] tail wag + ear twitch active for " .. (char.Name or "?"))
+end
+
+local function setupPlayer(player)
+	if player.Character then setup(player.Character) end
+	player.CharacterAdded:Connect(function(char)
+		task.wait(0.4)
+		setup(char)
+	end)
+end
+
+Players.PlayerAdded:Connect(setupPlayer)
+for _, p in ipairs(Players:GetPlayers()) do setupPlayer(p) end
+
+print("[CatLifelike v2] online")

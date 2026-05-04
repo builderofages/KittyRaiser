@@ -13,6 +13,7 @@ local Remotes     = require(ReplicatedStorage.Modules.RemoteEvents)
 local PrankConfig = require(ReplicatedStorage.Modules.PrankConfig)
 local GameConfig  = require(ReplicatedStorage.Modules.GameConfig)
 local AssetIds    = require(ReplicatedStorage.Modules:WaitForChild("AssetIds"))
+local AudioGroups = require(ReplicatedStorage.Modules:WaitForChild("AudioGroups"))
 
 -- Helper: clone a real mesh (uploaded via Open Cloud) into the workspace by
 -- looking it up via InsertService at runtime. Falls back to nil if the asset
@@ -178,6 +179,7 @@ local function playSound(soundId, parent)
     local s = Instance.new("Sound")
     s.SoundId = soundId
     s.Volume = 1
+    AudioGroups.assign(s, "SFX")
     s.Parent = parent or SoundService
     s:Play()
     Debris:AddItem(s, 5)

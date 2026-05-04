@@ -18,18 +18,34 @@ if not requestSpawn then
 end
 
 local FUR_OPTIONS = {
-  {name = "Orange Tabby", color = Color3.fromRGB(220, 130, 50),  rarity = "common"},
-  {name = "Brown",         color = Color3.fromRGB(105, 75, 55),   rarity = "common"},
-  {name = "Black",         color = Color3.fromRGB(45, 40, 40),    rarity = "common"},
-  {name = "White",         color = Color3.fromRGB(225, 220, 210), rarity = "common"},
-  {name = "Grey Tabby",    color = Color3.fromRGB(150, 140, 130), rarity = "common"},
-  {name = "Cream",         color = Color3.fromRGB(245, 215, 175), rarity = "common"},
-  {name = "Calico",        color = Color3.fromRGB(225, 165, 95),  rarity = "rare"},
-  {name = "Russian Blue",  color = Color3.fromRGB(140, 160, 175), rarity = "rare"},
-  {name = "Tortoiseshell", color = Color3.fromRGB(95, 65, 40),    rarity = "rare"},
-  {name = "Sunset Ginger", color = Color3.fromRGB(235, 110, 55),  rarity = "epic"},
-  {name = "Snow Bengal",   color = Color3.fromRGB(245, 230, 195), rarity = "epic"},
-  {name = "Gold (Robux)",  color = Color3.fromRGB(225, 175, 75),  rarity = "robux"},
+  -- COMMON (8)
+  {name = "Orange Tabby",   color = Color3.fromRGB(220, 130, 50),  rarity = "common"},
+  {name = "Brown",          color = Color3.fromRGB(105, 75, 55),   rarity = "common"},
+  {name = "Black",          color = Color3.fromRGB(45, 40, 40),    rarity = "common"},
+  {name = "White",          color = Color3.fromRGB(225, 220, 210), rarity = "common"},
+  {name = "Grey Tabby",     color = Color3.fromRGB(150, 140, 130), rarity = "common"},
+  {name = "Cream",          color = Color3.fromRGB(245, 215, 175), rarity = "common"},
+  {name = "Charcoal",       color = Color3.fromRGB(70, 65, 65),    rarity = "common"},
+  {name = "Caramel",        color = Color3.fromRGB(195, 130, 80),  rarity = "common"},
+  -- RARE (8)
+  {name = "Calico",         color = Color3.fromRGB(225, 165, 95),  rarity = "rare"},
+  {name = "Russian Blue",   color = Color3.fromRGB(140, 160, 175), rarity = "rare"},
+  {name = "Tortoiseshell",  color = Color3.fromRGB(95, 65, 40),    rarity = "rare"},
+  {name = "Maine Coon",     color = Color3.fromRGB(165, 115, 75),  rarity = "rare"},
+  {name = "Persian",        color = Color3.fromRGB(235, 220, 200), rarity = "rare"},
+  {name = "Lilac Point",    color = Color3.fromRGB(200, 185, 195), rarity = "rare"},
+  {name = "Cinnamon",       color = Color3.fromRGB(180, 110, 75),  rarity = "rare"},
+  {name = "Smoke Grey",     color = Color3.fromRGB(125, 120, 130), rarity = "rare"},
+  -- EPIC (5)
+  {name = "Sunset Ginger",  color = Color3.fromRGB(235, 110, 55),  rarity = "epic"},
+  {name = "Snow Bengal",    color = Color3.fromRGB(245, 230, 195), rarity = "epic"},
+  {name = "Midnight Velvet",color = Color3.fromRGB(35, 30, 50),    rarity = "epic"},
+  {name = "Sapphire",       color = Color3.fromRGB(80, 130, 195),  rarity = "epic"},
+  {name = "Rose Champagne", color = Color3.fromRGB(230, 175, 165), rarity = "epic"},
+  -- ROBUX (3)
+  {name = "Gold",           color = Color3.fromRGB(225, 175, 75),  rarity = "robux"},
+  {name = "Pearl",          color = Color3.fromRGB(235, 230, 240), rarity = "robux"},
+  {name = "Ember",          color = Color3.fromRGB(220, 95, 50),   rarity = "robux"},
 }
 local RARITY_COLOR = {
   common = Color3.fromRGB(150, 145, 135),

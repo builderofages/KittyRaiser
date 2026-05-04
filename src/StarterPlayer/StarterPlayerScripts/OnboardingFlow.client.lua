@@ -165,8 +165,12 @@ end
 
 ----------------------------------------------------------------
 -- Step 1: Welcome + spotlight on SUMMON HUMAN button
+-- Use "Tap" on touch devices, "Click" on PC.
 ----------------------------------------------------------------
-local welcome = showStep("Welcome.  Tap SUMMON HUMAN\nto spawn your first victim.")
+local function verb(touch, mouse)
+    return UIUtil.isMobile() and touch or mouse
+end
+local welcome = showStep("Welcome.  " .. verb("Tap", "Click") .. " SUMMON HUMAN\nto spawn your first victim.")
 local summonBtn = findHudButton("SUMMON") or findHudButton("Summon")
 local ring1
 if summonBtn then
@@ -179,7 +183,7 @@ if summonBtn then
     if ring1 then ring1:Destroy() end
     -- Step 2 after delay
     task.wait(1.5)
-    local step2 = showStep("NOW PRANK THEM\nTap a glowing prank")
+    local step2 = showStep("NOW PRANK THEM\n" .. verb("Tap", "Click") .. " a glowing prank")
     -- Find prank column
     local prankBtn
     local col = hud:FindFirstChild("PrankColumn", true)

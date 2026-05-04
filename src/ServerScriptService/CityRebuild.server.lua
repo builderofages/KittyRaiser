@@ -148,42 +148,95 @@ local function fallbackBuildingBox(cf, sizeY, color)
 	return b
 end
 
--- Daytime brownstone palette (NOT cyberpunk neon)
-local BUILDING_COLORS = {
-	Color3.fromRGB(170, 110, 80),   -- warm brown brick
-	Color3.fromRGB(190, 175, 150),  -- sandstone
-	Color3.fromRGB(140, 100, 75),   -- darker brick
-	Color3.fromRGB(210, 195, 175),  -- limestone
-	Color3.fromRGB(160, 130, 100),  -- adobe
-	Color3.fromRGB(200, 160, 130),  -- terracotta
+-- =====================================================================
+-- ZONE PALETTES — three distinct neighborhoods of the city.
+--   * downtown: tall skyscrapers, cool stone, dense
+--   * suburbs:  shorter brownstones, warm brick, leafy
+--   * harbor:   mid-rise warehouses, washed sandstone, open
+-- Zones are picked by quadrant of the grid so the player walks between them.
+-- =====================================================================
+local ZONES = {
+	downtown = {
+		buildingColors = {
+			Color3.fromRGB(180, 175, 170),  -- pale stone
+			Color3.fromRGB(155, 150, 145),  -- darker stone
+			Color3.fromRGB(120, 115, 110),  -- granite
+			Color3.fromRGB(195, 190, 180),  -- limestone
+		},
+		heightRange = {110, 220},   -- tallest
+		preferTall = true,
+		spacing = 220,
+	},
+	suburbs = {
+		buildingColors = {
+			Color3.fromRGB(170, 110, 80),   -- warm brick brown
+			Color3.fromRGB(195, 145, 105),  -- terracotta
+			Color3.fromRGB(140, 100, 75),   -- darker brick
+			Color3.fromRGB(180, 130, 95),   -- adobe
+		},
+		heightRange = {50, 110},    -- shorter
+		preferTall = false,
+		spacing = 200,
+	},
+	harbor = {
+		buildingColors = {
+			Color3.fromRGB(210, 195, 175),  -- washed sandstone
+			Color3.fromRGB(190, 175, 150),  -- pale sand
+			Color3.fromRGB(170, 155, 130),  -- driftwood
+			Color3.fromRGB(155, 145, 130),  -- weathered concrete
+		},
+		heightRange = {40, 90},     -- low warehouses
+		preferTall = false,
+		spacing = 240,
+	},
 }
 
+-- Map a grid cell to a zone based on its position around the origin
+local function zoneForCell(gx, gz)
+	if gx >= 0 and gz >= 0 then return "downtown" end
+	if gx < 0 and gz < 0  then return "harbor"   end
+	return "suburbs"
+end
+
 task.spawn(function()
-	-- Wait briefly for MeshLoader to populate cache.
+	-- Wait for MeshLoader to populate cache.
 	for _ = 1, 30 do
 		if _G.KittyRaiserMeshes then break end
 		task.wait(0.5)
 	end
 
-	local skyMesh = getMesh("mesh_skyscraper")
+	local skyMesh   = getMesh("mesh_skyscraper")
 	local brownMesh = getMesh("mesh_brownstone")
 	local rng = Random.new(73)
 	local SP = 220
+	local placedByZone = { downtown = 0, suburbs = 0, harbor = 0 }
 
 	for gx = -3, 3 do
 		for gz = -3, 3 do
 			if math.abs(gx) > 0 or math.abs(gz) > 0 then
+				local zoneName = zoneForCell(gx, gz)
+				local zone = ZONES[zoneName]
 				local cx = gx * SP + rng:NextInteger(-30, 30)
 				local cz = gz * SP + rng:NextInteger(-30, 30)
-				local h  = rng:NextInteger(60, 180)
-				local color = BUILDING_COLORS[rng:NextInteger(1, #BUILDING_COLORS)]
+				local h  = rng:NextInteger(zone.heightRange[1], zone.heightRange[2])
+				local color = zone.buildingColors[rng:NextInteger(1, #zone.buildingColors)]
 				local cf = CFrame.new(cx, h/2 + 1, cz)
-				local pickMesh = (rng:NextNumber() < 0.5) and skyMesh or brownMesh
-				placeBuilding(pickMesh, cf, h, color, fallbackBuildingBox)
+				local pickMesh
+				if zone.preferTall then
+					pickMesh = skyMesh or brownMesh
+				else
+					pickMesh = brownMesh or skyMesh
+				end
+				local b = placeBuilding(pickMesh, cf, h, color, fallbackBuildingBox)
+				if b then b:SetAttribute("Zone", zoneName) end
+				placedByZone[zoneName] = placedByZone[zoneName] + 1
 			end
 		end
 	end
-	print("[CityRebuild v6] skyline placed (48 buildings, real meshes when available)")
+	print("[CityRebuild v7] zones placed:",
+		"downtown="..placedByZone.downtown,
+		"suburbs="..placedByZone.suburbs,
+		"harbor="..placedByZone.harbor)
 end)
 
 -- =====================================================================
