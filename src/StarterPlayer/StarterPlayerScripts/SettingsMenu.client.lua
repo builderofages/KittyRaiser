@@ -363,6 +363,54 @@ resetBtn.MouseButton1Click:Connect(function()
     player:SetAttribute("MotionShake",     true)
 end)
 
+-- ----- PROMO CODE ENTRY -----
+local codeRow = makeRow("CODE", 7.5, 56)
+local codeInput = Instance.new("TextBox", codeRow)
+codeInput.AnchorPoint = Vector2.new(0, 0.5)
+codeInput.Size = UDim2.new(0.45, -12, 0, 36)
+codeInput.Position = UDim2.new(0, 132, 0.5, 0)
+codeInput.BackgroundColor3 = UIUtil.Palette.bgDark
+codeInput.Text = ""
+codeInput.PlaceholderText = "Enter code"
+codeInput.PlaceholderColor3 = UIUtil.Palette.textLow
+codeInput.TextColor3 = UIUtil.Palette.textHi
+codeInput.Font = UIUtil.Token.fontLabel
+codeInput.TextScaled = true
+codeInput.ClearTextOnFocus = false
+Instance.new("UICorner", codeInput).CornerRadius = UIUtil.Token.cornerSm
+local cis = Instance.new("UIStroke", codeInput); cis.Thickness = UIUtil.Token.strokeReg; cis.Color = UIUtil.Palette.stroke
+UIUtil.boundText(codeInput, 12, 18)
+
+local redeemBtn = Instance.new("TextButton", codeRow)
+redeemBtn.AnchorPoint = Vector2.new(1, 0.5)
+redeemBtn.Size = UDim2.new(0, 110, 0, 36)
+redeemBtn.Position = UDim2.new(1, -12, 0.5, 0)
+redeemBtn.BackgroundColor3 = UIUtil.Palette.gold
+redeemBtn.AutoButtonColor = true
+redeemBtn.Text = "REDEEM"
+redeemBtn.TextColor3 = Color3.fromRGB(60, 35, 15)
+redeemBtn.Font = UIUtil.Token.fontHeader
+redeemBtn.TextScaled = true
+Instance.new("UICorner", redeemBtn).CornerRadius = UIUtil.Token.cornerSm
+local rds = Instance.new("UIStroke", redeemBtn); rds.Thickness = UIUtil.Token.strokeReg; rds.Color = UIUtil.Palette.stroke
+UIUtil.boundText(redeemBtn, 12, 18)
+
+local RequestRedeemCode = ReplicatedStorage:WaitForChild("RemoteEventsFolder", 10)
+RequestRedeemCode = RequestRedeemCode and RequestRedeemCode:WaitForChild("RequestRedeemCode", 10)
+redeemBtn.MouseButton1Click:Connect(function()
+    if not RequestRedeemCode then return end
+    local code = codeInput.Text
+    if #code == 0 then return end
+    redeemBtn.Active = false
+    redeemBtn.Text = "..."
+    task.spawn(function()
+        local ok = pcall(function() RequestRedeemCode:InvokeServer(code) end)
+        codeInput.Text = ""
+        redeemBtn.Active = true
+        redeemBtn.Text = "REDEEM"
+    end)
+end)
+
 local controls = makeRow("CONTROLS", 8, 100)
 local helpLbl = Instance.new("TextLabel", controls)
 helpLbl.AnchorPoint = Vector2.new(1, 0.5)
