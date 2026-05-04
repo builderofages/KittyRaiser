@@ -92,17 +92,25 @@ local lampLights = {}
 
 local function attachLights()
     if not cityFolder then return end
-    -- Find streetlamp-ish parts (downtown lampMesh placements). Tag any
-    -- BasePart that's tall+thin in the city folder as a candidate.
+    -- Find streetlamp-ish parts: tall-thin cylindrical-ish, on the ground,
+    -- in cityFolder. Props don't carry a Zone attribute (only buildings do)
+    -- so we filter on geometry alone. Cap at 60 to avoid excessive lights.
+    local lampCount = 0
     for _, p in ipairs(cityFolder:GetDescendants()) do
-        if p:IsA("BasePart") and p.Size.Y < 8 and p.Size.X < 3 and p.Size.Z < 3
-           and p:GetAttribute("Zone") == "downtown" and not p:FindFirstChildOfClass("PointLight") then
-            local pl = Instance.new("PointLight", p)
-            pl.Name = "NightGlow"
-            pl.Color = Color3.fromRGB(255, 215, 150)  -- warm cream
-            pl.Range = 22
-            pl.Brightness = 0  -- driven by the cycle
-            table.insert(lampLights, pl)
+        if lampCount >= 60 then break end
+        if p:IsA("BasePart") and not p:FindFirstChildOfClass("PointLight") then
+            local s = p.Size
+            -- Streetlamp candidate: thin in X+Z, moderately tall, near ground.
+            if s.X < 5 and s.Z < 5 and s.Y > 3 and s.Y < 9
+               and p.Position.Y < 12 then
+                local pl = Instance.new("PointLight", p)
+                pl.Name = "NightGlow"
+                pl.Color = Color3.fromRGB(255, 215, 150)
+                pl.Range = 22
+                pl.Brightness = 0
+                table.insert(lampLights, pl)
+                lampCount = lampCount + 1
+            end
         end
     end
     -- Also add a small light to each downtown TALL building's top (window

@@ -145,16 +145,17 @@ if pill then
                     Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
                     local stk = Instance.new("UIStroke", btn)
                     stk.Thickness = 2; stk.Color = Color3.fromRGB(255, 215, 120)
-                    -- Headshot
+                    -- Headshot. GetUserThumbnailAsync returns (content, isReady)
+                    -- but inside pcall they shift positions to (ok, content, isReady).
                     task.spawn(function()
-                        local content, isReady = pcall(function()
+                        local ok, url = pcall(function()
                             return Players:GetUserThumbnailAsync(
                                 p.UserId,
                                 Enum.ThumbnailType.HeadShot,
                                 Enum.ThumbnailSize.Size48x48)
                         end)
-                        if content and isReady then
-                            btn.Image = isReady
+                        if ok and typeof(url) == "string" and #url > 0 then
+                            btn.Image = url
                         end
                     end)
                     btn.MouseButton1Click:Connect(function()
