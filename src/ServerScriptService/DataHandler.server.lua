@@ -54,6 +54,15 @@ local function defaultData()
         customSpawnSkin = nil,
         -- Tutorial flags
         seenTutorial = false,
+        -- User settings (also mirrored to player attributes for client read)
+        settings = {
+            masterVolume    = 0.8,
+            musicVolume     = 0.6,
+            sfxVolume       = 0.9,
+            uiVolume        = 0.8,
+            graphicsQuality = "med",  -- low | med | high
+            motionShake     = true,
+        },
     }
 end
 
@@ -169,6 +178,32 @@ local function onPlayerAdded(player)
         return
     end
     PlayerData[player.UserId] = migrate(data)
+
+    -- Mirror persisted settings onto player attributes so SettingsMenu reads them.
+    local d = PlayerData[player.UserId]
+    if d.settings then
+        player:SetAttribute("MasterVolume",    d.settings.masterVolume    or 0.8)
+        player:SetAttribute("MusicVolume",     d.settings.musicVolume     or 0.6)
+        player:SetAttribute("SFXVolume",       d.settings.sfxVolume       or 0.9)
+        player:SetAttribute("UIVolume",        d.settings.uiVolume        or 0.8)
+        player:SetAttribute("GraphicsQuality", d.settings.graphicsQuality or "med")
+        player:SetAttribute("MotionShake",     d.settings.motionShake ~= false)
+    end
+    -- When attributes change, write back to the stored settings table.
+    local function syncSetting(attr, key)
+        player:GetAttributeChangedSignal(attr):Connect(function()
+            local v = player:GetAttribute(attr)
+            d.settings = d.settings or {}
+            d.settings[key] = v
+        end)
+    end
+    syncSetting("MasterVolume",    "masterVolume")
+    syncSetting("MusicVolume",     "musicVolume")
+    syncSetting("SFXVolume",       "sfxVolume")
+    syncSetting("UIVolume",        "uiVolume")
+    syncSetting("GraphicsQuality", "graphicsQuality")
+    syncSetting("MotionShake",     "motionShake")
+
     DataHandler.replicateToClient(player)
     print("[DataHandler] Loaded", player.Name, "L"..data.level, "Chaos="..data.chaosPoints, "HT="..data.hellTokens)
 end

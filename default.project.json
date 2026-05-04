@@ -129,6 +129,9 @@
       },
       "CopSystem": {
         "$path": "src/ServerScriptService/CopSystem.server.lua"
+      },
+      "CatAnimations": {
+        "$path": "src/ServerScriptService/CatAnimations.server.lua"
       }
     },
     "StarterGui": {

@@ -88,6 +88,16 @@ AssetIds.mesh_coffee              = "rbxassetid://0"  -- drink prop for thirst
 AssetIds.mesh_manhole             = "rbxassetid://0"  -- flush ground decoration, downtown
 AssetIds.mesh_fire_truck          = "rbxassetid://0"  -- ambient prop in suburbs
 
+-- ===== CAT ANIMATIONS — TODO upload via Roblox Studio Animation Editor
+-- and paste IDs here. CatAnimations.server.lua reads these and patches the
+-- default Animate script's StringValue children. Falls back to default Roblox
+-- humanoid anims if any are still 0. =====
+AssetIds.anim_cat_idle            = "rbxassetid://0"
+AssetIds.anim_cat_walk            = "rbxassetid://0"
+AssetIds.anim_cat_run             = "rbxassetid://0"
+AssetIds.anim_cat_jump            = "rbxassetid://0"
+AssetIds.anim_cat_fall            = "rbxassetid://0"
+
 -- ===== MARKETING =====
 AssetIds.game_icon                = "rbxassetid://112119672948925"
 AssetIds.game_icon_small          = "rbxassetid://127301758963300"

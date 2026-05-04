@@ -1,113 +1,124 @@
-# KittyRaiser — v1 Build Package
+# KittyRaiser
 
-A complete, shippable Roblox game build. Cartoon prank simulator. Mobile-first. Moderate maturity label. ~2000 lines of Luau across 14 scripts.
+A sunny cartoon prank simulator for Roblox. Mobile + tablet + desktop friendly.
+Warm wood-and-brick city. No emoji, no neon cyberpunk, no garbage.
 
-## What's in this folder
+**~6,500 lines of Luau across 60 source files.**
 
+## Hard rules
+See `CLAUDE.md` at the repo root. The short list:
+1. Never an emoji in source. Use `AssetIds.lua` ImageLabel or ASCII text.
+2. Warm sunny daytime cartoon city. Lighting is `StrayLighting.server.lua`.
+3. Use uploaded mesh/texture/sound/icon assets before procedurals.
+4. NPCs are not stiff Robloxians — cartoon body scales.
+5. Cat is Roblox R15 + ear/tail/face accessories.
+6. Single DisplayOrder registry in `UIUtil.DisplayOrder`.
+7. Every TextScaled label needs `UIUtil.boundText`.
+
+## Repo layout
 ```
 KittyRaiser/
-├── README.md                    ← you are here
-├── 00_RATING_AND_GAPS.md        ← honest review of the Grok thread + 22 gaps
-├── 01_PRODUCTION_BIBLE.md       ← v1 spec, locked identity, v2-v4 roadmap
-├── 02_BUILD_GUIDE.md            ← Studio setup + drop-in order + smoke test
-├── 03_CLAUDE_HANDOFF.md         ← prompt to give Claude Cowork to execute the build
-├── 04_MONETIZATION_SETUP.md     ← GamePass + DevProduct setup steps
-├── 05_ASSET_LIST.md             ← Toolbox sounds, icons, thumbnails
-├── default.project.json         ← Rojo config (optional, for fast sync)
+├── README.md                ← you are here
+├── CLAUDE.md                ← hard rules for any AI coder
+├── CHANGELOG.md             ← v3.20 → v3.29 history
+├── PLAYTEST.md              ← exhaustive A-Z playtest checklist
+├── default.project.json     ← Rojo config
+├── blender_kittyraiser_cat.py     ← Blender script for cat meshes (already uploaded)
+├── blender_kittyraiser_props.py   ← Blender script for original props (already uploaded)
+├── blender_kittyraiser_extras.py  ← Blender script for 9 NEW props (run + upload)
+├── open_cloud_upload.py     ← bulk upload helper for Open Cloud Assets API
 └── src/
     ├── ReplicatedStorage/Modules/
-    │   ├── GameConfig.lua
-    │   ├── PrankConfig.lua
-    │   ├── CosmeticConfig.lua
-    │   └── RemoteEvents.lua
-    ├── ServerScriptService/
-    │   ├── DataHandler.server.lua       ← session-locked DataStore wrapper
-    │   ├── AntiCheat.server.lua         ← rate limit + distance + teleport checks
-    │   ├── SummonSystem.server.lua      ← spawns NPCs to prank
-    │   ├── PrankSystem.server.lua       ← server-validated prank handling
-    │   ├── MonetizationHandler.server.lua  ← ProcessReceipt + GamePass grants
-    │   ├── RebirthHandler.server.lua    ← prestige loop
-    │   ├── CosmeticHandler.server.lua   ← skin equip + Chaos purchase
-    │   ├── LeaderboardHandler.server.lua  ← live top 10 broadcast
-    │   ├── AnalyticsHandler.server.lua  ← funnel events
-    ├── Workspace/
-    │   └── MapBuilder.server.lua        ← procedurally builds Cat Alley
-    ├── StarterGui/
-    │   └── HUDBuilder.client.lua        ← programmatic ScreenGui
-    └── StarterPlayer/StarterPlayerScripts/
-        ├── HUDController.client.lua     ← state binding
-        ├── InputHandler.client.lua      ← button + keyboard input
-        ├── EffectsController.client.lua ← prank visual + audio FX
-        └── TutorialController.client.lua  ← first-session tooltips
+    │   ├── GameConfig.lua            ← economy, stats, weather, gamepass IDs
+    │   ├── PrankConfig.lua           ← 8 prank definitions (icon = AssetIds key)
+    │   ├── CosmeticConfig.lua        ← skins
+    │   ├── PerkConfig.lua            ← perk slots
+    │   ├── QuestConfig.lua           ← daily quests (4-hour cycle)
+    │   ├── RemoteEvents.lua          ← single source of truth for all RemoteEvents
+    │   ├── AssetIds.lua              ← every uploaded asset id (60+ wired, ~16 placeholders)
+    │   ├── AudioGroups.lua           ← Music/SFX/UI SoundGroup mixer
+    │   └── UIUtil.lua                ← palette / DisplayOrder / TextSize / makeToast / modalSize
+    ├── ServerScriptService/    (29 scripts)
+    │   Core gameplay:
+    │     DataHandler, PrankSystem, SummonSystem, RebirthHandler,
+    │     CosmeticHandler, PerkSystem, SurvivalSystem, MonetizationHandler,
+    │     LeaderboardHandler, EmoteSystem, DailyRewardSystem, AnalyticsHandler,
+    │     AdminSystem, AntiCheat
+    │   World + characters:
+    │     CityRebuild, StrayLighting, MeshLoader, CatCharacterBuilder,
+    │     CatLifelike, CatAnimations, AmbientCrowd, RagdollOnPrank,
+    │     SpawnEnforcer, RemotesBootstrap, SafetyGuard
+    │   Reactions + AI:
+    │     NpcReactions, CopSystem, QuestSystem
+    │   Other:
+    │     PerfOptimize, DiagnosticDump, WeatherSystem, WalkAnim
+    └── StarterPlayer/StarterPlayerScripts/    (19 scripts)
+        HUDController, HUDPolish, InputHandler, EffectsController,
+        CombatFeel, KillFeed, Minimap, EmoteWheel,
+        OnboardingFlow, TutorialController, TutorialFlow,
+        PreSpawnLobby, LoadingScreen, DeathScreen,
+        SettingsMenu, QuestPanel, PerkUI, SurvivalUI,
+        DailyRewardPopup, WeatherClient
+        StarterGui/HUDBuilder.client.lua  ← builds the entire MainHUD ScreenGui
 ```
 
-## How to ship
+## How to run
+```sh
+# 1. Build the Roblox place file via Rojo:
+rojo build --output build.rbxlx default.project.json
 
-**5-minute path (Rojo)**: install Rojo, `rojo serve` from this folder, click Connect in Studio plugin. Done.
+# 2. Open build.rbxlx in Roblox Studio
+# 3. Press F5 (Play) — solo session
+# 4. Walk through PLAYTEST.md A-Z to verify
+```
 
-**15-minute path (manual)**: open `02_BUILD_GUIDE.md`, follow the drop-in order. Copy each .lua into a matching Studio Script object.
+## Verification one-liners
+```sh
+# Zero emoji in source (must print nothing):
+grep -rn --include="*.lua" -P '[\x{1F300}-\x{1F9FF}]|[\x{2600}-\x{27BF}]|[\x{2B50}]' src/
 
-**0-minute path (Claude Cowork)**: paste `03_CLAUDE_HANDOFF.md` into Cowork. It executes the build inside Studio.
+# Every src/*.lua is referenced in default.project.json:
+python3 - <<'PY'
+import json, os
+with open('default.project.json') as f: d = json.load(f)
+ref = set()
+def walk(n):
+    if isinstance(n, dict):
+        for k, v in n.items():
+            if k == '$path': ref.add(v)
+            elif isinstance(v, dict): walk(v)
+walk(d['tree'])
+for r, _, fs in os.walk('src'):
+    for f in fs:
+        if f.endswith('.lua'):
+            p = os.path.join(r, f)
+            if p not in ref: print('UNREF:', p)
+PY
+```
 
-## What's working in v1
+## Where to find things
 
-- 4 prank types with unlock gates (Pie L1, Anvil L5, Fart L10, Laser L15)
-- Level 1-50, rebirth at 25, soft cap at 10 rebirths
-- 5 cat skins (3 free progression, 2 GamePass)
-- 3 GamePasses + 3 DevProducts wired up
-- Server-authoritative anti-cheat (cooldown, distance, teleport detection, rate limiting)
-- Session-locked DataStore (no dupe, no lost saves)
-- Mobile-first HUD (large thumb-friendly buttons, TweenService animations)
-- Procedural map (200x200 Cat Alley with shop, rebirth statue, leaderboard pillar)
-- Live per-server leaderboard
-- 60-second tutorial
-- Analytics hooks for the full funnel
+| Want to … | Open |
+|---|---|
+| Add a new prank | `PrankConfig.lua` + `EffectsController.client.lua:effectFor` |
+| Add a new fur skin | `PreSpawnLobby.client.lua:FUR_OPTIONS` |
+| Add a HUD currency | `HUDBuilder:buildCurrencyCell` + `HUDController:refresh` |
+| Tune cop chase | `CopSystem.server.lua:HEAT_PER_PRANK / SPAWN_THRESHOLD` |
+| Tune boss difficulty | `SummonSystem.server.lua:BOSS_HP / BOSS_REWARD_MULT` |
+| Tune quest definitions | `QuestConfig.Daily` |
+| Change palette | `UIUtil.Palette` (single source) |
+| Change overlay z-order | `UIUtil.DisplayOrder` |
+| Add a sound | Upload via `open_cloud_upload.py sound`, paste id into `AssetIds.lua`, route via `AudioGroups.assign(sound, "SFX|UI|Music")` |
+| Add a mesh | Upload via `open_cloud_upload.py mesh`, paste id, add name to `MeshLoader.NAMES`, use `_G.KittyRaiserMeshes[name].meshTemplate:Clone()` |
 
-## What's NOT in v1 (and that's the point)
-
-- 2000x2000 city — v3
-- 75 cosmetics — v2
-- Gangs / PvP — v3
-- Slots / loot crates — Restricted-only, probably never
-- Weather / red mist / NPC ecosystem — v4
-- Daily systems / season pass — v2
-- Animal catcher / bounty — v3
-- Food/water survival — v4
-
-The Grok thread had all of these on Day 1. They're not on Day 1. They're on Days 30, 60, 90+ if v1 hits.
-
-## Reality check
-
-This won't ship "tonight." Realistic timeline:
-- Day 1: scripts loaded + smoke test passes (2-4 hours with Cowork)
-- Day 2: map polish + sound assets imported (3-4 hours)
-- Day 3: GamePass + DevProduct setup + receipt testing (2 hours)
-- Day 4: tutorial polish + analytics verification + leaderboard tuning (3 hours)
-- Day 5: QA with 2 test accounts + edge case fixes (3 hours)
-- Day 6: soft launch, watch metrics
-- Day 7: ship to public after fixing top bugs
-
-Roughly 15-20 hours of focused work. Not 2 hours. Stop saying tonight.
-
-## Revenue path
-
-- v1 break-even: 50-100 CCU sustained pays Roblox hosting
-- v1 profitable: 200+ CCU
-- $1k/mo: ~500 CCU (very achievable with one viral TikTok)
-- $10k/mo: ~3,000 CCU (requires sustained content updates)
-- $100k/mo: ~20,000+ CCU (this is the v3+ goal — probably not from v1)
-
-## Open this first
-
-`00_RATING_AND_GAPS.md` then `01_PRODUCTION_BIBLE.md` then `02_BUILD_GUIDE.md`.
-
-## Questions for Grok (if you want to use it)
-
-I noted you said I can also talk to Grok. Useful targeted questions to ask it:
-1. "What are 5 free Roblox Toolbox sound asset IDs for: pie splat, anvil drop, fart, laser zap, level up sparkle?"
-2. "What's the average D1 retention for cartoon sims on Roblox in 2026?"
-3. "Generate 10 thumbnail copy variants for KittyRaiser, max 4 words each."
-
-Ask it those, paste the answers back here, and I'll wire them into the right config files.
-
-Don't ask it to validate the game again. It will just say 10000% positive.
+## Production readiness
+- [x] All systems wired
+- [x] No emoji
+- [x] Warm cartoon theme
+- [x] Responsive across phone/tablet/desktop
+- [x] Settings persist across sessions
+- [ ] Custom assets uploaded (mesh_cop_car, cop_siren, boss_warning, etc.)  ← see PLAYTEST.md
+- [ ] Gamepass + dev product IDs configured in Creator Hub
+- [ ] Custom cat animations uploaded
+- [ ] Place icon + thumbnails set in Creator Hub
+- [ ] Playtested A-Z per PLAYTEST.md
