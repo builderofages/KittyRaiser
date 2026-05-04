@@ -93,53 +93,84 @@ stroke.Thickness = 2
 stroke.Color = PALETTE_PRIMARY
 stroke.Parent = topBar
 
--- Chaos counter: real coin icon + amount label.
-local chaosWrap = makeFrame({
-    Name = "ChaosWrap",
-    Size = UDim2.new(0.3, 0, 0.7, 0),
-    Position = UDim2.new(0.01, 0, 0.15, 0),
-    BackgroundTransparency = 1,
-    Parent = topBar,
-})
-if AssetIds.has("coin") then
-    local icon = Instance.new("ImageLabel")
-    icon.Name = "ChaosIcon"
-    icon.BackgroundTransparency = 1
-    icon.Size = UDim2.new(0, 36, 0, 36)
-    icon.Position = UDim2.new(0, 0, 0.5, -18)
-    icon.Image = AssetIds.coin
-    icon.ImageColor3 = PALETTE_ACCENT
-    icon.Parent = chaosWrap
+-- Generic helper: icon + label "currency cell" used by chaos/hell/rebirth.
+local function buildCurrencyCell(parent, name, iconKey, iconColor, posX, sizeX)
+    local wrap = makeFrame({
+        Name = name,
+        Size = UDim2.new(sizeX, 0, 0.7, 0),
+        Position = UDim2.new(posX, 0, 0.15, 0),
+        BackgroundTransparency = 1,
+        Parent = parent,
+    })
+    -- Drop shadow
+    if iconKey and AssetIds.has(iconKey) then
+        local shadow = Instance.new("ImageLabel")
+        shadow.Name = "IconShadow"
+        shadow.BackgroundTransparency = 1
+        shadow.Size = UDim2.new(0, 32, 0, 32)
+        shadow.Position = UDim2.new(0, 2, 0.5, -14)
+        shadow.Image = AssetIds[iconKey]
+        shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+        shadow.ImageTransparency = 0.6
+        shadow.ScaleType = Enum.ScaleType.Fit
+        shadow.Parent = wrap
+        local icon = Instance.new("ImageLabel")
+        icon.Name = "Icon"
+        icon.BackgroundTransparency = 1
+        icon.Size = UDim2.new(0, 32, 0, 32)
+        icon.Position = UDim2.new(0, 0, 0.5, -16)
+        icon.Image = AssetIds[iconKey]
+        icon.ImageColor3 = iconColor
+        icon.ScaleType = Enum.ScaleType.Fit
+        icon.Parent = wrap
+    end
+    return wrap
 end
+
+-- Chaos counter (left): coin icon + amount
+local chaosWrap = buildCurrencyCell(topBar, "ChaosWrap", "coin", PALETTE_PRIMARY, 0.01, 0.18)
 bind(makeLabel({
     Name = "ChaosLabel",
-    Size = UDim2.new(1, -44, 1, 0),
-    Position = UDim2.new(0, 44, 0, 0),
+    Size = UDim2.new(1, -40, 1, 0),
+    Position = UDim2.new(0, 40, 0, 0),
     Text = "0",
-    TextColor3 = PALETTE_ACCENT,
+    TextColor3 = PALETTE_PRIMARY,
     TextXAlignment = Enum.TextXAlignment.Left,
     Parent = chaosWrap,
-}), 14, 32)
+}), 14, 28)
 
+-- Hell-tokens counter: gem icon + amount
+local hellWrap = buildCurrencyCell(topBar, "HellWrap", "gem", Color3.fromRGB(220, 110, 220), 0.21, 0.16)
+bind(makeLabel({
+    Name = "HellLabel",
+    Size = UDim2.new(1, -40, 1, 0),
+    Position = UDim2.new(0, 40, 0, 0),
+    Text = "0",
+    TextColor3 = Color3.fromRGB(220, 150, 230),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    Parent = hellWrap,
+}), 14, 28)
+
+-- Level + XP bar (middle)
 local levelContainer = makeFrame({
     Name = "LevelContainer",
-    Size = UDim2.new(0.3, 0, 0.7, 0),
-    Position = UDim2.new(0.35, 0, 0.15, 0),
+    Size = UDim2.new(0.28, 0, 0.7, 0),
+    Position = UDim2.new(0.39, 0, 0.15, 0),
     BackgroundTransparency = 1,
     Parent = topBar,
 })
 bind(makeLabel({
     Name = "LevelLabel",
-    Size = UDim2.new(1, 0, 0.5, 0),
+    Size = UDim2.new(1, 0, 0.55, 0),
     Position = UDim2.new(0, 0, 0, 0),
     Text = "Level 1",
     Parent = levelContainer,
-}), 14, 28)
+}), 14, 24)
 local xpBarBg = makeFrame({
     Name = "XPBarBG",
-    Size = UDim2.new(0.9, 0, 0.3, 0),
-    Position = UDim2.new(0.05, 0, 0.6, 0),
-    BackgroundColor3 = Color3.fromRGB(60, 40, 25),
+    Size = UDim2.new(0.94, 0, 0.28, 0),
+    Position = UDim2.new(0.03, 0, 0.62, 0),
+    BackgroundColor3 = Color3.fromRGB(45, 30, 18),
     BorderSizePixel = 0,
     Parent = levelContainer,
 })
@@ -152,21 +183,37 @@ local xpBarFill = makeFrame({
     Parent = xpBarBg,
 })
 Instance.new("UICorner", xpBarFill).CornerRadius = UDim.new(1, 0)
+local xpGrad = Instance.new("UIGradient", xpBarFill)
+xpGrad.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 230, 130)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 150, 60)),
+}
+xpGrad.Rotation = 90
 
 -- Rebirth counter: trophy icon + count
 local rebirthWrap = makeFrame({
     Name = "RebirthWrap",
-    Size = UDim2.new(0.3, 0, 0.7, 0),
-    Position = UDim2.new(0.69, 0, 0.15, 0),
+    Size = UDim2.new(0.18, 0, 0.7, 0),
+    Position = UDim2.new(0.81, 0, 0.15, 0),
     BackgroundTransparency = 1,
     Parent = topBar,
 })
 if AssetIds.has("trophy") then
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "IconShadow"
+    shadow.BackgroundTransparency = 1
+    shadow.Size = UDim2.new(0, 32, 0, 32)
+    shadow.Position = UDim2.new(1, -34, 0.5, -14)
+    shadow.Image = AssetIds.trophy
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.6
+    shadow.ScaleType = Enum.ScaleType.Fit
+    shadow.Parent = rebirthWrap
     local icon = Instance.new("ImageLabel")
     icon.Name = "RebirthIcon"
     icon.BackgroundTransparency = 1
-    icon.Size = UDim2.new(0, 36, 0, 36)
-    icon.Position = UDim2.new(1, -36, 0.5, -18)
+    icon.Size = UDim2.new(0, 32, 0, 32)
+    icon.Position = UDim2.new(1, -32, 0.5, -16)
     icon.Image = AssetIds.trophy
     icon.ImageColor3 = PALETTE_PRIMARY
     icon.Parent = rebirthWrap
@@ -180,20 +227,65 @@ bind(makeLabel({
     Parent = rebirthWrap,
 }), 14, 32)
 
--- ===== CENTER BOTTOM: SUMMON BUTTON =====
+-- ===== CENTER BOTTOM: SUMMON BUTTON (icon + glow ring) =====
 local summonSize = IS_MOBILE and 150 or 120
 local summonBtn = makeButton({
     Name = "SummonButton",
     Size = UDim2.new(0, summonSize, 0, summonSize),
     Position = UDim2.new(0.5, -summonSize/2, 1, -(summonSize + 30)),
     BackgroundColor3 = PALETTE_DANGER,
-    Text = "SUMMON\nHUMAN",
+    Text = "",
     Parent = screenGui,
 })
--- Make summon button a circle
 local sCorner = summonBtn:FindFirstChildOfClass("UICorner")
 if sCorner then sCorner.CornerRadius = UDim.new(1, 0) end
-bind(summonBtn, 14, 22)
+local sStroke = summonBtn:FindFirstChildOfClass("UIStroke")
+if sStroke then sStroke.Color = Color3.fromRGB(80, 30, 25); sStroke.Thickness = 4 end
+local sGrad = Instance.new("UIGradient", summonBtn)
+sGrad.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 130, 110)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 50, 50)),
+}
+sGrad.Rotation = 90
+-- Skull icon centered + drop shadow
+if AssetIds.has("skull") then
+    local sIconSize = math.floor(summonSize * 0.45)
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "IconShadow"
+    shadow.BackgroundTransparency = 1
+    shadow.Size = UDim2.new(0, sIconSize, 0, sIconSize)
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.Position = UDim2.new(0.5, 0, 0.42, 3)
+    shadow.Image = AssetIds.skull
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.55
+    shadow.ScaleType = Enum.ScaleType.Fit
+    shadow.Parent = summonBtn
+    local icon = Instance.new("ImageLabel")
+    icon.Name = "Icon"
+    icon.BackgroundTransparency = 1
+    icon.Size = UDim2.new(0, sIconSize, 0, sIconSize)
+    icon.AnchorPoint = Vector2.new(0.5, 0.5)
+    icon.Position = UDim2.new(0.5, 0, 0.42, 0)
+    icon.Image = AssetIds.skull
+    icon.ImageColor3 = Color3.fromRGB(255, 245, 230)
+    icon.ScaleType = Enum.ScaleType.Fit
+    icon.Parent = summonBtn
+end
+local sLabel = Instance.new("TextLabel")
+sLabel.Name = "Label"
+sLabel.Size = UDim2.new(1, -16, 0, 22)
+sLabel.AnchorPoint = Vector2.new(0.5, 1)
+sLabel.Position = UDim2.new(0.5, 0, 1, -10)
+sLabel.BackgroundTransparency = 1
+sLabel.Text = "SUMMON"
+sLabel.Font = Enum.Font.GothamBlack
+sLabel.TextColor3 = Color3.fromRGB(255, 250, 240)
+sLabel.TextStrokeTransparency = 0.3
+sLabel.TextStrokeColor3 = Color3.fromRGB(60, 20, 15)
+sLabel.TextScaled = true
+sLabel.Parent = summonBtn
+bind(sLabel, 12, 20)
 
 -- ===== RIGHT SIDE: PRANK BUTTONS =====
 local prankColumn = makeFrame({
@@ -236,19 +328,31 @@ for i, prankName in ipairs(PrankConfig.Order) do
     btn:SetAttribute("Locked", true)
     btn:SetAttribute("UnlockLevel", prank.unlockLevel)
 
-    -- Use a real icon asset if we have one; otherwise an abbreviated text label.
+    -- Real icon asset preferred; ASCII abbreviation fallback.
     local iconKey = PRANK_ICON[prankName]
     if iconKey and AssetIds.has(iconKey) then
+        -- Drop shadow under the icon
+        local shadow = Instance.new("ImageLabel")
+        shadow.Name = "PrankIconShadow"
+        shadow.BackgroundTransparency = 1
+        shadow.Size = UDim2.new(1, -14, 1, -14)
+        shadow.Position = UDim2.fromOffset(7, 9)
+        shadow.Image = AssetIds[iconKey]
+        shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+        shadow.ImageTransparency = 0.55
+        shadow.ScaleType = Enum.ScaleType.Fit
+        shadow.Parent = btn
+        -- White icon (gets re-tinted by lock state below if needed)
         local img = Instance.new("ImageLabel")
         img.Name = "PrankIcon"
         img.BackgroundTransparency = 1
-        img.Size = UDim2.new(1, -16, 1, -16)
-        img.Position = UDim2.fromOffset(8, 8)
+        img.Size = UDim2.new(1, -14, 1, -14)
+        img.Position = UDim2.fromOffset(7, 7)
         img.Image = AssetIds[iconKey]
+        img.ImageColor3 = Color3.fromRGB(255, 250, 235)
         img.ScaleType = Enum.ScaleType.Fit
         img.Parent = btn
     else
-        -- No-emoji fallback: 3-letter prank abbreviation
         local short = (prankName:upper()):sub(1, 3)
         btn.Text = short
         btn.TextScaled = true
@@ -304,24 +408,58 @@ botLayout.Padding = UDim.new(0, 6)
 botLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 botLayout.Parent = bottomBar
 
-local function bottomButton(name, text, color, layoutOrder)
+local function bottomButton(name, label, iconKey, color, layoutOrder)
     local btn = makeButton({
         Name = name,
-        Size = UDim2.new(0, IS_MOBILE and 84 or 74, 0, IS_MOBILE and 60 or 48),
+        Size = UDim2.new(0, IS_MOBILE and 90 or 80, 0, IS_MOBILE and 64 or 54),
         BackgroundColor3 = color,
-        Text = text,
+        Text = "",
         LayoutOrder = layoutOrder,
         Parent = bottomBar,
     })
-    -- Bound text instead of fixed sizes that go awful on different screens
-    bind(btn, 13, 22)
+    -- Drop shadow under the icon for depth
+    if iconKey and AssetIds.has(iconKey) then
+        local shadow = Instance.new("ImageLabel")
+        shadow.Name = "IconShadow"
+        shadow.BackgroundTransparency = 1
+        shadow.Size = UDim2.new(0, 26, 0, 26)
+        shadow.Position = UDim2.new(0.5, -13, 0, 6)
+        shadow.Image = AssetIds[iconKey]
+        shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+        shadow.ImageTransparency = 0.65
+        shadow.ScaleType = Enum.ScaleType.Fit
+        shadow.Parent = btn
+
+        local icon = Instance.new("ImageLabel")
+        icon.Name = "Icon"
+        icon.BackgroundTransparency = 1
+        icon.Size = UDim2.new(0, 26, 0, 26)
+        icon.Position = UDim2.new(0.5, -13, 0, 4)
+        icon.Image = AssetIds[iconKey]
+        icon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+        icon.ScaleType = Enum.ScaleType.Fit
+        icon.Parent = btn
+    end
+    local labelText = Instance.new("TextLabel")
+    labelText.Name = "Label"
+    labelText.Size = UDim2.new(1, -8, 0, 18)
+    labelText.Position = UDim2.new(0, 4, 1, -22)
+    labelText.BackgroundTransparency = 1
+    labelText.Text = label
+    labelText.Font = Enum.Font.GothamBlack
+    labelText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    labelText.TextStrokeTransparency = 0.4
+    labelText.TextStrokeColor3 = Color3.new(0, 0, 0)
+    labelText.TextScaled = true
+    labelText.Parent = btn
+    bind(labelText, 11, 16)
     return btn
 end
 
-bottomButton("ShopButton",        "SHOP",     Color3.fromRGB(95, 165, 80),  1)  -- moss green
-bottomButton("InventoryButton",   "INV",      Color3.fromRGB(140, 95, 60),  2)  -- chestnut
-bottomButton("RebirthButton",     "REBIRTH",  Color3.fromRGB(220, 150, 60), 3)  -- amber
-bottomButton("LeaderboardButton", "TOP",      Color3.fromRGB(85, 130, 175), 4)  -- soft blue
+bottomButton("ShopButton",        "SHOP",     "shop",  Color3.fromRGB(95, 165, 80),  1)
+bottomButton("InventoryButton",   "INV",      "bag",   Color3.fromRGB(140, 95, 60),  2)
+bottomButton("RebirthButton",     "REBIRTH",  "star",  Color3.fromRGB(220, 150, 60), 3)
+bottomButton("LeaderboardButton", "TOP",      "bars",  Color3.fromRGB(85, 130, 175), 4)
 
 -- ===== NOTIFICATION TOAST AREA =====
 local toastFrame = makeFrame({
@@ -363,7 +501,7 @@ local shopClose = makeButton({
     Name = "CloseButton",
     Size = UDim2.new(0, 40, 0, 40),
     Position = UDim2.new(1, -50, 0, 10),
-    BackgroundColor3 = GameConfig.HUD_DANGER_COLOR,
+    BackgroundColor3 = PALETTE_DANGER,
     Text = "X",
     Parent = shopModal,
 })
@@ -412,7 +550,7 @@ local lbClose = makeButton({
     Name = "CloseButton",
     Size = UDim2.new(0, 40, 0, 40),
     Position = UDim2.new(1, -50, 0, 10),
-    BackgroundColor3 = GameConfig.HUD_DANGER_COLOR,
+    BackgroundColor3 = PALETTE_DANGER,
     Text = "X",
     Parent = lbModal,
 })

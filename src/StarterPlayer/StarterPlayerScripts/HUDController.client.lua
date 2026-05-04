@@ -50,6 +50,8 @@ end
 local topBar         = hud:WaitForChild("TopBar")
 local chaosWrap      = topBar:WaitForChild("ChaosWrap")
 local chaosLabel     = chaosWrap:WaitForChild("ChaosLabel")
+local hellWrap       = topBar:WaitForChild("HellWrap")
+local hellLabel      = hellWrap:WaitForChild("HellLabel")
 local levelContainer = topBar:WaitForChild("LevelContainer")
 local levelLabel     = levelContainer:WaitForChild("LevelLabel")
 local xpFill         = levelContainer:WaitForChild("XPBarBG"):WaitForChild("XPBarFill")
@@ -70,8 +72,9 @@ end
 
 local function refresh()
     if not CurrentData then return end
-    chaosLabel.Text = formatNum(CurrentData.chaosPoints or 0)
-    levelLabel.Text = "Level " .. (CurrentData.level or 1)
+    chaosLabel.Text   = formatNum(CurrentData.chaosPoints or 0)
+    hellLabel.Text    = formatNum(CurrentData.hellTokens or 0)
+    levelLabel.Text   = "Level " .. (CurrentData.level or 1)
     rebirthLabel.Text = tostring(CurrentData.rebirths or 0)
     -- XP bar fill
     local lvl = CurrentData.level or 1
