@@ -9,6 +9,7 @@ local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
 
 local UIUtil = require(ReplicatedStorage.Modules:WaitForChild("UIUtil"))
+local Remotes = require(ReplicatedStorage.Modules:WaitForChild("RemoteEvents"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -200,6 +201,9 @@ if summonBtn then
         task.wait(0.6)
         massivePayoff()
         player:SetAttribute("OnboardingDone", true)
+        if Remotes.RequestMarkTutorialDone then
+          pcall(function() Remotes.RequestMarkTutorialDone:FireServer() end)
+        end
         task.wait(4)
         overlay:Destroy()
       end)
@@ -211,6 +215,9 @@ else
   welcome:Destroy()
   if ring1 then ring1:Destroy() end
   player:SetAttribute("OnboardingDone", true)
+  if Remotes.RequestMarkTutorialDone then
+    pcall(function() Remotes.RequestMarkTutorialDone:FireServer() end)
+  end
   overlay:Destroy()
 end
 

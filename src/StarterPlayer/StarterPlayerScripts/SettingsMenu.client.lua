@@ -70,7 +70,7 @@ player:GetAttributeChangedSignal("GraphicsQuality"):Connect(applyGraphics)
 -- ============================================================
 local modal = Instance.new("Frame")
 modal.Name = "SettingsModal"
-modal.Size = UIUtil.modalSize(440, 580, 24)
+modal.Size = UIUtil.modalSize(440, 660, 24)
 modal.AnchorPoint = Vector2.new(0.5, 0.5)
 modal.Position = UDim2.new(0.5, 0, 0.5, 0)
 modal.BackgroundColor3 = UIUtil.Palette.bgMid
@@ -85,7 +85,7 @@ modal.Parent = hud
 local cam = workspace.CurrentCamera
 if cam then
     cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-        modal.Size = UIUtil.modalSize(440, 580, 24)
+        modal.Size = UIUtil.modalSize(440, 660, 24)
     end)
 end
 
@@ -114,7 +114,27 @@ close.TextScaled = true
 Instance.new("UICorner", close).CornerRadius = UIUtil.Token.cornerSm
 local cs = Instance.new("UIStroke", close); cs.Thickness = UIUtil.Token.strokeReg; cs.Color = UIUtil.Palette.stroke
 UIUtil.boundText(close, 18, 26)
-close.MouseButton1Click:Connect(function() modal.Visible = false end)
+-- Pause player movement while menu is open (single source of truth)
+local pausedSpeed = nil
+local pausedJump = nil
+local function setMenuVisible(v)
+    modal.Visible = v
+    local char = player.Character
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    if v then
+        pausedSpeed = pausedSpeed or hum.WalkSpeed
+        pausedJump  = pausedJump  or hum.JumpPower
+        hum.WalkSpeed = 0
+        hum.JumpPower = 0
+    else
+        if pausedSpeed then hum.WalkSpeed = pausedSpeed end
+        if pausedJump  then hum.JumpPower = pausedJump  end
+        pausedSpeed = nil; pausedJump = nil
+    end
+end
+
+close.MouseButton1Click:Connect(function() setMenuVisible(false) end)
 
 -- Content container
 local body = Instance.new("Frame", modal)
@@ -316,7 +336,31 @@ toggle.MouseButton1Click:Connect(function()
 end)
 
 -- ----- CONTROLS HELP (read-only text) -----
-local controls = makeRow("CONTROLS", 7, 100)
+-- ----- RESET DEFAULTS -----
+local resetRow = makeRow("RESET", 7, 56)
+local resetBtn = Instance.new("TextButton", resetRow)
+resetBtn.AnchorPoint = Vector2.new(1, 0.5)
+resetBtn.Size = UDim2.new(0, 140, 0, 36)
+resetBtn.Position = UDim2.new(1, -12, 0.5, 0)
+resetBtn.BackgroundColor3 = UIUtil.Palette.danger
+resetBtn.AutoButtonColor = true
+resetBtn.Text = "RESET ALL"
+resetBtn.TextColor3 = UIUtil.Palette.textHi
+resetBtn.Font = UIUtil.Token.fontHeader
+resetBtn.TextScaled = true
+Instance.new("UICorner", resetBtn).CornerRadius = UIUtil.Token.cornerSm
+local rs = Instance.new("UIStroke", resetBtn); rs.Thickness = UIUtil.Token.strokeReg; rs.Color = UIUtil.Palette.stroke
+UIUtil.boundText(resetBtn, 12, 18)
+resetBtn.MouseButton1Click:Connect(function()
+    player:SetAttribute("MasterVolume",    0.8)
+    player:SetAttribute("MusicVolume",     0.6)
+    player:SetAttribute("SFXVolume",       0.9)
+    player:SetAttribute("UIVolume",        0.8)
+    player:SetAttribute("GraphicsQuality", "med")
+    player:SetAttribute("MotionShake",     true)
+end)
+
+local controls = makeRow("CONTROLS", 8, 100)
 local helpLbl = Instance.new("TextLabel", controls)
 helpLbl.AnchorPoint = Vector2.new(1, 0.5)
 helpLbl.Size = UDim2.new(0.55, -12, 1, -12)
@@ -369,7 +413,7 @@ local function hookMenuButton()
     lbl.TextScaled = true
     UIUtil.boundText(lbl, 11, 16)
     menuBtn.MouseButton1Click:Connect(function()
-        modal.Visible = not modal.Visible
+        setMenuVisible(not modal.Visible)
     end)
 end
 
@@ -380,7 +424,7 @@ hud.ChildAdded:Connect(function() task.wait(0.5); hookMenuButton() end)
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.M then
-        modal.Visible = not modal.Visible
+        setMenuVisible(not modal.Visible)
     end
 end)
 

@@ -158,13 +158,26 @@ function DataHandler.save(player, releaseSessionLock)
     if releaseSessionLock then
         releaseLock(player.UserId, data)
     else
-        local ok, err = pcall(function()
-            store:UpdateAsync(key(player.UserId), function(_)
-                data.lastPlayDate = os.time()
-                return data
+        -- Retry with exponential backoff: 0, 1s, 2s, 4s. Roblox DataStore
+        -- intermittent failures (rate limit, network blip) shouldn't lose data.
+        local attempts = 0
+        local lastErr
+        while attempts < 4 do
+            local ok, err = pcall(function()
+                store:UpdateAsync(key(player.UserId), function(_)
+                    data.lastPlayDate = os.time()
+                    return data
+                end)
             end)
-        end)
-        if not ok then warn("[DataHandler] Save failed:", player.Name, err) end
+            if ok then lastErr = nil; break end
+            lastErr = err
+            attempts = attempts + 1
+            task.wait(2 ^ (attempts - 1))
+        end
+        if lastErr then
+            warn(("[DataHandler] Save failed after %d attempts for %s: %s"):format(
+                attempts, player.Name, tostring(lastErr)))
+        end
     end
     LastSave[player.UserId] = os.time()
 end
@@ -204,9 +217,30 @@ local function onPlayerAdded(player)
     syncSetting("GraphicsQuality", "graphicsQuality")
     syncSetting("MotionShake",     "motionShake")
 
+    -- Mirror persisted tutorial flag onto the player so OnboardingFlow can
+    -- skip the intro for returning players.
+    if d.seenTutorial then
+        player:SetAttribute("OnboardingDone", true)
+    end
+
     DataHandler.replicateToClient(player)
     print("[DataHandler] Loaded", player.Name, "L"..data.level, "Chaos="..data.chaosPoints, "HT="..data.hellTokens)
 end
+
+-- Tutorial-done remote: client (OnboardingFlow) fires this on completion;
+-- we set the persisted flag so future sessions skip onboarding.
+task.spawn(function()
+    local Modules = ReplicatedStorage:WaitForChild("Modules", 10)
+    local RE = Modules and Modules:WaitForChild("RemoteEvents", 5)
+    if not RE then return end
+    local ok, Remotes = pcall(require, RE)
+    if not ok or not Remotes or not Remotes.RequestMarkTutorialDone then return end
+    Remotes.RequestMarkTutorialDone.OnServerEvent:Connect(function(player)
+        local d = PlayerData[player.UserId]
+        if d then d.seenTutorial = true end
+        player:SetAttribute("OnboardingDone", true)
+    end)
+end)
 
 local function onPlayerRemoving(player)
     if PlayerData[player.UserId] then
