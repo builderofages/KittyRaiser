@@ -1,14 +1,16 @@
--- AmbientCrowd.server.lua v3 — Grok-tuned single-manager, 12-15 visible NPCs, distance-based
+-- AmbientCrowd.server.lua v4 — single-manager, 18-22 visible NPCs, distance-based.
+-- v4 fixes: spawn ALL needed NPCs each tick (v3 only spawned 1/player/tick),
+-- bumped target to 20, normal-human body scales (NOT cartoon-proportioned).
 -- Place in: ServerScriptService > AmbientCrowd. Auto-runs.
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
-local TARGET_VISIBLE = 14   -- Grok said 12-15
-local NEAR_RADIUS = 80
-local FAR_RADIUS = 200
-local DESPAWN_RADIUS = 350
-local TICK_INTERVAL = 4
+local TARGET_VISIBLE = 20   -- denser street life
+local NEAR_RADIUS = 60
+local FAR_RADIUS = 220
+local DESPAWN_RADIUS = 380
+local TICK_INTERVAL = 3
 
 local crowdFolder = Workspace:FindFirstChild("AmbientCrowd")
 if not crowdFolder then
@@ -100,15 +102,16 @@ local function buildPed()
     hum.WalkSpeed = math.random(8, 14)
     hum.MaxHealth = 100; hum.Health = 100
     hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-    -- Cartoon proportions: short body, big head, chunky.
-    -- Each named scale must be set on the NumberValue child.
+    -- Normal human proportions — these civilians are humans walking the
+    -- streets, the player (a small quadruped cat) is meant to look UP at
+    -- them. Don't go cartoon — go realistic-human.
     local scales = {
-      BodyDepthScale  = 0.90,
-      BodyWidthScale  = 1.40,   -- much wider — clear cartoon read
-      BodyHeightScale = 0.60,   -- shorter — squat civilian
-      HeadScale       = 1.85,   -- BIG cartoon head dominates silhouette
-      BodyTypeScale   = 0.0,
-      ProportionScale = 0.0,
+      BodyDepthScale  = 1.00,
+      BodyWidthScale  = 1.00,
+      BodyHeightScale = 1.05,   -- slightly tall so cats feel small
+      HeadScale       = 1.00,
+      BodyTypeScale   = 1.00,   -- anatomical thinner avatar style
+      ProportionScale = 1.00,   -- proper body proportions
     }
     for sname, sval in pairs(scales) do
       local nv = hum:FindFirstChild(sname)
@@ -171,13 +174,17 @@ task.spawn(function()
     for _, c in ipairs(crowdFolder:GetChildren()) do
       if c:GetAttribute("AmbientNPC") and not c:GetAttribute("Pranked") then count = count + 1 end
     end
+    -- Spawn ALL needed NPCs this tick (v3 bug: only 1 per player per tick,
+    -- so a solo player saw at most 1 new NPC every 4s). Pick a random
+    -- valid player anchor for each spawn so NPCs spread around.
     local need = TARGET_VISIBLE - count
-    if need > 0 then
-      for _, p in ipairs(Players:GetPlayers()) do
-        if need <= 0 then break end
-        spawnNearPlayer(p)
-        need = need - 1
-      end
+    local attempts = 0
+    while need > 0 and attempts < need * 4 do
+      attempts = attempts + 1
+      local players = Players:GetPlayers()
+      if #players == 0 then break end
+      local p = players[math.random(1, #players)]
+      if spawnNearPlayer(p) then need = need - 1 end
     end
   end
 end)

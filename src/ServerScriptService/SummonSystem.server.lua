@@ -137,14 +137,15 @@ local function buildHumanNPC()
 		hum.MaxHealth = 100
 		hum.Health = 100
 		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-		-- Cartoon proportions: short body, big head, chunky. Match AmbientCrowd v3.44.
+		-- Normal human proportions — these victims are humans the cat is
+		-- pranking. The cat (player) is small; humans tower over it.
 		local scales = {
-			BodyDepthScale  = 0.90,
-			BodyWidthScale  = 1.40,
-			BodyHeightScale = 0.60,
-			HeadScale       = 1.85,
-			BodyTypeScale   = 0.0,
-			ProportionScale = 0.0,
+			BodyDepthScale  = 1.00,
+			BodyWidthScale  = 1.00,
+			BodyHeightScale = 1.05,
+			HeadScale       = 1.00,
+			BodyTypeScale   = 1.00,
+			ProportionScale = 1.00,
 		}
 		for sname, sval in pairs(scales) do
 			local nv = hum:FindFirstChild(sname)

@@ -232,32 +232,43 @@ task.spawn(function()
 	local skyMesh   = getMesh("mesh_skyscraper")
 	local brownMesh = getMesh("mesh_brownstone")
 	local rng = Random.new(73)
-	local SP = 220
+	-- Denser grid: 9x9 with spacing 160 (was 7x7 at 220). Plus secondary
+	-- "infill" buildings between main blocks for street-wall density.
+	local SP = 160
 	local placedByZone = { downtown = 0, suburbs = 0, harbor = 0 }
 
-	for gx = -3, 3 do
-		for gz = -3, 3 do
+	for gx = -4, 4 do
+		for gz = -4, 4 do
 			if math.abs(gx) > 0 or math.abs(gz) > 0 then
 				local zoneName = zoneForCell(gx, gz)
 				local zone = ZONES[zoneName]
-				local cx = gx * SP + rng:NextInteger(-30, 30)
-				local cz = gz * SP + rng:NextInteger(-30, 30)
+				local cx = gx * SP + rng:NextInteger(-20, 20)
+				local cz = gz * SP + rng:NextInteger(-20, 20)
 				local h  = rng:NextInteger(zone.heightRange[1], zone.heightRange[2])
 				local color = zone.buildingColors[rng:NextInteger(1, #zone.buildingColors)]
 				local cf = CFrame.new(cx, h/2 + 1, cz)
-				local pickMesh
-				if zone.preferTall then
-					pickMesh = skyMesh or brownMesh
-				else
-					pickMesh = brownMesh or skyMesh
-				end
+				local pickMesh = zone.preferTall and (skyMesh or brownMesh) or (brownMesh or skyMesh)
 				local b = placeBuilding(pickMesh, cf, h, color, fallbackBuildingBox)
 				if b then b:SetAttribute("Zone", zoneName) end
 				placedByZone[zoneName] = placedByZone[zoneName] + 1
+
+				-- Infill: smaller secondary building in each cell so streets
+				-- aren't barren between the main blocks.
+				if rng:NextNumber() < 0.7 then
+					local ix = cx + rng:NextInteger(-65, 65)
+					local iz = cz + rng:NextInteger(-65, 65)
+					local ih = math.floor(h * rng:NextNumber() * 0.55 + 30)
+					local icolor = zone.buildingColors[rng:NextInteger(1, #zone.buildingColors)]
+					local icf = CFrame.new(ix, ih/2 + 1, iz)
+					local imesh = (rng:NextNumber() < 0.5) and brownMesh or pickMesh
+					local ib = placeBuilding(imesh, icf, ih, icolor, fallbackBuildingBox)
+					if ib then ib:SetAttribute("Zone", zoneName) end
+					placedByZone[zoneName] = placedByZone[zoneName] + 1
+				end
 			end
 		end
 	end
-	print("[CityRebuild v7] zones placed:",
+	print("[CityRebuild v9] dense zones placed:",
 		"downtown="..placedByZone.downtown,
 		"suburbs="..placedByZone.suburbs,
 		"harbor="..placedByZone.harbor)
@@ -306,32 +317,45 @@ task.spawn(function()
 		return true
 	end
 
-	-- Generic props (60 across the map)
-	local PROP_COUNT = 60
+	-- Generic props (180 across the map — was 60, now 3x denser).
+	-- More cars in different colors so streets feel alive, not just yellow taxis.
+	local CAR_COLORS = {
+		Color3.fromRGB(255, 200, 0),    -- yellow taxi
+		Color3.fromRGB(220, 60, 60),    -- red sedan
+		Color3.fromRGB(60, 100, 180),   -- blue sedan
+		Color3.fromRGB(40, 40, 50),     -- black
+		Color3.fromRGB(220, 220, 220),  -- white
+		Color3.fromRGB(80, 130, 80),    -- olive
+		Color3.fromRGB(200, 130, 60),   -- orange
+		Color3.fromRGB(140, 95, 60),    -- brown
+	}
+	local PROP_COUNT = 180
 	local placed = 0
 	for _ = 1, PROP_COUNT do
-		local px = rng:NextInteger(-700, 700)
-		local pz = rng:NextInteger(-700, 700)
-		if math.sqrt(px * px + (pz - 24)^2) < 24 then continue end
+		local px = rng:NextInteger(-720, 720)
+		local pz = rng:NextInteger(-720, 720)
+		if math.sqrt(px * px + (pz - 24)^2) < 28 then continue end
 		local pick = rng:NextNumber()
-		if pick < 0.18 and taxiMesh then
-			if place(taxiMesh, px, 3.5/2, pz, 3.5, Color3.fromRGB(255, 200, 0)) then placed = placed + 1 end
-		elseif pick < 0.50 and hydrantMesh then
+		if pick < 0.30 and taxiMesh then
+			-- 30% cars (more than v8's 18%) with random color from palette
+			local cc = CAR_COLORS[rng:NextInteger(1, #CAR_COLORS)]
+			if place(taxiMesh, px, 3.5/2, pz, 3.5, cc) then placed = placed + 1 end
+		elseif pick < 0.55 and hydrantMesh then
 			if place(hydrantMesh, px, 1, pz, 2.0, Color3.fromRGB(200, 50, 40)) then placed = placed + 1 end
-		elseif pick < 0.75 and mailMesh then
+		elseif pick < 0.78 and mailMesh then
 			if place(mailMesh, px, 1.2, pz, 2.4, Color3.fromRGB(50, 90, 160)) then placed = placed + 1 end
 		elseif trashMesh then
 			if place(trashMesh, px, 1.2, pz, 2.4, Color3.fromRGB(60, 70, 60)) then placed = placed + 1 end
 		end
 	end
 
-	-- Zone-specific props (40 across the map, zone-biased)
-	local ZONE_COUNT = 40
+	-- Zone-specific props (120 across the map, zone-biased)
+	local ZONE_COUNT = 120
 	local zonePlaced = 0
 	for _ = 1, ZONE_COUNT do
-		local px = rng:NextInteger(-700, 700)
-		local pz = rng:NextInteger(-700, 700)
-		if math.sqrt(px * px + (pz - 24)^2) < 24 then continue end
+		local px = rng:NextInteger(-720, 720)
+		local pz = rng:NextInteger(-720, 720)
+		if math.sqrt(px * px + (pz - 24)^2) < 28 then continue end
 		local zone = zoneFor(px, pz)
 		if zone == "downtown" then
 			local pick = rng:NextNumber()
@@ -359,7 +383,40 @@ task.spawn(function()
 		end
 	end
 
-	print("[CityRebuild v8] generic props:", placed, " zone props:", zonePlaced)
+	print("[CityRebuild v9] generic props:", placed, " zone props:", zonePlaced)
+end)
+
+-- =====================================================================
+-- ROAD GRID — paint white lane stripes on the asphalt so the city
+-- reads as STREETS, not just an empty plane with buildings on it.
+-- =====================================================================
+task.spawn(function()
+	local stripes = Workspace:FindFirstChild("RoadStripes") or Instance.new("Folder", Workspace)
+	stripes.Name = "RoadStripes"
+	stripes:ClearAllChildren()
+	-- Lanes run along grid edges (every 160 studs to match building grid).
+	for axis = -3, 3 do
+		local lane = axis * 160
+		-- N-S lane at x=lane (full Z extent)
+		for z = -640, 640, 32 do
+			local stripe = Instance.new("Part", stripes)
+			stripe.Anchored = true; stripe.CanCollide = false
+			stripe.Size = Vector3.new(0.6, 0.1, 14)
+			stripe.Position = Vector3.new(lane, 0.6, z)
+			stripe.Material = Enum.Material.SmoothPlastic
+			stripe.Color = Color3.fromRGB(245, 230, 180)
+		end
+		-- E-W lane at z=lane (full X extent)
+		for x = -640, 640, 32 do
+			local stripe = Instance.new("Part", stripes)
+			stripe.Anchored = true; stripe.CanCollide = false
+			stripe.Size = Vector3.new(14, 0.1, 0.6)
+			stripe.Position = Vector3.new(x, 0.6, lane)
+			stripe.Material = Enum.Material.SmoothPlastic
+			stripe.Color = Color3.fromRGB(245, 230, 180)
+		end
+	end
+	print("[CityRebuild v9] road stripes painted")
 end)
 
 -- =====================================================================

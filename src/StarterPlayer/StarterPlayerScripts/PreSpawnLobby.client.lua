@@ -1,5 +1,8 @@
--- PreSpawnLobby v3 — Grok's fix: use direct ReplicatedStorage:WaitForChild for RemoteEvent
--- All other features same as v2 (3D rotating cat, cyberpunk skyline, 12 fur tiers, premium SPAWN button)
+-- PreSpawnLobby v4 — compact UI revamp.
+-- v3 was too big: 320x320 preview + 65x65 cards + 360x80 spawn button took
+-- up the whole screen and clipped the picker. v4 reduces preview to 220px,
+-- cards to 50px (60px hover), spawn 260x60. All 24 skins fit in 2 rows on
+-- desktop, wrap to 3-4 on phone. Title smaller too.
 -- Place in: StarterPlayer > StarterPlayerScripts > PreSpawnLobby (LocalScript)
 
 local Players = game:GetService("Players")
@@ -151,10 +154,10 @@ for i = 1, 14 do
   end
 end
 
--- Title — wood-stained "KITTYRAISER" sign vibe
+-- Title — compact wood-stained "KITTYRAISER" sign
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 130)
-title.Position = UDim2.new(0, 0, 0.04, 0)
+title.Size = UDim2.new(1, 0, 0, 80)
+title.Position = UDim2.new(0, 0, 0.02, 0)
 title.BackgroundTransparency = 1
 title.Text = "KITTYRAISER"
 title.Font = Enum.Font.LuckiestGuy
@@ -164,25 +167,25 @@ title.TextStrokeTransparency = 0.3
 title.TextStrokeColor3 = Color3.fromRGB(255, 240, 200)
 title.Parent = lobby
 local titleC = Instance.new("UITextSizeConstraint", title)
-titleC.MinTextSize = 50; titleC.MaxTextSize = 110
+titleC.MinTextSize = 36; titleC.MaxTextSize = 70
 
 local subtitle = Instance.new("TextLabel")
-subtitle.Size = UDim2.new(1, 0, 0, 28)
-subtitle.Position = UDim2.new(0, 0, 0.16, 0)
+subtitle.Size = UDim2.new(1, 0, 0, 22)
+subtitle.Position = UDim2.new(0, 0, 0.13, 0)
 subtitle.BackgroundTransparency = 1
-subtitle.Text = "a sunny day for chaos"
+subtitle.Text = "pick your cat"
 subtitle.Font = Enum.Font.LuckiestGuy
 subtitle.TextScaled = true
 subtitle.TextColor3 = Color3.fromRGB(120, 70, 40)
 subtitle.Parent = lobby
 local subC = Instance.new("UITextSizeConstraint", subtitle)
-subC.MinTextSize = 14; subC.MaxTextSize = 24
+subC.MinTextSize = 12; subC.MaxTextSize = 18
 
--- 3D viewport
+-- 3D viewport — compact 220x220
 local previewFrame = Instance.new("Frame")
-previewFrame.Size = UDim2.new(0, 320, 0, 320)
-previewFrame.Position = UDim2.new(0.5, -160, 0.24, 0)
-previewFrame.BackgroundColor3 = Color3.fromRGB(245, 230, 200)  -- warm cream
+previewFrame.Size = UDim2.new(0, 220, 0, 220)
+previewFrame.Position = UDim2.new(0.5, -110, 0.18, 0)
+previewFrame.BackgroundColor3 = Color3.fromRGB(245, 230, 200)
 previewFrame.BorderSizePixel = 0
 previewFrame.Parent = lobby
 Instance.new("UICorner", previewFrame).CornerRadius = UDim.new(1, 0)
@@ -362,10 +365,10 @@ RunService.RenderStepped:Connect(function(dt)
   end
 end)
 
--- Name + rarity
+-- Name + rarity (compact, side-by-side under preview)
 local nameLabel = Instance.new("TextLabel")
-nameLabel.Size = UDim2.new(0, 360, 0, 32)
-nameLabel.Position = UDim2.new(0.5, -180, 0.61, 0)
+nameLabel.Size = UDim2.new(0, 280, 0, 26)
+nameLabel.Position = UDim2.new(0.5, -140, 0.49, 0)
 nameLabel.BackgroundTransparency = 1
 nameLabel.Text = FUR_OPTIONS[1].name
 nameLabel.Font = Enum.Font.LuckiestGuy
@@ -375,32 +378,35 @@ nameLabel.TextStrokeTransparency = 0.4
 nameLabel.TextStrokeColor3 = Color3.fromRGB(255, 240, 200)
 nameLabel.Parent = lobby
 local nameC = Instance.new("UITextSizeConstraint", nameLabel)
-nameC.MinTextSize = 16; nameC.MaxTextSize = 28
+nameC.MinTextSize = 14; nameC.MaxTextSize = 22
 
 local rarityBadge = Instance.new("TextLabel")
-rarityBadge.Size = UDim2.new(0, 120, 0, 22)
-rarityBadge.Position = UDim2.new(0.5, -60, 0.65, 0)
+rarityBadge.Size = UDim2.new(0, 90, 0, 18)
+rarityBadge.Position = UDim2.new(0.5, -45, 0.535, 0)
 rarityBadge.BackgroundColor3 = RARITY_COLOR.common
 rarityBadge.Text = "COMMON"
 rarityBadge.Font = Enum.Font.GothamBold
 rarityBadge.TextScaled = true
 rarityBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
 rarityBadge.Parent = lobby
-Instance.new("UICorner", rarityBadge).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", rarityBadge).CornerRadius = UDim.new(0, 5)
+local rbC = Instance.new("UITextSizeConstraint", rarityBadge)
+rbC.MinTextSize = 9; rbC.MaxTextSize = 12
 
--- Color picker — width-flex so it fits any screen, wraps on phone if needed.
+-- Color picker — compact 50x50 cards, two rows of 12 wraps cleanly on all
+-- screens; ScreenGui width-flex still lets phone fall to 3+ rows.
 local pickerRow = Instance.new("Frame")
-pickerRow.Size = UDim2.new(0.94, 0, 0, 150)  -- 94% of screen width, 150px tall (room for 2 rows on phone)
+pickerRow.Size = UDim2.new(0.96, 0, 0, 116)  -- 96% width, 2 rows @ 50px + 6px gap + slack
 pickerRow.AnchorPoint = Vector2.new(0.5, 0)
-pickerRow.Position = UDim2.new(0.5, 0, 0.74, 0)
+pickerRow.Position = UDim2.new(0.5, 0, 0.59, 0)
 pickerRow.BackgroundTransparency = 1
 pickerRow.Parent = lobby
 local layout = Instance.new("UIListLayout", pickerRow)
 layout.FillDirection = Enum.FillDirection.Horizontal
 layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 layout.VerticalAlignment = Enum.VerticalAlignment.Top
-layout.Padding = UDim.new(0, 8)
-layout.Wraps = true  -- wrap to next row when out of space (phone)
+layout.Padding = UDim.new(0, 6)
+layout.Wraps = true
 
 local function setSelected(i)
   selectedIndex = i
@@ -422,19 +428,19 @@ end
 
 for i, opt in ipairs(FUR_OPTIONS) do
   local card = Instance.new("Frame", pickerRow)
-  card.Size = UDim2.new(0, 65, 0, 65)
+  card.Size = UDim2.new(0, 50, 0, 50)
   card.BackgroundColor3 = opt.color
   card.BorderSizePixel = 0
   Instance.new("UICorner", card).CornerRadius = UDim.new(1, 0)
   local sStroke = Instance.new("UIStroke", card)
-  sStroke.Thickness = (i == 1) and 5 or 1
+  sStroke.Thickness = (i == 1) and 4 or 1
   sStroke.Color = (i == 1) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(80, 80, 100)
   local rRing = Instance.new("UIStroke", card)
   rRing.Thickness = 2; rRing.Color = RARITY_COLOR[opt.rarity] or RARITY_COLOR.common
   rRing.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
   if opt.rarity == "robux" then
     local robux = Instance.new("TextLabel", card)
-    robux.Size = UDim2.new(0, 24, 0, 24); robux.Position = UDim2.new(1, -22, 0, -2)
+    robux.Size = UDim2.new(0, 18, 0, 18); robux.Position = UDim2.new(1, -16, 0, -2)
     robux.BackgroundColor3 = Color3.fromRGB(255, 215, 0); robux.Text = "R$"
     robux.Font = Enum.Font.GothamBold; robux.TextScaled = true; robux.TextColor3 = Color3.fromRGB(0, 0, 0)
     Instance.new("UICorner", robux).CornerRadius = UDim.new(1, 0)
@@ -443,17 +449,17 @@ for i, opt in ipairs(FUR_OPTIONS) do
   btn.Size = UDim2.fromScale(1, 1); btn.BackgroundTransparency = 1; btn.Text = ""
   btn.MouseButton1Click:Connect(function() setSelected(i) end)
   btn.MouseEnter:Connect(function()
-    TweenService:Create(card, TweenInfo.new(0.15), {Size = UDim2.new(0, 75, 0, 75)}):Play()
+    TweenService:Create(card, TweenInfo.new(0.15), {Size = UDim2.new(0, 60, 0, 60)}):Play()
   end)
   btn.MouseLeave:Connect(function()
-    TweenService:Create(card, TweenInfo.new(0.15), {Size = UDim2.new(0, 65, 0, 65)}):Play()
+    TweenService:Create(card, TweenInfo.new(0.15), {Size = UDim2.new(0, 50, 0, 50)}):Play()
   end)
 end
 
--- SPAWN button — wooden plank style
+-- SPAWN button — compact wooden plank style
 local spawnBtn = Instance.new("TextButton")
-spawnBtn.Size = UDim2.new(0, 360, 0, 80)
-spawnBtn.Position = UDim2.new(0.5, -180, 0.86, 0)
+spawnBtn.Size = UDim2.new(0, 260, 0, 60)
+spawnBtn.Position = UDim2.new(0.5, -130, 0.85, 0)
 spawnBtn.BackgroundColor3 = Color3.fromRGB(220, 150, 60)
 spawnBtn.Text = "SPAWN"
 spawnBtn.Font = Enum.Font.LuckiestGuy
@@ -463,10 +469,10 @@ spawnBtn.TextStrokeTransparency = 0.3
 spawnBtn.TextStrokeColor3 = Color3.fromRGB(80, 40, 20)
 spawnBtn.Parent = lobby
 local spawnC = Instance.new("UITextSizeConstraint", spawnBtn)
-spawnC.MinTextSize = 24; spawnC.MaxTextSize = 44
-Instance.new("UICorner", spawnBtn).CornerRadius = UDim.new(0, 14)
+spawnC.MinTextSize = 20; spawnC.MaxTextSize = 34
+Instance.new("UICorner", spawnBtn).CornerRadius = UDim.new(0, 12)
 local btnStroke = Instance.new("UIStroke", spawnBtn)
-btnStroke.Thickness = 4; btnStroke.Color = Color3.fromRGB(110, 75, 40)
+btnStroke.Thickness = 3; btnStroke.Color = Color3.fromRGB(110, 75, 40)
 local spawnGrad = Instance.new("UIGradient", spawnBtn)
 spawnGrad.Color = ColorSequence.new{
   ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 195, 100)),
@@ -476,7 +482,7 @@ spawnGrad.Rotation = 90
 
 task.spawn(function()
   while spawnBtn.Parent do
-    TweenService:Create(spawnBtn, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Size = UDim2.new(0, 380, 0, 86)}):Play()
+    TweenService:Create(spawnBtn, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Size = UDim2.new(0, 276, 0, 64)}):Play()
     task.wait(1.6)
   end
 end)
@@ -547,4 +553,4 @@ hint.Parent = lobby
 local hintC = Instance.new("UITextSizeConstraint", hint)
 hintC.MinTextSize = 12; hintC.MaxTextSize = 18
 
-print("[PreSpawnLobby v3 grokfix] ready, requestSpawn = " .. tostring(requestSpawn))
+print("[PreSpawnLobby v4 compact] ready, requestSpawn = " .. tostring(requestSpawn))
