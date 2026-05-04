@@ -360,7 +360,10 @@ function SummonSystem.markPranked(npc)
         local head = npc:FindFirstChild("Head")
         local bar = head and head:FindFirstChild("BossHpBar")
         if bar then
-            local fill = bar:FindFirstChild("Frame") and bar.Frame:FindFirstChild("Fill")
+            -- BillboardGui > panel(Frame) > barBg(Frame) > fill(Frame, Name="Fill"). The
+            -- two intermediate Frames both have default Name="Frame", so a one-level
+            -- lookup misses. Recursive search lands on the named Fill cleanly.
+            local fill = bar:FindFirstChild("Fill", true)
             if fill then
                 local pct = hp / BOSS_HP
                 game:GetService("TweenService"):Create(fill,

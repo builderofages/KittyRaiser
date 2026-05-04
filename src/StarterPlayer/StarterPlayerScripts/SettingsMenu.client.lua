@@ -41,16 +41,19 @@ local function applyGraphics()
     local atm = Lighting:FindFirstChildOfClass("Atmosphere")
     local bloom = Lighting:FindFirstChildOfClass("BloomEffect")
     local sun = Lighting:FindFirstChildOfClass("SunRaysEffect")
+    -- Density values capped at the Phase-10 purple-void threshold (~0.10).
+    -- Above ~0.12 the atmosphere reads as a purple smudge at oblique camera
+    -- angles. Keep haze for visual differentiation; keep density tame.
     if q == "low" then
-        if atm then atm.Density = 0.05; atm.Haze = 0.1 end
+        if atm then atm.Density = 0.03; atm.Haze = 0.1 end
         if bloom then bloom.Intensity = 0.0 end
         if sun then sun.Intensity = 0.0 end
     elseif q == "med" then
-        if atm then atm.Density = 0.12; atm.Haze = 0.5 end
+        if atm then atm.Density = 0.05; atm.Haze = 0.4 end
         if bloom then bloom.Intensity = 0.3 end
         if sun then sun.Intensity = 0.10 end
     else  -- high
-        if atm then atm.Density = 0.20; atm.Haze = 1.0 end
+        if atm then atm.Density = 0.08; atm.Haze = 0.7 end
         if bloom then bloom.Intensity = 0.5 end
         if sun then sun.Intensity = 0.15 end
     end

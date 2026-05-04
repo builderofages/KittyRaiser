@@ -308,6 +308,53 @@ local function buildCatShape(character, furColor)
 	lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
 	local c = Instance.new("UITextSizeConstraint", lbl); c.MinTextSize = 14; c.MaxTextSize = 24
 
+	-- Run trail: dust ParticleEmitter on a tiny part welded under the cat,
+	-- enabled only when the cat is actually moving fast enough to "run".
+	-- Keeps the trail from sparkling while idle.
+	local trailPart = newPart{
+		Name = "CatTrailEmitter",
+		Size = Vector3.new(0.4, 0.1, 0.4),
+		Transparency = 1,
+		CanCollide = false,
+	}
+	trailPart.CFrame = body.CFrame * CFrame.new(0, -s(1.4), s(0.6))
+	attach(trailPart, body)
+
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "RunDust"
+	emitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	emitter.Color = ColorSequence.new(Color3.fromRGB(245, 230, 200))
+	emitter.LightEmission = 0
+	emitter.Lifetime = NumberRange.new(0.4, 0.7)
+	emitter.Rate = 0  -- driven by Heartbeat below
+	emitter.Speed = NumberRange.new(2, 4)
+	emitter.SpreadAngle = Vector2.new(45, 45)
+	emitter.Size = NumberSequence.new{
+		NumberSequenceKeypoint.new(0, 0.3),
+		NumberSequenceKeypoint.new(1, 0.8),
+	}
+	emitter.Transparency = NumberSequence.new{
+		NumberSequenceKeypoint.new(0, 0.4),
+		NumberSequenceKeypoint.new(1, 1),
+	}
+	emitter.Rotation = NumberRange.new(0, 360)
+	emitter.Parent = trailPart
+
+	-- Drive emission rate from the Humanoid's MoveDirection magnitude. Use
+	-- a Heartbeat tick (cheap, single-character).
+	local hum = character:FindFirstChildOfClass("Humanoid")
+	if hum then
+		local RunService = game:GetService("RunService")
+		local conn
+		conn = RunService.Heartbeat:Connect(function()
+			if not trailPart.Parent or not hum.Parent then
+				if conn then conn:Disconnect() end; return
+			end
+			local moving = hum.MoveDirection.Magnitude > 0.1 and hum.WalkSpeed >= 10
+			emitter.Rate = moving and 24 or 0
+		end)
+	end
+
 	return head, body, lbl
 end
 

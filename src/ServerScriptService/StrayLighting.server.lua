@@ -72,4 +72,26 @@ sky.CelestialBodiesShown = true
 
 Lighting:SetAttribute("KittyLightingConfigured", true)
 
+-- Per-PlayerAdded sky safety net (Phase-11 directive): re-assert the Sky
+-- child on every join in case some hot-reload, plugin, or third-party
+-- script destroyed it after server boot. Cheap (single child lookup).
+local Players = game:GetService("Players")
+local function ensureSky()
+	if not Lighting:FindFirstChildOfClass("Sky") then
+		local s = Instance.new("Sky")
+		s.SkyboxBk = "rbxasset://textures/sky/sky512_bk.tex"
+		s.SkyboxDn = "rbxasset://textures/sky/sky512_dn.tex"
+		s.SkyboxFt = "rbxasset://textures/sky/sky512_ft.tex"
+		s.SkyboxLf = "rbxasset://textures/sky/sky512_lf.tex"
+		s.SkyboxRt = "rbxasset://textures/sky/sky512_rt.tex"
+		s.SkyboxUp = "rbxasset://textures/sky/sky512_up.tex"
+		s.SunAngularSize = 8
+		s.MoonAngularSize = 0
+		s.StarCount = 0
+		s.CelestialBodiesShown = true
+		s.Parent = Lighting
+	end
+end
+Players.PlayerAdded:Connect(ensureSky)
+
 print("[StrayLighting v3] sunny daytime cartoon-city theme applied")
