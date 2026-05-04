@@ -187,7 +187,7 @@ local function playSound(soundId, parent)
     Debris:AddItem(s, 5)
 end
 
-local function chaosFlyUp(amount, atCFrame)
+local function chaosFlyUp(amount, atCFrame, squadMult)
     if amount <= 0 then return end
     local p = Instance.new("Part")
     p.Anchored = true; p.CanCollide = false; p.Transparency = 1
@@ -196,32 +196,55 @@ local function chaosFlyUp(amount, atCFrame)
     p.Parent = Workspace
 
     local b = Instance.new("BillboardGui")
-    b.Size = UDim2.new(0, 140, 0, 48)
+    b.Size = UDim2.new(0, 200, 0, 64)
     b.AlwaysOnTop = true
-    b.StudsOffset = Vector3.new(0, 1.6, 0)
+    b.StudsOffset = Vector3.new(0, 2.2, 0)
     b.Parent = p
 
-    -- Coin icon left, +amount text right
+    -- Color tier by chaos magnitude — small white, medium gold, large red.
+    local tierColor
+    if amount >= 200 then tierColor = Color3.fromRGB(255, 100, 80)
+    elseif amount >= 75 then tierColor = Color3.fromRGB(255, 200, 60)
+    else tierColor = Color3.fromRGB(255, 240, 200) end
+
     local ic
     if AssetIds.has("coin") then
         ic = Instance.new("ImageLabel", b)
-        ic.Size = UDim2.new(0, 32, 0, 32)
-        ic.Position = UDim2.new(0, 4, 0.5, -16)
+        ic.Size = UDim2.new(0, 36, 0, 36)
+        ic.Position = UDim2.new(0, 4, 0, 4)
         ic.BackgroundTransparency = 1
         ic.Image = AssetIds.coin
     end
     local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, -42, 1, 0)
-    lbl.Position = UDim2.new(0, 42, 0, 0)
+    lbl.Size = UDim2.new(1, -46, 0, 38)
+    lbl.Position = UDim2.new(0, 46, 0, 4)
     lbl.BackgroundTransparency = 1
-    lbl.Text = "+" .. amount
-    lbl.TextColor3 = Color3.fromRGB(255, 220, 80)
+    lbl.Text = "+" .. amount .. " CHAOS"
+    lbl.TextColor3 = tierColor
     lbl.TextStrokeTransparency = 0
     lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
     lbl.Font = Enum.Font.GothamBlack
     lbl.TextScaled = true
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Parent = b
+    -- Squad-bonus suffix line if multiplier was applied.
+    if squadMult and squadMult > 1.01 then
+        local sl = Instance.new("TextLabel", b)
+        sl.Size = UDim2.new(1, 0, 0, 22)
+        sl.Position = UDim2.new(0, 0, 0, 42)
+        sl.BackgroundTransparency = 1
+        sl.Text = "SQUAD x" .. string.format("%.1f", squadMult)
+        sl.TextColor3 = Color3.fromRGB(255, 175, 90)
+        sl.TextStrokeTransparency = 0
+        sl.TextStrokeColor3 = Color3.fromRGB(60, 30, 10)
+        sl.Font = Enum.Font.GothamBold
+        sl.TextScaled = true
+        sl.TextXAlignment = Enum.TextXAlignment.Center
+    end
+    -- Pop-in scale: start small, snap to full.
+    b.Size = UDim2.new(0, 80, 0, 30)
+    TweenService:Create(b, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        {Size = UDim2.new(0, 200, 0, 64)}):Play()
     local c = Instance.new("UITextSizeConstraint", lbl)
     c.MinTextSize = 14; c.MaxTextSize = 32
 
@@ -388,7 +411,7 @@ Remotes.PrankRegistered.OnClientEvent:Connect(function(prankName, target, chaosG
     -- triggered the prank — chaosGained > 0 means it's their hit, not a
     -- nearby-viewer broadcast)
     if chaosGained and chaosGained > 0 then
-        chaosFlyUp(chaosGained, cf)
+        chaosFlyUp(chaosGained, cf, fxPayload and fxPayload.squadMult)
         if player:GetAttribute("MotionShake") ~= false then
             shake(prank.screenShake or 0)
         end
