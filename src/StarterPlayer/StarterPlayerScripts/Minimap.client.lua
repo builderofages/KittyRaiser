@@ -123,6 +123,22 @@ task.spawn(function()
 				end
 			end
 		end
+		-- Cops chasing me: pulse-bright red dot
+		local cops = Workspace:FindFirstChild("Cops")
+		if cops then
+			for _, cop in ipairs(cops:GetChildren()) do
+				if cop:IsA("Model") and cop.PrimaryPart and cop:GetAttribute("ChasingUserId") == player.UserId then
+					-- Pulse magnitude based on time
+					local pulse = 0.5 + math.abs(math.sin(os.clock() * 4)) * 0.5
+					table.insert(entities, {
+						pos = cop.PrimaryPart.Position,
+						color = Color3.fromRGB(255, 80, 80):Lerp(Color3.fromRGB(255, 220, 80), 1 - pulse),
+						small = false,  -- larger so it stands out
+						isCop = true,
+					})
+				end
+			end
+		end
 		local frameSize = frame.AbsoluteSize.X
 		local half = frameSize / 2
 		for i, ent in ipairs(entities) do

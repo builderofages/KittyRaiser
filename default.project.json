@@ -206,6 +206,12 @@
         },
         "QuestPanel": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/QuestPanel.client.lua"
+        },
+        "BossBanner": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/BossBanner.client.lua"
+        },
+        "SocialBadges": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/SocialBadges.client.lua"
         }
       }
     },

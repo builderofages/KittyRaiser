@@ -86,7 +86,12 @@ local function bumpCombo()
 	end
 	lastComboTime = now
 	if combo >= 2 then
-		comboLabel.Text = "x" .. combo .. " COMBO"
+		-- Add subtitle at heat thresholds
+		local subtitle = ""
+		if combo >= 20     then subtitle = "  ·  CHAOS REBORN"
+		elseif combo >= 10 then subtitle = "  ·  RAMPAGE"
+		elseif combo >= 5  then subtitle = "  ·  COMBO HOT" end
+		comboLabel.Text = "x" .. combo .. " COMBO" .. subtitle
 		comboLabel.TextColor3 = comboColorFor(combo)
 		comboLabel.TextTransparency = 0
 		comboLabel.TextStrokeTransparency = 0
