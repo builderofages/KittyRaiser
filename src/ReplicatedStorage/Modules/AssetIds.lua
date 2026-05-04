@@ -88,6 +88,19 @@ AssetIds.mesh_coffee              = "rbxassetid://73626441372959"  -- drink prop
 AssetIds.mesh_manhole             = "rbxassetid://134150158459009"  -- flush ground decoration, downtown
 AssetIds.mesh_fire_truck          = "rbxassetid://98411832064235"  -- ambient prop in suburbs
 
+
+-- ===== V2 CITY MESHES (Phase 10 - cartoon city + street furniture) =====
+AssetIds.mesh_taxi_yellow           = "rbxassetid://138033436650428"
+AssetIds.mesh_delivery_van          = "rbxassetid://133553244193800"
+AssetIds.mesh_food_truck            = "rbxassetid://99741262168886"
+AssetIds.mesh_fire_hydrant          = "rbxassetid://107488733988709"
+AssetIds.mesh_trash_can             = "rbxassetid://103504006010745"
+AssetIds.mesh_mailbox_blue          = "rbxassetid://71802550356350"
+AssetIds.mesh_bus_stop_shelter      = "rbxassetid://103935174726610"
+AssetIds.mesh_traffic_light         = "rbxassetid://116494841104667"
+AssetIds.mesh_hot_dog_cart          = "rbxassetid://90205212501591"
+AssetIds.mesh_skyscraper_chunk      = "rbxassetid://102528222902039"
+
 -- ===== CAT ANIMATIONS — TODO upload via Roblox Studio Animation Editor
 -- and paste IDs here. CatAnimations.server.lua reads these and patches the
 -- default Animate script's StringValue children. Falls back to default Roblox
@@ -100,9 +113,9 @@ AssetIds.anim_cat_fall            = "rbxassetid://0"
 
 -- ===== BADGES — TODO create in Creator Hub > Badges, paste IDs here.
 -- AchievementSystem.server only awards if AssetIds.has() returns true. =====
-AssetIds.badge_first_prank        = "rbxassetid://0"
-AssetIds.badge_level_10           = "rbxassetid://0"
-AssetIds.badge_level_25           = "rbxassetid://0"
+AssetIds.badge_first_prank        = "rbxassetid://1429423254055989"
+AssetIds.badge_level_10           = "rbxassetid://2479335747751103"
+AssetIds.badge_level_25           = "rbxassetid://2206460901927124"
 AssetIds.badge_level_50           = "rbxassetid://0"
 AssetIds.badge_level_100          = "rbxassetid://0"
 AssetIds.badge_first_rebirth      = "rbxassetid://0"
