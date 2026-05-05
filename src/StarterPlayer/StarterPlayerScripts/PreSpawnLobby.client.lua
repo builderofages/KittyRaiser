@@ -426,34 +426,104 @@ local function setSelected(i)
   end
 end
 
-for i, opt in ipairs(FUR_OPTIONS) do
-  local card = Instance.new("Frame", pickerRow)
-  card.Size = UDim2.new(0, 50, 0, 50)
-  card.BackgroundColor3 = opt.color
-  card.BorderSizePixel = 0
-  Instance.new("UICorner", card).CornerRadius = UDim.new(1, 0)
-  local sStroke = Instance.new("UIStroke", card)
-  sStroke.Thickness = (i == 1) and 4 or 1
-  sStroke.Color = (i == 1) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(80, 80, 100)
-  local rRing = Instance.new("UIStroke", card)
-  rRing.Thickness = 2; rRing.Color = RARITY_COLOR[opt.rarity] or RARITY_COLOR.common
-  rRing.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-  if opt.rarity == "robux" then
-    local robux = Instance.new("TextLabel", card)
-    robux.Size = UDim2.new(0, 18, 0, 18); robux.Position = UDim2.new(1, -16, 0, -2)
-    robux.BackgroundColor3 = Color3.fromRGB(255, 215, 0); robux.Text = "R$"
-    robux.Font = Enum.Font.GothamBold; robux.TextScaled = true; robux.TextColor3 = Color3.fromRGB(0, 0, 0)
-    Instance.new("UICorner", robux).CornerRadius = UDim.new(1, 0)
-  end
-  local btn = Instance.new("TextButton", card)
-  btn.Size = UDim2.fromScale(1, 1); btn.BackgroundTransparency = 1; btn.Text = ""
-  btn.MouseButton1Click:Connect(function() setSelected(i) end)
-  btn.MouseEnter:Connect(function()
-    TweenService:Create(card, TweenInfo.new(0.15), {Size = UDim2.new(0, 60, 0, 60)}):Play()
-  end)
-  btn.MouseLeave:Connect(function()
-    TweenService:Create(card, TweenInfo.new(0.15), {Size = UDim2.new(0, 50, 0, 50)}):Play()
-  end)
+-- v3.74 LOBBY POLISH: arrow ◄ ► cycle replaces 24-circle grid
+-- Container holds left arrow + big preview swatch + right arrow + dot indicator + name+rarity
+pickerRow.Size = UDim2.new(0.96, 0, 0, 132)
+
+local function makeArrow(text, position)
+    local a = Instance.new("TextButton", pickerRow)
+    a.Size = UDim2.new(0, 56, 0, 56)
+    a.AnchorPoint = Vector2.new(position == "left" and 0 or 1, 0.5)
+    a.Position = (position == "left") and UDim2.new(0, 60, 0.5, 0) or UDim2.new(1, -60, 0.5, 0)
+    a.BackgroundColor3 = Color3.fromRGB(220, 150, 60)
+    a.Text = text
+    a.Font = Enum.Font.LuckiestGuy
+    a.TextScaled = true
+    a.TextColor3 = Color3.fromRGB(255, 250, 235)
+    a.TextStrokeTransparency = 0.3
+    a.TextStrokeColor3 = Color3.fromRGB(80, 40, 20)
+    Instance.new("UICorner", a).CornerRadius = UDim.new(1, 0)
+    local s = Instance.new("UIStroke", a)
+    s.Thickness = 3; s.Color = Color3.fromRGB(110, 75, 40)
+    return a
+end
+
+local prevBtn = makeArrow("<", "left")
+local nextBtn = makeArrow(">", "right")
+
+-- Big center swatch preview
+local centerSwatch = Instance.new("Frame", pickerRow)
+centerSwatch.Size = UDim2.new(0, 90, 0, 90)
+centerSwatch.AnchorPoint = Vector2.new(0.5, 0.5)
+centerSwatch.Position = UDim2.new(0.5, 0, 0.5, 0)
+centerSwatch.BackgroundColor3 = FUR_OPTIONS[1].color
+centerSwatch.BorderSizePixel = 0
+Instance.new("UICorner", centerSwatch).CornerRadius = UDim.new(1, 0)
+local swStroke = Instance.new("UIStroke", centerSwatch)
+swStroke.Thickness = 5; swStroke.Color = Color3.fromRGB(255, 255, 255)
+local rarityRing = Instance.new("UIStroke", centerSwatch)
+rarityRing.Thickness = 3; rarityRing.Color = RARITY_COLOR[FUR_OPTIONS[1].rarity] or RARITY_COLOR.common
+rarityRing.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- Optional R$ badge for paid skins
+local robuxBadge = Instance.new("TextLabel", centerSwatch)
+robuxBadge.Size = UDim2.new(0, 28, 0, 28)
+robuxBadge.AnchorPoint = Vector2.new(1, 0)
+robuxBadge.Position = UDim2.new(1, -2, 0, -2)
+robuxBadge.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+robuxBadge.Text = "R$"
+robuxBadge.Font = Enum.Font.GothamBold
+robuxBadge.TextScaled = true
+robuxBadge.TextColor3 = Color3.fromRGB(0, 0, 0)
+robuxBadge.Visible = false
+Instance.new("UICorner", robuxBadge).CornerRadius = UDim.new(1, 0)
+
+-- Dot indicator strip showing position in list
+local dotsContainer = Instance.new("Frame", pickerRow)
+dotsContainer.Size = UDim2.new(1, -200, 0, 12)
+dotsContainer.AnchorPoint = Vector2.new(0.5, 1)
+dotsContainer.Position = UDim2.new(0.5, 0, 1, -8)
+dotsContainer.BackgroundTransparency = 1
+local dotsLayout = Instance.new("UIListLayout", dotsContainer)
+dotsLayout.FillDirection = Enum.FillDirection.Horizontal
+dotsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+dotsLayout.Padding = UDim.new(0, 3)
+local dots = {}
+for i = 1, #FUR_OPTIONS do
+    local d = Instance.new("Frame", dotsContainer)
+    d.Size = UDim2.new(0, 8, 0, 8)
+    d.BorderSizePixel = 0
+    d.BackgroundColor3 = (i == 1) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(120, 110, 100)
+    Instance.new("UICorner", d).CornerRadius = UDim.new(1, 0)
+    dots[i] = d
+end
+
+-- Override setSelected to update arrow-cycle UI (keep original cat preview + name/rarity update behavior)
+local _prevSetSelected = setSelected
+setSelected = function(i)
+    if i < 0 then i = #FUR_OPTIONS - 1 end
+    if i >= #FUR_OPTIONS then i = 0 end
+    selectedIndex = i
+    local opt = FUR_OPTIONS[i + 1]
+    buildCat(opt.color)
+    nameLabel.Text = opt.name
+    rarityBadge.Text = opt.rarity:upper()
+    rarityBadge.BackgroundColor3 = RARITY_COLOR[opt.rarity] or RARITY_COLOR.common
+    centerSwatch.BackgroundColor3 = opt.color
+    rarityRing.Color = RARITY_COLOR[opt.rarity] or RARITY_COLOR.common
+    robuxBadge.Visible = (opt.rarity == "robux")
+    for j, d in ipairs(dots) do
+        d.BackgroundColor3 = (j - 1 == i) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(120, 110, 100)
+    end
+end
+
+prevBtn.MouseButton1Click:Connect(function() setSelected(selectedIndex - 1) end)
+nextBtn.MouseButton1Click:Connect(function() setSelected(selectedIndex + 1) end)
+
+-- DUMMY closure to swallow the original loop body's `end`s — original loop is replaced
+-- Keep the iteration variable scope clean by using a no-op for loop guard
+for _, _ in ipairs({}) do
+
 end
 
 -- SPAWN button — compact wooden plank style
