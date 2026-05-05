@@ -142,30 +142,25 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
     if input.KeyCode == Enum.KeyCode.E then
         Remotes.RequestSummonHuman:FireServer()
-    elseif input.KeyCode == Enum.KeyCode.One then
-        local b = prankCol:FindFirstChild("Prank_Pie")
-        if b and not b:GetAttribute("Locked") then
-            local npc = nearestNPC(PrankConfig.Pranks.Pie.rangeStuds)
-            if npc then Remotes.RequestPrank:FireServer("Pie", npc) end
-        end
-    elseif input.KeyCode == Enum.KeyCode.Two then
-        local b = prankCol:FindFirstChild("Prank_Anvil")
-        if b and not b:GetAttribute("Locked") then
-            local npc = nearestNPC(PrankConfig.Pranks.Anvil.rangeStuds)
-            if npc then Remotes.RequestPrank:FireServer("Anvil", npc) end
-        end
-    elseif input.KeyCode == Enum.KeyCode.Three then
-        local b = prankCol:FindFirstChild("Prank_FartCloud")
-        if b and not b:GetAttribute("Locked") then
-            local npc = nearestNPC(PrankConfig.Pranks.FartCloud.rangeStuds)
-            if npc then Remotes.RequestPrank:FireServer("FartCloud", npc) end
-        end
-    elseif input.KeyCode == Enum.KeyCode.Four then
-        local b = prankCol:FindFirstChild("Prank_LaserEyes")
-        if b and not b:GetAttribute("Locked") then
-            local npc = nearestNPC(PrankConfig.Pranks.LaserEyes.rangeStuds)
-            if npc then Remotes.RequestPrank:FireServer("LaserEyes", npc) end
-        end
+        return
+    end
+    -- Hotkeys 1..8 map to PrankConfig.Order slot index (matches the bar
+    -- left-to-right + the on-button '1'..'8' badge added in v3.63).
+    local NUM_TO_SLOT = {
+        [Enum.KeyCode.One]   = 1, [Enum.KeyCode.Two]   = 2,
+        [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four]  = 4,
+        [Enum.KeyCode.Five]  = 5, [Enum.KeyCode.Six]   = 6,
+        [Enum.KeyCode.Seven] = 7, [Enum.KeyCode.Eight] = 8,
+    }
+    local slot = NUM_TO_SLOT[input.KeyCode]
+    if slot then
+        local prankName = PrankConfig.Order[slot]
+        if not prankName then return end
+        local b = prankCol:FindFirstChild("Prank_" .. prankName)
+        if not b or b:GetAttribute("Locked") then return end
+        local prank = PrankConfig.Pranks[prankName]
+        local npc = nearestNPC(prank.rangeStuds)
+        if npc then Remotes.RequestPrank:FireServer(prankName, npc) end
     end
 end)
 

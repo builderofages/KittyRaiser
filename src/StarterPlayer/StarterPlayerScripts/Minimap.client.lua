@@ -11,11 +11,12 @@ local player    = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 -- Smaller on phone, full size on desktop
+-- v3.63: half-sized per playtest feedback (180 -> 96 desktop, etc.).
 local function pickSize()
 	local p = UIUtil.platform()
-	if p == "phone"  then return 130 end
-	if p == "tablet" then return 160 end
-	return 180
+	if p == "phone"  then return 70 end
+	if p == "tablet" then return 84 end
+	return 96
 end
 
 local SCALE = 0.18  -- world studs per pixel

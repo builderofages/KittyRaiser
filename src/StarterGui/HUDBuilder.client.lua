@@ -330,29 +330,33 @@ sLabel.TextScaled = true
 sLabel.Parent = summonBtn
 bind(sLabel, 12, 20)
 
--- ===== RIGHT SIDE: PRANK BUTTONS =====
--- v3.62: moved inward 50px (was flush against right edge, blending with the
--- minimap into a 'LV X markers' look). Now 50px in from edge with a darker
--- panel background so the column reads as a discrete action bar.
-local PRANK_W = IS_MOBILE and 88 or 76
+-- ===== DIABLO-STYLE BOTTOM SKILL BAR (Phase-13) =====
+-- Was: vertical column flush against right edge — read as minimap clutter.
+-- Now: horizontal 8-slot action bar centered at bottom, above the menu bar.
+-- Each slot shows the prank icon + a hotkey hint (1..8) + lock overlay if
+-- the player isn't high enough level. Click or press the matching hotkey.
+local PRANK_W = IS_MOBILE and 64 or 56
+local PRANK_GAP = 6
 local prankColumn = makeFrame({
     Name = "PrankColumn",
-    Size = UDim2.new(0, PRANK_W + 16, 0, 8 * (PRANK_W + 6) + 16),
-    AnchorPoint = Vector2.new(1, 0.5),
-    Position = UDim2.new(1, -64, 0.5, 80),  -- offset down so it clears minimap
+    Size = UDim2.new(0, 8 * (PRANK_W + PRANK_GAP) + 16, 0, PRANK_W + 16),
+    AnchorPoint = Vector2.new(0.5, 1),
+    Position = UDim2.new(0.5, 0, 1, -60),  -- sits above the bottom menu bar
     BackgroundColor3 = Color3.fromRGB(50, 35, 20),
     BackgroundTransparency = 0.25,
     Parent = screenGui,
 })
-Instance.new("UICorner", prankColumn).CornerRadius = UDim.new(0, 14)
+Instance.new("UICorner", prankColumn).CornerRadius = UDim.new(0, 12)
 local pcStroke = Instance.new("UIStroke", prankColumn)
 pcStroke.Thickness = 2; pcStroke.Color = Color3.fromRGB(110, 75, 40)
 local pcPad = Instance.new("UIPadding", prankColumn)
-pcPad.PaddingTop = UDim.new(0, 8); pcPad.PaddingBottom = UDim.new(0, 8)
+pcPad.PaddingLeft = UDim.new(0, 8); pcPad.PaddingRight = UDim.new(0, 8)
+pcPad.PaddingTop  = UDim.new(0, 8); pcPad.PaddingBottom = UDim.new(0, 8)
 local listLayout = Instance.new("UIListLayout")
-listLayout.FillDirection = Enum.FillDirection.Vertical
-listLayout.Padding = UDim.new(0, 6)
+listLayout.FillDirection = Enum.FillDirection.Horizontal
+listLayout.Padding = UDim.new(0, PRANK_GAP)
 listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Parent = prankColumn
 
@@ -380,6 +384,22 @@ for i, prankName in ipairs(PrankConfig.Order) do
     })
     btn:SetAttribute("PrankName", prankName)
     btn:SetAttribute("UnlockLevel", prank.unlockLevel)
+    -- Hotkey badge: small "1".."8" chip in the top-left corner so players
+    -- learn the keyboard shortcut just by looking at the slot.
+    local hotkey = Instance.new("TextLabel", btn)
+    hotkey.Name = "Hotkey"
+    hotkey.AnchorPoint = Vector2.new(0, 0)
+    hotkey.Position = UDim2.new(0, 2, 0, 2)
+    hotkey.Size = UDim2.fromOffset(16, 16)
+    hotkey.BackgroundColor3 = Color3.fromRGB(40, 25, 12)
+    hotkey.BackgroundTransparency = 0.2
+    hotkey.Text = tostring(i)
+    hotkey.Font = Enum.Font.GothamBold
+    hotkey.TextColor3 = Color3.fromRGB(255, 230, 180)
+    hotkey.TextScaled = true
+    hotkey.ZIndex = 5
+    Instance.new("UICorner", hotkey).CornerRadius = UDim.new(0, 4)
+    local hkc = Instance.new("UITextSizeConstraint", hotkey); hkc.MinTextSize = 9; hkc.MaxTextSize = 12
 
     -- Real icon asset preferred; ASCII abbreviation fallback.
     local iconKey = PRANK_ICON[prankName]

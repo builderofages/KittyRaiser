@@ -483,8 +483,28 @@ local function decorateCharacter(player, character)
 	if nameLbl then nameLbl.Text = player.DisplayName end
 	pcall(playSpawnChime, character)
 
-	hum.WalkSpeed = 18
-	hum.JumpPower = 50
+	-- v3.63: bumped from 18 -> 24. Players reported 'cat walks super slow'.
+	-- 24 still under the typical Roblox 28-32 sprint range; feels brisk.
+	hum.WalkSpeed = 24
+	hum.JumpPower = 55
+
+	-- Walking bob: oscillate HipHeight slightly when MoveDirection is non-zero.
+	-- Cheap fake-animation (no animator authoring required) that makes the
+	-- welded primitive cat read as ALIVE while walking.
+	local RunService = game:GetService("RunService")
+	local baseHip = hum.HipHeight
+	local bobConn
+	bobConn = RunService.Heartbeat:Connect(function()
+		if not hum.Parent then if bobConn then bobConn:Disconnect() end; return end
+		if hum.MoveDirection.Magnitude > 0.1 then
+			-- 8 Hz bob, +/- 0.12 stud — matches a brisk paw-cycle pace.
+			local theta = os.clock() * 12.0
+			hum.HipHeight = baseHip + math.sin(theta) * 0.12
+		elseif math.abs(hum.HipHeight - baseHip) > 0.005 then
+			-- Ease back to base when stopped.
+			hum.HipHeight = baseHip + (hum.HipHeight - baseHip) * 0.7
+		end
+	end)
 
 	character:SetAttribute("KittyCat", true)
 	character:SetAttribute("FurColor", color)
