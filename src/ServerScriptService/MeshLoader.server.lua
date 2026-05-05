@@ -52,6 +52,11 @@ local NAMES = {
     "mesh_cop_car", "mesh_streetlamp", "mesh_park_bench",
     "mesh_oak_tree", "mesh_palm_tree", "mesh_donut", "mesh_coffee",
     "mesh_manhole", "mesh_fire_truck",
+    -- v2 city meshes (Higgsfield Blender batch, uploaded May 4)
+    "mesh_taxi_yellow", "mesh_delivery_van", "mesh_food_truck",
+    "mesh_fire_hydrant", "mesh_trash_can", "mesh_mailbox_blue",
+    "mesh_bus_stop_shelter", "mesh_traffic_light", "mesh_hot_dog_cart",
+    "mesh_skyscraper_chunk",
 }
 
 local loaded = 0
