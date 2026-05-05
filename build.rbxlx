@@ -2870,8 +2870,28 @@ local function decorateCharacter(player, character)
 	if nameLbl then nameLbl.Text = player.DisplayName end
 	pcall(playSpawnChime, character)
 
-	hum.WalkSpeed = 18
-	hum.JumpPower = 50
+	-- v3.63: bumped from 18 -> 24. Players reported 'cat walks super slow'.
+	-- 24 still under the typical Roblox 28-32 sprint range; feels brisk.
+	hum.WalkSpeed = 24
+	hum.JumpPower = 55
+
+	-- Walking bob: oscillate HipHeight slightly when MoveDirection is non-zero.
+	-- Cheap fake-animation (no animator authoring required) that makes the
+	-- welded primitive cat read as ALIVE while walking.
+	local RunService = game:GetService("RunService")
+	local baseHip = hum.HipHeight
+	local bobConn
+	bobConn = RunService.Heartbeat:Connect(function()
+		if not hum.Parent then if bobConn then bobConn:Disconnect() end; return end
+		if hum.MoveDirection.Magnitude > 0.1 then
+			-- 8 Hz bob, +/- 0.12 stud — matches a brisk paw-cycle pace.
+			local theta = os.clock() * 12.0
+			hum.HipHeight = baseHip + math.sin(theta) * 0.12
+		elseif math.abs(hum.HipHeight - baseHip) > 0.005 then
+			-- Ease back to base when stopped.
+			hum.HipHeight = baseHip + (hum.HipHeight - baseHip) * 0.7
+		end
+	end)
 
 	character:SetAttribute("KittyCat", true)
 	character:SetAttribute("FurColor", color)
@@ -5232,8 +5252,8 @@ local EVENTS = {
         title = "RUSH HOUR",
         message = "1.5x CHAOS for 5 minutes! Stack pranks fast.",
         durationS = 300,
-        intervalS = 20 * 60,
-        startsAtS = 60,        -- first occurrence 1 minute into server uptime
+        intervalS = 12 * 60,
+        startsAtS = 30,        -- v3.64: 60s -> 30s so new joiners see it fast
         flag = "EventRushHour",
         buff = {chaosMultiplier = 1.5},
     },
@@ -5242,8 +5262,8 @@ local EVENTS = {
         title = "BOSS SURGE",
         message = "Every summon spawns a BOSS for 3 minutes.",
         durationS = 180,
-        intervalS = 30 * 60,
-        startsAtS = 8 * 60,
+        intervalS = 18 * 60,   -- v3.64: 30min -> 18min cycle
+        startsAtS = 4 * 60,    -- v3.64: 8min -> 4min initial
         flag = "EventBossSurge",
         buff = {bossEveryTime = true},
     },
@@ -5252,8 +5272,8 @@ local EVENTS = {
         title = "CROWD WAVE",
         message = "Sidewalks are PACKED for 4 minutes.",
         durationS = 240,
-        intervalS = 25 * 60,
-        startsAtS = 4 * 60,
+        intervalS = 15 * 60,   -- v3.64: 25min -> 15min cycle
+        startsAtS = 2 * 60,    -- v3.64: 4min -> 2min initial
         flag = "EventCrowdWave",
         buff = {crowdDense = true},
     },
@@ -7783,6 +7803,23 @@ Remotes.RequestSummonHuman.OnServerEvent:Connect(function(player)
     SummonSystem.summon(player)
 end)
 
+-- v3.64: auto-summon 2 civilians on first spawn so players have something
+-- to click immediately. Bypasses the 1.5s cooldown via direct internal
+-- summon. Without this, new players land in an empty plaza, click a few
+-- times to no effect, and bounce.
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(char)
+        task.wait(1.5)  -- let the cat finish spawning + camera settle
+        if not player.Parent then return end
+        -- Force a couple summons by temporarily clearing cooldown
+        lastSummonTime[player.UserId] = 0
+        SummonSystem.summon(player)
+        task.wait(0.4)
+        lastSummonTime[player.UserId] = 0
+        SummonSystem.summon(player)
+    end)
+end)
+
 Players.PlayerRemoving:Connect(function(player)
     lastSummonTime[player.UserId] = nil
     -- Despawn this player's NPCs
@@ -8419,29 +8456,33 @@ sLabel.TextScaled = true
 sLabel.Parent = summonBtn
 bind(sLabel, 12, 20)
 
--- ===== RIGHT SIDE: PRANK BUTTONS =====
--- v3.62: moved inward 50px (was flush against right edge, blending with the
--- minimap into a 'LV X markers' look). Now 50px in from edge with a darker
--- panel background so the column reads as a discrete action bar.
-local PRANK_W = IS_MOBILE and 88 or 76
+-- ===== DIABLO-STYLE BOTTOM SKILL BAR (Phase-13) =====
+-- Was: vertical column flush against right edge — read as minimap clutter.
+-- Now: horizontal 8-slot action bar centered at bottom, above the menu bar.
+-- Each slot shows the prank icon + a hotkey hint (1..8) + lock overlay if
+-- the player isn't high enough level. Click or press the matching hotkey.
+local PRANK_W = IS_MOBILE and 64 or 56
+local PRANK_GAP = 6
 local prankColumn = makeFrame({
     Name = "PrankColumn",
-    Size = UDim2.new(0, PRANK_W + 16, 0, 8 * (PRANK_W + 6) + 16),
-    AnchorPoint = Vector2.new(1, 0.5),
-    Position = UDim2.new(1, -64, 0.5, 80),  -- offset down so it clears minimap
+    Size = UDim2.new(0, 8 * (PRANK_W + PRANK_GAP) + 16, 0, PRANK_W + 16),
+    AnchorPoint = Vector2.new(0.5, 1),
+    Position = UDim2.new(0.5, 0, 1, -60),  -- sits above the bottom menu bar
     BackgroundColor3 = Color3.fromRGB(50, 35, 20),
     BackgroundTransparency = 0.25,
     Parent = screenGui,
 })
-Instance.new("UICorner", prankColumn).CornerRadius = UDim.new(0, 14)
+Instance.new("UICorner", prankColumn).CornerRadius = UDim.new(0, 12)
 local pcStroke = Instance.new("UIStroke", prankColumn)
 pcStroke.Thickness = 2; pcStroke.Color = Color3.fromRGB(110, 75, 40)
 local pcPad = Instance.new("UIPadding", prankColumn)
-pcPad.PaddingTop = UDim.new(0, 8); pcPad.PaddingBottom = UDim.new(0, 8)
+pcPad.PaddingLeft = UDim.new(0, 8); pcPad.PaddingRight = UDim.new(0, 8)
+pcPad.PaddingTop  = UDim.new(0, 8); pcPad.PaddingBottom = UDim.new(0, 8)
 local listLayout = Instance.new("UIListLayout")
-listLayout.FillDirection = Enum.FillDirection.Vertical
-listLayout.Padding = UDim.new(0, 6)
+listLayout.FillDirection = Enum.FillDirection.Horizontal
+listLayout.Padding = UDim.new(0, PRANK_GAP)
 listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Parent = prankColumn
 
@@ -8469,11 +8510,44 @@ for i, prankName in ipairs(PrankConfig.Order) do
     })
     btn:SetAttribute("PrankName", prankName)
     btn:SetAttribute("UnlockLevel", prank.unlockLevel)
+    -- Hotkey badge: small "1".."8" chip in the top-left corner so players
+    -- learn the keyboard shortcut just by looking at the slot.
+    local hotkey = Instance.new("TextLabel", btn)
+    hotkey.Name = "Hotkey"
+    hotkey.AnchorPoint = Vector2.new(0, 0)
+    hotkey.Position = UDim2.new(0, 2, 0, 2)
+    hotkey.Size = UDim2.fromOffset(16, 16)
+    hotkey.BackgroundColor3 = Color3.fromRGB(40, 25, 12)
+    hotkey.BackgroundTransparency = 0.2
+    hotkey.Text = tostring(i)
+    hotkey.Font = Enum.Font.GothamBold
+    hotkey.TextColor3 = Color3.fromRGB(255, 230, 180)
+    hotkey.TextScaled = true
+    hotkey.ZIndex = 5
+    Instance.new("UICorner", hotkey).CornerRadius = UDim.new(0, 4)
+    local hkc = Instance.new("UITextSizeConstraint", hotkey); hkc.MinTextSize = 9; hkc.MaxTextSize = 12
 
     -- Real icon asset preferred; ASCII abbreviation fallback.
+    -- v3.64: ALWAYS render a 3-letter ASCII fallback label as the bottom
+    -- layer (PIE / ANV / PUR / etc.). Icon ImageLabel layers ON TOP. So if
+    -- the icon asset fails to load (moderation, replication delay), the
+    -- player still sees a labeled slot — never a blank square.
+    local short = (prankName:upper()):sub(1, 3)
+    local fallbackTxt = Instance.new("TextLabel", btn)
+    fallbackTxt.Name = "FallbackLabel"
+    fallbackTxt.Size = UDim2.fromScale(1, 1)
+    fallbackTxt.BackgroundTransparency = 1
+    fallbackTxt.Text = short
+    fallbackTxt.TextColor3 = Color3.fromRGB(255, 230, 180)
+    fallbackTxt.TextStrokeTransparency = 0.3
+    fallbackTxt.TextStrokeColor3 = Color3.fromRGB(40, 25, 10)
+    fallbackTxt.Font = Enum.Font.GothamBlack
+    fallbackTxt.TextScaled = true
+    fallbackTxt.ZIndex = 1
+    local flc = Instance.new("UITextSizeConstraint", fallbackTxt); flc.MinTextSize = 12; flc.MaxTextSize = 22
+
     local iconKey = PRANK_ICON[prankName]
     if iconKey and AssetIds.has(iconKey) then
-        -- Drop shadow under the icon
         local shadow = Instance.new("ImageLabel")
         shadow.Name = "PrankIconShadow"
         shadow.BackgroundTransparency = 1
@@ -8483,8 +8557,8 @@ for i, prankName in ipairs(PrankConfig.Order) do
         shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
         shadow.ImageTransparency = 0.55
         shadow.ScaleType = Enum.ScaleType.Fit
+        shadow.ZIndex = 2
         shadow.Parent = btn
-        -- White icon (gets re-tinted by lock state below if needed)
         local img = Instance.new("ImageLabel")
         img.Name = "PrankIcon"
         img.BackgroundTransparency = 1
@@ -8493,12 +8567,8 @@ for i, prankName in ipairs(PrankConfig.Order) do
         img.Image = AssetIds[iconKey]
         img.ImageColor3 = Color3.fromRGB(255, 250, 235)
         img.ScaleType = Enum.ScaleType.Fit
+        img.ZIndex = 3
         img.Parent = btn
-    else
-        local short = (prankName:upper()):sub(1, 3)
-        btn.Text = short
-        btn.TextScaled = true
-        bind(btn, 16, 28)
     end
     -- Locked overlay: dark scrim + bold "Lv N" text. Initial visibility is
     -- set by unlockLevel so first prank (unlockLevel=1) is immediately
@@ -11332,50 +11402,41 @@ UserInputService.InputBegan:Connect(function(input, gp)
             lastMouseFire = now
             Remotes.RequestPrank:FireServer(prankName, npc)
         else
-            -- Click missed: brief toast so player knows nothing's in range.
-            -- Throttle the toast itself separately so spam-clicking doesn't flood.
-            if now - lastMouseFire > 1.5 then
+            -- v3.64: click with no target -> auto-summon a civilian and
+            -- queue the attack for when it lands. Player click ALWAYS does
+            -- something; no more dead clicks early-game.
+            if now - lastMouseFire > 1.0 then
                 lastMouseFire = now
-                local hud = playerGui:FindFirstChild("MainHUD")
-                local toastFrame = hud and hud:FindFirstChild("ToastFrame")
-                if toastFrame then
-                    pcall(function()
-                        local UIUtil = require(ReplicatedStorage.Modules.UIUtil)
-                        UIUtil.makeToast(toastFrame,
-                            "MOVE CLOSER  -  no target in range",
-                            Color3.fromRGB(180, 130, 60), 1.6)
-                    end)
-                end
+                Remotes.RequestSummonHuman:FireServer()
+                task.delay(1.2, function()
+                    local n = nearestNPC(prank.rangeStuds * 1.6)
+                    if n then Remotes.RequestPrank:FireServer(prankName, n) end
+                end)
             end
         end
         return
     end
     if input.KeyCode == Enum.KeyCode.E then
         Remotes.RequestSummonHuman:FireServer()
-    elseif input.KeyCode == Enum.KeyCode.One then
-        local b = prankCol:FindFirstChild("Prank_Pie")
-        if b and not b:GetAttribute("Locked") then
-            local npc = nearestNPC(PrankConfig.Pranks.Pie.rangeStuds)
-            if npc then Remotes.RequestPrank:FireServer("Pie", npc) end
-        end
-    elseif input.KeyCode == Enum.KeyCode.Two then
-        local b = prankCol:FindFirstChild("Prank_Anvil")
-        if b and not b:GetAttribute("Locked") then
-            local npc = nearestNPC(PrankConfig.Pranks.Anvil.rangeStuds)
-            if npc then Remotes.RequestPrank:FireServer("Anvil", npc) end
-        end
-    elseif input.KeyCode == Enum.KeyCode.Three then
-        local b = prankCol:FindFirstChild("Prank_FartCloud")
-        if b and not b:GetAttribute("Locked") then
-            local npc = nearestNPC(PrankConfig.Pranks.FartCloud.rangeStuds)
-            if npc then Remotes.RequestPrank:FireServer("FartCloud", npc) end
-        end
-    elseif input.KeyCode == Enum.KeyCode.Four then
-        local b = prankCol:FindFirstChild("Prank_LaserEyes")
-        if b and not b:GetAttribute("Locked") then
-            local npc = nearestNPC(PrankConfig.Pranks.LaserEyes.rangeStuds)
-            if npc then Remotes.RequestPrank:FireServer("LaserEyes", npc) end
-        end
+        return
+    end
+    -- Hotkeys 1..8 map to PrankConfig.Order slot index (matches the bar
+    -- left-to-right + the on-button '1'..'8' badge added in v3.63).
+    local NUM_TO_SLOT = {
+        [Enum.KeyCode.One]   = 1, [Enum.KeyCode.Two]   = 2,
+        [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four]  = 4,
+        [Enum.KeyCode.Five]  = 5, [Enum.KeyCode.Six]   = 6,
+        [Enum.KeyCode.Seven] = 7, [Enum.KeyCode.Eight] = 8,
+    }
+    local slot = NUM_TO_SLOT[input.KeyCode]
+    if slot then
+        local prankName = PrankConfig.Order[slot]
+        if not prankName then return end
+        local b = prankCol:FindFirstChild("Prank_" .. prankName)
+        if not b or b:GetAttribute("Locked") then return end
+        local prank = PrankConfig.Pranks[prankName]
+        local npc = nearestNPC(prank.rangeStuds)
+        if npc then Remotes.RequestPrank:FireServer(prankName, npc) end
     end
 end)
 
@@ -11701,11 +11762,12 @@ local player    = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 -- Smaller on phone, full size on desktop
+-- v3.63: half-sized per playtest feedback (180 -> 96 desktop, etc.).
 local function pickSize()
 	local p = UIUtil.platform()
-	if p == "phone"  then return 130 end
-	if p == "tablet" then return 160 end
-	return 180
+	if p == "phone"  then return 70 end
+	if p == "tablet" then return 84 end
+	return 96
 end
 
 local SCALE = 0.18  -- world studs per pixel
