@@ -177,6 +177,21 @@
       },
       "CityDensityBoost": {
         "$path": "src/ServerScriptService/CityDensityBoost.server.lua"
+      },
+      "CivilianPanic": {
+        "$path": "src/ServerScriptService/CivilianPanic.server.lua"
+      },
+      "TerrainBiome": {
+        "$path": "src/ServerScriptService/TerrainBiome.server.lua"
+      },
+      "MeshDiagnostic": {
+        "$path": "src/ServerScriptService/MeshDiagnostic.server.lua"
+      },
+      "NPCOutfits": {
+        "$path": "src/ServerScriptService/NPCOutfits.server.lua"
+      },
+      "CopAggro": {
+        "$path": "src/ServerScriptService/CopAggro.server.lua"
       }
     },
     "StarterGui": {
