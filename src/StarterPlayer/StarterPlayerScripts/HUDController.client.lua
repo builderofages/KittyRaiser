@@ -171,13 +171,24 @@ if botBar then
     if invBtn then invBtn.MouseButton1Click:Connect(function() toggle("ShopModal"); buildShopList(true) end) end
     if rebirthBtn then
         rebirthBtn.MouseButton1Click:Connect(function()
-            local ok, result = Remotes.RequestRebirth:InvokeServer()
+            print("[HUDController] REBIRTH clicked")
+            local ok, result = pcall(function() return Remotes.RequestRebirth:InvokeServer() end)
             if not ok then
-                Remotes.NotifyClient:FireClient -- not callable client-side; instead show toast directly
+                warn("[HUDController] RequestRebirth failed:", result)
             end
         end)
     end
-    if lbBtn then lbBtn.MouseButton1Click:Connect(function() toggle("LeaderboardModal") end) end
+    if lbBtn then
+        lbBtn.MouseButton1Click:Connect(function()
+            print("[HUDController] TOP/Leaderboard clicked")
+            toggle("LeaderboardModal")
+        end)
+    end
+    -- v3.65: add console logs to verify wiring at runtime
+    if shopBtn then print("[HUDController] SHOP wired") end
+    if invBtn then print("[HUDController] INV wired") end
+    if rebirthBtn then print("[HUDController] REBIRTH wired") end
+    if lbBtn then print("[HUDController] TOP wired") end
 end
 
 -- Close buttons

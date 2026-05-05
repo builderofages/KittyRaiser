@@ -82,10 +82,14 @@ local function makeButton(props)
 end
 
 -- ===== TOP BAR =====
+-- v3.65: TopBar pushed down to clear Roblox built-in top-left menu (~36px)
+-- and top-right notifications/buy-button (~36px). Roblox CoreGui sits at y=0..36
+-- so our HUD now starts at y=44 desktop / y=80 mobile.
+local TOP_Y_OFFSET = IS_MOBILE and 80 or 44
 local topBar = makeFrame({
     Name = "TopBar",
     Size = UDim2.new(1, 0, 0, IS_MOBILE and 80 or 70),
-    Position = UDim2.new(0, 0, 0, 0),
+    Position = UDim2.new(0, 0, 0, TOP_Y_OFFSET),
     BackgroundColor3 = PALETTE_BG,
     BackgroundTransparency = 0.1,
     BorderSizePixel = 0,

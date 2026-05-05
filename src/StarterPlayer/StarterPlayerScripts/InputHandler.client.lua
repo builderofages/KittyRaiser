@@ -25,17 +25,22 @@ local function nearestNPC(maxRange)
     if not char then return nil end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
-    local folder = Workspace:FindFirstChild("PrankNPCs")
-    if not folder then return nil end
+    -- v3.65 fix: check BOTH PrankNPCs (summoned) AND AmbientCrowd (ambient pedestrians)
+    -- so player click works on any visible NPC. Previously only summoned ones counted.
+    local folders = {Workspace:FindFirstChild("PrankNPCs"), Workspace:FindFirstChild("AmbientCrowd")}
     local closest, dist = nil, math.huge
-    for _, m in ipairs(folder:GetChildren()) do
-        if m:IsA("Model") and m:GetAttribute("KittyRaiserNPC") and not m:GetAttribute("Pranked") then
+    for _, folder in ipairs(folders) do
+        if folder then
+            for _, m in ipairs(folder:GetChildren()) do
+                if m:IsA("Model") and (m:GetAttribute("KittyRaiserNPC") or m:GetAttribute("AmbientNPC")) and not m:GetAttribute("Pranked") then
             local p = m.PrimaryPart or m:FindFirstChild("HumanoidRootPart")
             if p then
                 local d = (p.Position - hrp.Position).Magnitude
                 if d < dist and d <= maxRange then
                     dist = d
                     closest = m
+                end
+                    end
                 end
             end
         end

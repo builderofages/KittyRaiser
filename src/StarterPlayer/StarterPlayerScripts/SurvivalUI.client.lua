@@ -13,12 +13,19 @@ local hud    = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
 if not hud then return end
 
 -- Container holds both bars vertically just under the TopBar
+-- v3.65: re-positioned to avoid Roblox menu top-left overlap. TopBar starts at y=44
+-- (desktop) / y=80 (mobile), is 70/80 tall. So bars sit at y=44+70+12 = 126 desktop,
+-- y=80+80+12 = 172 mobile.
+local IS_MOBILE = (game:GetService("GuiService"):IsTenFootInterface()) or (game:GetService("UserInputService").TouchEnabled and not game:GetService("UserInputService").MouseEnabled)
+local SURV_Y = IS_MOBILE and 172 or 126
 local container = Instance.new("Frame")
 container.Name = "SurvivalContainer"
 container.Size = UDim2.new(0, 232, 0, 60)
-container.Position = UDim2.new(0, 12, 0, 88)  -- below TopBar (70-80px)
+container.Position = UDim2.new(0, 12, 0, SURV_Y)
 container.BackgroundTransparency = 1
+container.ZIndex = 10
 container.Parent = hud
+print("[SurvivalUI v3.65] container at y=" .. SURV_Y)
 local listLayout = Instance.new("UIListLayout", container)
 listLayout.FillDirection = Enum.FillDirection.Vertical
 listLayout.Padding = UDim.new(0, 4)

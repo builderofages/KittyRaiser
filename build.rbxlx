@@ -8208,10 +8208,14 @@ local function makeButton(props)
 end
 
 -- ===== TOP BAR =====
+-- v3.65: TopBar pushed down to clear Roblox built-in top-left menu (~36px)
+-- and top-right notifications/buy-button (~36px). Roblox CoreGui sits at y=0..36
+-- so our HUD now starts at y=44 desktop / y=80 mobile.
+local TOP_Y_OFFSET = IS_MOBILE and 80 or 44
 local topBar = makeFrame({
     Name = "TopBar",
     Size = UDim2.new(1, 0, 0, IS_MOBILE and 80 or 70),
-    Position = UDim2.new(0, 0, 0, 0),
+    Position = UDim2.new(0, 0, 0, TOP_Y_OFFSET),
     BackgroundColor3 = PALETTE_BG,
     BackgroundTransparency = 0.1,
     BorderSizePixel = 0,
@@ -11052,13 +11056,24 @@ if botBar then
     if invBtn then invBtn.MouseButton1Click:Connect(function() toggle("ShopModal"); buildShopList(true) end) end
     if rebirthBtn then
         rebirthBtn.MouseButton1Click:Connect(function()
-            local ok, result = Remotes.RequestRebirth:InvokeServer()
+            print("[HUDController] REBIRTH clicked")
+            local ok, result = pcall(function() return Remotes.RequestRebirth:InvokeServer() end)
             if not ok then
-                Remotes.NotifyClient:FireClient -- not callable client-side; instead show toast directly
+                warn("[HUDController] RequestRebirth failed:", result)
             end
         end)
     end
-    if lbBtn then lbBtn.MouseButton1Click:Connect(function() toggle("LeaderboardModal") end) end
+    if lbBtn then
+        lbBtn.MouseButton1Click:Connect(function()
+            print("[HUDController] TOP/Leaderboard clicked")
+            toggle("LeaderboardModal")
+        end)
+    end
+    -- v3.65: add console logs to verify wiring at runtime
+    if shopBtn then print("[HUDController] SHOP wired") end
+    if invBtn then print("[HUDController] INV wired") end
+    if rebirthBtn then print("[HUDController] REBIRTH wired") end
+    if lbBtn then print("[HUDController] TOP wired") end
 end
 
 -- Close buttons
@@ -11305,17 +11320,22 @@ local function nearestNPC(maxRange)
     if not char then return nil end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
-    local folder = Workspace:FindFirstChild("PrankNPCs")
-    if not folder then return nil end
+    -- v3.65 fix: check BOTH PrankNPCs (summoned) AND AmbientCrowd (ambient pedestrians)
+    -- so player click works on any visible NPC. Previously only summoned ones counted.
+    local folders = {Workspace:FindFirstChild("PrankNPCs"), Workspace:FindFirstChild("AmbientCrowd")}
     local closest, dist = nil, math.huge
-    for _, m in ipairs(folder:GetChildren()) do
-        if m:IsA("Model") and m:GetAttribute("KittyRaiserNPC") and not m:GetAttribute("Pranked") then
+    for _, folder in ipairs(folders) do
+        if folder then
+            for _, m in ipairs(folder:GetChildren()) do
+                if m:IsA("Model") and (m:GetAttribute("KittyRaiserNPC") or m:GetAttribute("AmbientNPC")) and not m:GetAttribute("Pranked") then
             local p = m.PrimaryPart or m:FindFirstChild("HumanoidRootPart")
             if p then
                 local d = (p.Position - hrp.Position).Magnitude
                 if d < dist and d <= maxRange then
                     dist = d
                     closest = m
+                end
+                    end
                 end
             end
         end
@@ -14291,12 +14311,19 @@ local hud    = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
 if not hud then return end
 
 -- Container holds both bars vertically just under the TopBar
+-- v3.65: re-positioned to avoid Roblox menu top-left overlap. TopBar starts at y=44
+-- (desktop) / y=80 (mobile), is 70/80 tall. So bars sit at y=44+70+12 = 126 desktop,
+-- y=80+80+12 = 172 mobile.
+local IS_MOBILE = (game:GetService("GuiService"):IsTenFootInterface()) or (game:GetService("UserInputService").TouchEnabled and not game:GetService("UserInputService").MouseEnabled)
+local SURV_Y = IS_MOBILE and 172 or 126
 local container = Instance.new("Frame")
 container.Name = "SurvivalContainer"
 container.Size = UDim2.new(0, 232, 0, 60)
-container.Position = UDim2.new(0, 12, 0, 88)  -- below TopBar (70-80px)
+container.Position = UDim2.new(0, 12, 0, SURV_Y)
 container.BackgroundTransparency = 1
+container.ZIndex = 10
 container.Parent = hud
+print("[SurvivalUI v3.65] container at y=" .. SURV_Y)
 local listLayout = Instance.new("UIListLayout", container)
 listLayout.FillDirection = Enum.FillDirection.Vertical
 listLayout.Padding = UDim.new(0, 4)
