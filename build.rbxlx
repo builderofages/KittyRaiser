@@ -11199,7 +11199,7 @@ return true
       <Item class="LocalScript" referent="71">
         <Properties>
           <string name="Name">HUDFix</string>
-          <string name="Source"><![CDATA[-- HUDFix.client.lua  v3.66.1 published
+          <string name="Source"><![CDATA[-- HUDFix.client.lua  v3.67 race-fix
 -- Bypass layer that runs AFTER HUDBuilder/HUDController/InputHandler and:
 --   1. Re-wires every clickable HUD button with explicit prints + working handlers
 --   2. Moves INV/TOP/REBIRTH/SHOP to TOP-RIGHT as small icon buttons (under TopBar, above MAP)
@@ -11220,7 +11220,7 @@ local player = Players.LocalPlayer
 local hud    = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
 if not hud then warn("[HUDFix] MainHUD not found"); return end
 
-print("[HUDFix v3.66] starting — redundant button wiring + layout fixes")
+print("[HUDFix v3.67] starting — redundant button wiring + layout fixes")
 
 -- Wait one frame so HUDBuilder's children settle
 task.wait(0.2)
@@ -11256,8 +11256,10 @@ end
 -- ============================================================
 -- 2. RE-WIRE SKILL BAR SLOTS (redundant; will fire prank even if InputHandler is broken)
 -- ============================================================
-local prankCol = hud:FindFirstChild("PrankColumn")
+local prankCol = hud:WaitForChild("PrankColumn", 15)
+if not prankCol then warn("[HUDFix] PrankColumn never appeared") end
 if prankCol then
+    print("[HUDFix] PrankColumn found, wiring " .. #PrankConfig.Order .. " slots")
     for _, prankName in ipairs(PrankConfig.Order) do
         local btn = prankCol:FindFirstChild("Prank_" .. prankName)
         if btn then
@@ -11328,7 +11330,7 @@ end)
 -- Hide the bottom bar, create a vertical icon column under the TopBar
 -- and above the MAP minimap.
 -- ============================================================
-local bottomBar = hud:FindFirstChild("BottomBar")
+local bottomBar = hud:WaitForChild("BottomBar", 15)
 if bottomBar then
     bottomBar.Visible = false  -- hide original
     print("[HUDFix] hid original BottomBar")
@@ -11449,7 +11451,7 @@ end
 if player.Character then setHealthDisplay(player.Character) end
 player.CharacterAdded:Connect(setHealthDisplay)
 
-print("[HUDFix v3.66] all wiring + layout fixes applied")
+print("[HUDFix v3.67] all wiring + layout fixes applied")
 ]]></string>
         </Properties>
       </Item>
