@@ -130,6 +130,14 @@ AssetIds.thumb_city_night         = "rbxassetid://78180746183552"
 AssetIds.thumb_lobby              = "rbxassetid://102793817013440"
 AssetIds.thumb_pie_throw          = "rbxassetid://98108593160983"
 
+
+-- ===== MUSIC TRACKS (v3.70) — populated when Suno renders + uploads via Open Cloud =====
+AssetIds.music_track1_chaos_jazz             = "rbxassetid://0"
+AssetIds.music_track2_funky_alley_chase      = "rbxassetid://0"
+AssetIds.music_track3_uptempo_8bit_groove    = "rbxassetid://0"
+AssetIds.music_track4_cartoon_heist_riff     = "rbxassetid://0"
+AssetIds.music_track5_street_vendor_swing    = "rbxassetid://0"
+
 function AssetIds.has(name)
     local v = AssetIds[name]
     return type(v) == "string" and v ~= "rbxassetid://0" and v ~= ""

@@ -165,6 +165,15 @@
       },
       "PetSystem": {
         "$path": "src/ServerScriptService/PetSystem.server.lua"
+      },
+      "MusicSystem": {
+        "$path": "src/ServerScriptService/MusicSystem.server.lua"
+      },
+      "FoodDropSystem": {
+        "$path": "src/ServerScriptService/FoodDropSystem.server.lua"
+      },
+      "MonetizationAudit": {
+        "$path": "src/ServerScriptService/MonetizationAudit.server.lua"
       }
     },
     "StarterGui": {

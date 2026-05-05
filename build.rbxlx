@@ -191,6 +191,14 @@ AssetIds.thumb_city_night         = "rbxassetid://78180746183552"
 AssetIds.thumb_lobby              = "rbxassetid://102793817013440"
 AssetIds.thumb_pie_throw          = "rbxassetid://98108593160983"
 
+
+-- ===== MUSIC TRACKS (v3.70) — populated when Suno renders + uploads via Open Cloud =====
+AssetIds.music_track1_chaos_jazz             = "rbxassetid://0"
+AssetIds.music_track2_funky_alley_chase      = "rbxassetid://0"
+AssetIds.music_track3_uptempo_8bit_groove    = "rbxassetid://0"
+AssetIds.music_track4_cartoon_heist_riff     = "rbxassetid://0"
+AssetIds.music_track5_street_vendor_swing    = "rbxassetid://0"
+
 function AssetIds.has(name)
     local v = AssetIds[name]
     return type(v) == "string" and v ~= "rbxassetid://0" and v ~= ""
@@ -5357,6 +5365,170 @@ print("[EventScheduler v1] online — " .. #EVENTS .. " events scheduled")
     </Item>
     <Item class="Script" referent="36">
       <Properties>
+        <string name="Name">FoodDropSystem</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- FoodDropSystem.server.lua  v1
+-- Spawns food (hot dog) and water (milk bottle) drops:
+--   1. Around the plaza on a few breakable HotDogStand + Fountain props
+--   2. 2% chance to drop on NPC death (markPranked event hook)
+-- Picking up a drop fires Remotes.SurvivalDelta with hunger or thirst gain.
+local Players          = game:GetService("Players")
+local Workspace        = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
+local TweenService     = game:GetService("TweenService")
+local Debris           = game:GetService("Debris")
+local Remotes  = require(ReplicatedStorage.Modules.RemoteEvents)
+local AssetIds = require(ReplicatedStorage.Modules.AssetIds)
+
+local DROP_LIFETIME = 30
+local DROP_HOVER_OFFSET = Vector3.new(0, 1.2, 0)
+local NPC_DROP_CHANCE = 0.02  -- 2%
+
+local dropsFolder = Workspace:FindFirstChild("Drops") or Instance.new("Folder")
+dropsFolder.Name = "Drops"; dropsFolder.Parent = Workspace
+
+local function makeDrop(kind, position)
+    local part = Instance.new("Part")
+    part.Name = (kind == "food") and "FoodDrop" or "WaterDrop"
+    part.Size = Vector3.new(0.9, 0.9, 0.9)
+    part.Material = Enum.Material.SmoothPlastic
+    part.Color = (kind == "food") and Color3.fromRGB(220, 130, 60) or Color3.fromRGB(220, 230, 255)
+    part.Position = position + DROP_HOVER_OFFSET
+    part.Anchored = true
+    part.CanCollide = false
+    part.Parent = dropsFolder
+    -- spinning glow effect
+    local light = Instance.new("PointLight", part)
+    light.Color = part.Color; light.Brightness = 1.5; light.Range = 6
+    -- bobbing tween
+    local bob = TweenService:Create(part, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+        {Position = part.Position + Vector3.new(0, 0.3, 0)})
+    bob:Play()
+    -- pickup detection
+    local conn
+    conn = part.Touched:Connect(function(other)
+        local char = other:FindFirstAncestorOfClass("Model")
+        if not char then return end
+        local player = Players:GetPlayerFromCharacter(char)
+        if not player then return end
+        if Remotes.SurvivalDelta then
+            if kind == "food" then
+                Remotes.SurvivalDelta:FireClient(player, {hunger = 25})
+            else
+                Remotes.SurvivalDelta:FireClient(player, {thirst = 25})
+            end
+        end
+        -- pickup feedback
+        local pop = TweenService:Create(part, TweenInfo.new(0.2),
+            {Size = Vector3.new(2, 2, 2), Transparency = 1})
+        pop:Play()
+        conn:Disconnect()
+        Debris:AddItem(part, 0.25)
+    end)
+    Debris:AddItem(part, DROP_LIFETIME)
+    return part
+end
+
+-- ============ Hot Dog Stand + Fountain interactables ============
+local function spawnInteractable(kind, position)
+    -- Visual prop. If asset mesh available, attach it; otherwise use colored block.
+    local stand = Instance.new("Part")
+    stand.Name = (kind == "food") and "HotDogStand" or "WaterFountain"
+    stand.Size = Vector3.new(3, 3, 3)
+    stand.Material = Enum.Material.SmoothPlastic
+    stand.Color = (kind == "food") and Color3.fromRGB(200, 60, 50) or Color3.fromRGB(180, 180, 220)
+    stand.Position = position
+    stand.Anchored = true
+    stand.Parent = Workspace
+    stand:SetAttribute("MaxHits", 3)
+    stand:SetAttribute("Hits", 0)
+    -- BillboardGui instructions
+    local bb = Instance.new("BillboardGui", stand)
+    bb.Size = UDim2.new(0, 120, 0, 30)
+    bb.StudsOffset = Vector3.new(0, 2, 0)
+    bb.AlwaysOnTop = true
+    local lbl = Instance.new("TextLabel", bb)
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 0.4
+    lbl.BackgroundColor3 = Color3.new(0,0,0)
+    lbl.TextColor3 = Color3.fromRGB(255, 230, 160)
+    lbl.Font = Enum.Font.GothamBlack
+    lbl.TextScaled = true
+    lbl.Text = (kind == "food") and "BREAK FOR FOOD" or "DRINK FROM FOUNTAIN"
+    -- damage hit detection: when a part touches with name PrankProjectile or player gets close + clicks
+    -- For now, simple: every player who touches it triggers a hit
+    local touchDb = {}
+    stand.Touched:Connect(function(other)
+        local char = other:FindFirstAncestorOfClass("Model")
+        local player = char and Players:GetPlayerFromCharacter(char)
+        if not player then return end
+        if touchDb[player.UserId] and os.clock() - touchDb[player.UserId] < 1.0 then return end
+        touchDb[player.UserId] = os.clock()
+        local hits = (stand:GetAttribute("Hits") or 0) + 1
+        stand:SetAttribute("Hits", hits)
+        -- shake feedback
+        local origPos = stand.Position
+        TweenService:Create(stand, TweenInfo.new(0.05), {Position = origPos + Vector3.new(0.2, 0, 0)}):Play()
+        task.delay(0.1, function() stand.Position = origPos end)
+        if hits >= (stand:GetAttribute("MaxHits") or 3) then
+            -- Break: spawn 3 drops + destroy stand
+            for i = 1, 3 do
+                local angle = (i / 3) * math.pi * 2
+                local offset = Vector3.new(math.cos(angle) * 2, 0, math.sin(angle) * 2)
+                makeDrop(kind, stand.Position + offset)
+            end
+            stand:Destroy()
+            -- respawn after 60s
+            task.delay(60, function() spawnInteractable(kind, position) end)
+        end
+    end)
+    return stand
+end
+
+-- ============ NPC Drop Hook ============
+-- Listen to Pranked attribute changes — when an NPC's Pranked goes true (death),
+-- 2% chance to drop food or water at their position.
+local function watchNpcDeaths()
+    for _, folderName in ipairs({"PrankNPCs", "AmbientCrowd"}) do
+        local folder = Workspace:FindFirstChild(folderName)
+        if folder then
+            folder.ChildAdded:Connect(function(child)
+                if child:IsA("Model") then
+                    child:GetAttributeChangedSignal("Pranked"):Connect(function()
+                        if child:GetAttribute("Pranked") and math.random() < NPC_DROP_CHANCE then
+                            local p = child.PrimaryPart or child:FindFirstChild("HumanoidRootPart")
+                            if p then
+                                local kind = (math.random() < 0.5) and "food" or "water"
+                                makeDrop(kind, p.Position)
+                                print("[FoodDropSystem] NPC dropped " .. kind)
+                            end
+                        end
+                    end)
+                end
+            end)
+        end
+    end
+end
+task.spawn(watchNpcDeaths)
+
+-- ============ Spawn initial interactables in plaza ============
+task.spawn(function()
+    task.wait(10)  -- wait for CityRebuild to place plaza
+    -- Spawn 2 hot dog stands + 2 fountains around plaza spawn point
+    spawnInteractable("food",  Vector3.new(20, 5, 0))
+    spawnInteractable("food",  Vector3.new(-20, 5, 0))
+    spawnInteractable("water", Vector3.new(0, 5, 25))
+    spawnInteractable("water", Vector3.new(0, 5, -25))
+    print("[FoodDropSystem] 4 interactables placed in plaza")
+end)
+
+print("[FoodDropSystem v1] online — food/water drops + 2% NPC drops + breakable stands")
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="37">
+      <Properties>
         <string name="Name">LeaderboardHandler</string>
         <token name="RunContext">0</token>
         <string name="Source"><![CDATA[-- LeaderboardHandler.server.lua
@@ -5405,7 +5577,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="37">
+    <Item class="Script" referent="38">
       <Properties>
         <string name="Name">LifecycleSystem</string>
         <token name="RunContext">0</token>
@@ -5528,7 +5700,7 @@ print("[LifecycleSystem v1] online — AFK kick at "..IDLE_KICK_S.."s, respawn-a
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="38">
+    <Item class="Script" referent="39">
       <Properties>
         <string name="Name">MeshLoader</string>
         <token name="RunContext">0</token>
@@ -5610,7 +5782,62 @@ print(("[MeshLoader] %d/%d meshes loaded and cached"):format(loaded, #NAMES))
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="39">
+    <Item class="Script" referent="40">
+      <Properties>
+        <string name="Name">MonetizationAudit</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- MonetizationAudit.server.lua  v1
+-- Validates every gamepass + dev product ID at boot via MarketplaceService.
+-- Logs results so we know if any are missing/wrong.
+local MarketplaceService = game:GetService("MarketplaceService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GameConfig = require(ReplicatedStorage.Modules.GameConfig)
+
+task.spawn(function()
+    task.wait(15)  -- let other systems boot first
+    print("===== MONETIZATION AUDIT START =====")
+    -- Gamepasses
+    if GameConfig.GAMEPASS_IDS then
+        for name, id in pairs(GameConfig.GAMEPASS_IDS) do
+            if id and id ~= 0 then
+                local ok, info = pcall(function()
+                    return MarketplaceService:GetProductInfo(id, Enum.InfoType.GamePass)
+                end)
+                if ok and info then
+                    print(string.format("[Audit] GAMEPASS %s (id=%d) → %s — %d Robux — %s",
+                        name, id, info.Name, info.PriceInRobux or 0, info.IsForSale and "ON SALE" or "NOT FOR SALE"))
+                else
+                    warn(string.format("[Audit] GAMEPASS %s (id=%d) → FAILED LOOKUP: %s", name, id, tostring(info)))
+                end
+            else
+                warn("[Audit] GAMEPASS " .. name .. " has no ID (skipped)")
+            end
+        end
+    end
+    -- Dev products
+    if GameConfig.DEVPRODUCT_IDS then
+        for name, id in pairs(GameConfig.DEVPRODUCT_IDS) do
+            if id and id ~= 0 then
+                local ok, info = pcall(function()
+                    return MarketplaceService:GetProductInfo(id, Enum.InfoType.Product)
+                end)
+                if ok and info then
+                    print(string.format("[Audit] DEVPRODUCT %s (id=%d) → %s — %d Robux",
+                        name, id, info.Name, info.PriceInRobux or 0))
+                else
+                    warn(string.format("[Audit] DEVPRODUCT %s (id=%d) → FAILED LOOKUP: %s", name, id, tostring(info)))
+                end
+            else
+                warn("[Audit] DEVPRODUCT " .. name .. " has no ID")
+            end
+        end
+    end
+    print("===== MONETIZATION AUDIT END =====")
+end)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="41">
       <Properties>
         <string name="Name">MonetizationHandler</string>
         <token name="RunContext">0</token>
@@ -5849,7 +6076,73 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="40">
+    <Item class="Script" referent="42">
+      <Properties>
+        <string name="Name">MusicSystem</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- MusicSystem.server.lua  v1 — loops between 5 chaotic-cat music tracks
+-- Plays in SoundService at the Music group. Cycles to next track when current ends.
+-- Volume controlled by SettingsMenu music slider (via AudioGroups module).
+local SoundService = game:GetService("SoundService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local AssetIds   = require(ReplicatedStorage.Modules.AssetIds)
+local AudioGroups = require(ReplicatedStorage.Modules.AudioGroups)
+
+-- Music track keys in priority/cycle order. Will skip any with rbxassetid://0.
+local TRACKS = {
+    "music_track1_chaos_jazz",
+    "music_track2_funky_alley_chase",
+    "music_track3_uptempo_8bit_groove",
+    "music_track4_cartoon_heist_riff",
+    "music_track5_street_vendor_swing",
+}
+
+local sound -- current playing
+local trackIndex = 1
+
+local function pickNext()
+    -- find next track with valid AssetId
+    for i = 1, #TRACKS do
+        trackIndex = trackIndex % #TRACKS + 1
+        local key = TRACKS[trackIndex]
+        if AssetIds.has(key) then return AssetIds[key], key end
+    end
+    return nil, nil
+end
+
+local function startTrack()
+    local id, key = pickNext()
+    if not id then
+        warn("[MusicSystem] no valid music tracks in AssetIds (all are rbxassetid://0)")
+        return
+    end
+    if sound then sound:Destroy() end
+    sound = Instance.new("Sound")
+    sound.Name = "BackgroundMusic"
+    sound.SoundId = id
+    sound.Volume = 0.55
+    sound.Looped = false
+    AudioGroups.assign(sound, "Music")
+    sound.Parent = SoundService
+    sound:Play()
+    print("[MusicSystem] now playing: " .. key)
+    sound.Ended:Once(function()
+        task.wait(2 + math.random() * 3)  -- short gap between tracks
+        startTrack()
+    end)
+end
+
+-- Boot: small delay so other systems load first
+task.spawn(function()
+    task.wait(8)
+    startTrack()
+end)
+
+print("[MusicSystem v1] online — will cycle 5 chaotic-cat tracks")
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="43">
       <Properties>
         <string name="Name">NpcReactions</string>
         <token name="RunContext">0</token>
@@ -6021,7 +6314,7 @@ print("[NpcReactions v1] online — civilians panic on nearby pranks; skittish N
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="41">
+    <Item class="Script" referent="44">
       <Properties>
         <string name="Name">PerfOptimize</string>
         <token name="RunContext">0</token>
@@ -6061,7 +6354,7 @@ print("[PerfOptimize] StreamingEnabled, Box collision, mobile tuned")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="42">
+    <Item class="Script" referent="45">
       <Properties>
         <string name="Name">PerkSystem</string>
         <token name="RunContext">0</token>
@@ -6201,7 +6494,7 @@ return PerkSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="43">
+    <Item class="Script" referent="46">
       <Properties>
         <string name="Name">PetSystem</string>
         <token name="RunContext">0</token>
@@ -6415,7 +6708,7 @@ end)() .. " pet kinds")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="44">
+    <Item class="Script" referent="47">
       <Properties>
         <string name="Name">PrankSystem</string>
         <token name="RunContext">0</token>
@@ -6666,7 +6959,7 @@ return PrankSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="45">
+    <Item class="Script" referent="48">
       <Properties>
         <string name="Name">QuestSystem</string>
         <token name="RunContext">0</token>
@@ -6866,7 +7159,7 @@ print("[QuestSystem v1] daily quests online: ", #QuestConfig.Daily, " quests")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="46">
+    <Item class="Script" referent="49">
       <Properties>
         <string name="Name">RagdollOnPrank</string>
         <token name="RunContext">0</token>
@@ -7045,7 +7338,7 @@ print("[RagdollOnPrank] ready - NPCs ragdoll + drop coins on prank")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="47">
+    <Item class="Script" referent="50">
       <Properties>
         <string name="Name">RebirthHandler</string>
         <token name="RunContext">0</token>
@@ -7113,7 +7406,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="48">
+    <Item class="Script" referent="51">
       <Properties>
         <string name="Name">RemotesBootstrap</string>
         <token name="RunContext">0</token>
@@ -7177,7 +7470,7 @@ print("[RemotesBootstrap] created " .. #EVENTS .. " RemoteEvents + " .. #FUNCTIO
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="49">
+    <Item class="Script" referent="52">
       <Properties>
         <string name="Name">SafetyGuard</string>
         <token name="RunContext">0</token>
@@ -7257,7 +7550,7 @@ print("[SafetyGuard] watching for DataHandler / AntiCheat globals")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="50">
+    <Item class="Script" referent="53">
       <Properties>
         <string name="Name">SpawnEnforcer</string>
         <token name="RunContext">0</token>
@@ -7318,7 +7611,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="51">
+    <Item class="Script" referent="54">
       <Properties>
         <string name="Name">StrayLighting</string>
         <token name="RunContext">0</token>
@@ -7424,7 +7717,7 @@ print("[StrayLighting v3] sunny daytime cartoon-city theme applied")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="52">
+    <Item class="Script" referent="55">
       <Properties>
         <string name="Name">SummonSystem</string>
         <token name="RunContext">0</token>
@@ -7870,7 +8163,7 @@ return SummonSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="53">
+    <Item class="Script" referent="56">
       <Properties>
         <string name="Name">SurvivalSystem</string>
         <token name="RunContext">0</token>
@@ -8019,7 +8312,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="54">
+    <Item class="Script" referent="57">
       <Properties>
         <string name="Name">WalkAnim</string>
         <token name="RunContext">0</token>
@@ -8068,7 +8361,7 @@ print("[WalkAnim v2] online — using Roblox default Animate script")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="55">
+    <Item class="Script" referent="58">
       <Properties>
         <string name="Name">WeatherSystem</string>
         <token name="RunContext">0</token>
@@ -8152,11 +8445,11 @@ return true
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterGui" referent="56">
+  <Item class="StarterGui" referent="59">
     <Properties>
       <string name="Name">StarterGui</string>
     </Properties>
-    <Item class="LocalScript" referent="57">
+    <Item class="LocalScript" referent="60">
       <Properties>
         <string name="Name">HUDBuilder</string>
         <string name="Source"><![CDATA[-- HUDBuilder.client.lua
@@ -8871,15 +9164,15 @@ return screenGui
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="58">
+  <Item class="StarterPlayer" referent="61">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="59">
+    <Item class="StarterPlayerScripts" referent="62">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="60">
+      <Item class="LocalScript" referent="63">
         <Properties>
           <string name="Name">AchievementsViewer</string>
           <string name="Source"><![CDATA[-- AchievementsViewer.client.lua  v1 — browseable achievement list.
@@ -9117,7 +9410,7 @@ print("[AchievementsViewer v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="61">
+      <Item class="LocalScript" referent="64">
         <Properties>
           <string name="Name">BattlePassPanel</string>
           <string name="Source"><![CDATA[-- BattlePassPanel.client.lua  v1 — browseable battle-pass tier list.
@@ -9377,7 +9670,7 @@ print("[BattlePassPanel v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="62">
+      <Item class="LocalScript" referent="65">
         <Properties>
           <string name="Name">BossBanner</string>
           <string name="Source"><![CDATA[-- BossBanner.client.lua
@@ -9535,7 +9828,7 @@ print("[BossBanner v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="63">
+      <Item class="LocalScript" referent="66">
         <Properties>
           <string name="Name">ChatHider</string>
           <string name="Source"><![CDATA[-- ChatHider.client.lua
@@ -9577,7 +9870,7 @@ print("[ChatHider] default chat UI hidden")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="64">
+      <Item class="LocalScript" referent="67">
         <Properties>
           <string name="Name">CombatFeel</string>
           <string name="Source"><![CDATA[-- CombatFeel.client.lua  v2 — hit-stop, damage numbers, combo, screen flash.
@@ -9819,7 +10112,7 @@ print("[CombatFeel v2] FOV pulse, soft flash, bounded text, combo")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="65">
+      <Item class="LocalScript" referent="68">
         <Properties>
           <string name="Name">DailyRewardPopup</string>
           <string name="Source"><![CDATA[-- DailyRewardPopup.client.lua
@@ -10047,7 +10340,7 @@ print("[DailyRewardPopup] showed daily reward streak " .. streak .. ", day " .. 
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="66">
+      <Item class="LocalScript" referent="69">
         <Properties>
           <string name="Name">DeathScreen</string>
           <string name="Source"><![CDATA[-- DeathScreen.client.lua  v1
@@ -10222,7 +10515,7 @@ print("[DeathScreen v1] death overlay + respawn ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="67">
+      <Item class="LocalScript" referent="70">
         <Properties>
           <string name="Name">EffectsController</string>
           <string name="Source"><![CDATA[-- EffectsController.client.lua
@@ -10650,7 +10943,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="68">
+      <Item class="LocalScript" referent="71">
         <Properties>
           <string name="Name">EmoteWheel</string>
           <string name="Source"><![CDATA[-- EmoteWheel.client.lua  v2 — radial emote wheel, responsive, warm theme.
@@ -10822,7 +11115,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="69">
+      <Item class="LocalScript" referent="72">
         <Properties>
           <string name="Name">EventBanner</string>
           <string name="Source"><![CDATA[-- EventBanner.client.lua  v1 — server-wide event broadcast banner.
@@ -10915,7 +11208,7 @@ print("[EventBanner v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="70">
+      <Item class="LocalScript" referent="73">
         <Properties>
           <string name="Name">HUDController</string>
           <string name="Source"><![CDATA[-- HUDController.client.lua
@@ -11231,7 +11524,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="71">
+      <Item class="LocalScript" referent="74">
         <Properties>
           <string name="Name">HUDFix</string>
           <string name="Source"><![CDATA[-- HUDFix.client.lua  v3.69 — clean HUD overhaul per user feedback
@@ -11454,7 +11747,7 @@ print("[HUDFix v3.69] DONE — destroyed SUMMON, hid BottomBar+ACH+PASS+duplicat
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="72">
+      <Item class="LocalScript" referent="75">
         <Properties>
           <string name="Name">HUDPolish</string>
           <string name="Source"><![CDATA[-- HUDPolish.client.lua  v2 — surgical, not blanket.
@@ -11548,7 +11841,7 @@ print("[HUDPolish v2] surgical polish applied (bars + primary buttons + prank bt
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="73">
+      <Item class="LocalScript" referent="76">
         <Properties>
           <string name="Name">InputHandler</string>
           <string name="Source"><![CDATA[-- InputHandler.client.lua
@@ -11722,7 +12015,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="74">
+      <Item class="LocalScript" referent="77">
         <Properties>
           <string name="Name">KillFeed</string>
           <string name="Source"><![CDATA[-- KillFeed.client.lua — top-right scrolling feed of recent prank events
@@ -11853,7 +12146,7 @@ print("[KillFeed] right-side prank/level feed ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="75">
+      <Item class="LocalScript" referent="78">
         <Properties>
           <string name="Name">LoadingScreen</string>
           <string name="Source"><![CDATA[-- LoadingScreen.client.lua  v1
@@ -12024,7 +12317,7 @@ print("[LoadingScreen v1] showing while HUD spins up")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="76">
+      <Item class="LocalScript" referent="79">
         <Properties>
           <string name="Name">Minimap</string>
           <string name="Source"><![CDATA[-- Minimap.client.lua  v2 — responsive top-right minimap with player + NPC dots.
@@ -12200,7 +12493,7 @@ print("[Minimap v2] responsive minimap, warm palette")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="77">
+      <Item class="LocalScript" referent="80">
         <Properties>
           <string name="Name">MultiplayerFeel</string>
           <string name="Source"><![CDATA[-- MultiplayerFeel.client.lua  v1 — Phase-12 social glue.
@@ -12386,7 +12679,7 @@ print("[MultiplayerFeel v1] online — floating text + squad combo + friends rib
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="78">
+      <Item class="LocalScript" referent="81">
         <Properties>
           <string name="Name">OnboardingFlow</string>
           <string name="Source"><![CDATA[-- OnboardingFlow.client.lua — Grok's #1 priority: 15-sec guided first-prank tutorial with massive payoff
@@ -12678,7 +12971,7 @@ print("[OnboardingFlow] cinematic 2-step + massive payoff active")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="79">
+      <Item class="LocalScript" referent="82">
         <Properties>
           <string name="Name">PerkUI</string>
           <string name="Source"><![CDATA[-- PerkUI.client.lua  v2 — Perk picker + stats allocation modals.
@@ -12998,7 +13291,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="80">
+      <Item class="LocalScript" referent="83">
         <Properties>
           <string name="Name">PhotoMode</string>
           <string name="Source"><![CDATA[-- PhotoMode.client.lua  v1 — F1 toggles a free-camera mode that:
@@ -13126,7 +13419,7 @@ print("[PhotoMode v1] online — F1 to toggle")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="81">
+      <Item class="LocalScript" referent="84">
         <Properties>
           <string name="Name">PreSpawnLobby</string>
           <string name="Source"><![CDATA[-- PreSpawnLobby v4 — compact UI revamp.
@@ -13688,7 +13981,7 @@ print("[PreSpawnLobby v4 compact] ready, requestSpawn = " .. tostring(requestSpa
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="82">
+      <Item class="LocalScript" referent="85">
         <Properties>
           <string name="Name">QuestPanel</string>
           <string name="Source"><![CDATA[-- QuestPanel.client.lua  v1
@@ -13862,7 +14155,7 @@ print("[QuestPanel v1] daily quests panel ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="83">
+      <Item class="LocalScript" referent="86">
         <Properties>
           <string name="Name">ReactionBubbles</string>
           <string name="Source"><![CDATA[-- ReactionBubbles.client.lua  v1 — speech bubble feedback above NPCs
@@ -13953,7 +14246,7 @@ print("[ReactionBubbles v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="84">
+      <Item class="LocalScript" referent="87">
         <Properties>
           <string name="Name">SettingsMenu</string>
           <string name="Source"><![CDATA[-- SettingsMenu.client.lua  v1
@@ -14458,7 +14751,7 @@ print("[SettingsMenu v1] menu + volume + graphics + motion + controls help ready
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="85">
+      <Item class="LocalScript" referent="88">
         <Properties>
           <string name="Name">SocialBadges</string>
           <string name="Source"><![CDATA[-- SocialBadges.client.lua
@@ -14551,7 +14844,7 @@ print("[SocialBadges v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="86">
+      <Item class="LocalScript" referent="89">
         <Properties>
           <string name="Name">SurvivalUI</string>
           <string name="Source"><![CDATA[-- SurvivalUI.client.lua  v2 — hunger + thirst bars, warm theme, responsive.
@@ -14683,7 +14976,7 @@ print("[SurvivalUI v2] hunger + thirst bars, warm theme")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="87">
+      <Item class="LocalScript" referent="90">
         <Properties>
           <string name="Name">TutorialController</string>
           <string name="Source"><![CDATA[-- TutorialController.client.lua
@@ -14759,7 +15052,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="88">
+      <Item class="LocalScript" referent="91">
         <Properties>
           <string name="Name">WeatherClient</string>
           <string name="Source"><![CDATA[-- WeatherClient.client.lua
@@ -14905,7 +15198,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="89">
+      <Item class="LocalScript" referent="92">
         <Properties>
           <string name="Name">ZoneAmbience</string>
           <string name="Source"><![CDATA[-- ZoneAmbience.client.lua
@@ -15014,7 +15307,7 @@ print("[ZoneAmbience v1] online")
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="90">
+  <Item class="Workspace" referent="93">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>
