@@ -263,6 +263,9 @@
         },
         "ReactionBubbles": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/ReactionBubbles.client.lua"
+        },
+        "HUDFix": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/HUDFix.client.lua"
         }
       }
     },
