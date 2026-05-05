@@ -1,10 +1,11 @@
--- HUDFix.client.lua  v3.67 race-fix
--- Bypass layer that runs AFTER HUDBuilder/HUDController/InputHandler and:
---   1. Re-wires every clickable HUD button with explicit prints + working handlers
---   2. Moves INV/TOP/REBIRTH/SHOP to TOP-RIGHT as small icon buttons (under TopBar, above MAP)
---   3. Adds a visible HEALTH bar in the top-left under the survival bars
---   4. Force-enables Roblox default health if no custom is rendering
---   5. Adds a debug overlay showing button click events so we can verify wiring at runtime
+-- HUDFix.client.lua  v3.68 — comprehensive layout + wiring fix
+-- 1. REMOVE SummonButton entirely (clicks auto-summon now via skill click)
+-- 2. Reposition ACH + PASS into a top-right ICON column (under TopBar, above MAP) so they don't cut off
+-- 3. Reliably re-wire INV/TOP/REBIRTH/SHOP and every prank slot using WaitForChild
+-- 4. Hide the duplicate "LV X" fallback label that was overlapping with prank ASCII
+-- 5. Custom HealthBar
+-- 6. Hotkey 1-8 redundantly wired
+-- 7. Console prints for every wiring step + click event
 
 local Players          = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -19,13 +20,10 @@ local player = Players.LocalPlayer
 local hud    = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
 if not hud then warn("[HUDFix] MainHUD not found"); return end
 
-print("[HUDFix v3.67] starting — redundant button wiring + layout fixes")
-
--- Wait one frame so HUDBuilder's children settle
-task.wait(0.2)
+print("[HUDFix v3.68] starting — full HUD layout + click wiring fix")
 
 -- ============================================================
--- 1. NEAREST NPC (scans both PrankNPCs AND AmbientCrowd)
+-- NEAREST NPC (scans both PrankNPCs AND AmbientCrowd)
 -- ============================================================
 local function nearestNPC(maxRange)
     local char = player.Character
@@ -52,152 +50,157 @@ local function nearestNPC(maxRange)
     return closest
 end
 
--- ============================================================
--- 2. RE-WIRE SKILL BAR SLOTS (redundant; will fire prank even if InputHandler is broken)
--- ============================================================
-local prankCol = hud:WaitForChild("PrankColumn", 15)
-if not prankCol then warn("[HUDFix] PrankColumn never appeared") end
-if prankCol then
-    print("[HUDFix] PrankColumn found, wiring " .. #PrankConfig.Order .. " slots")
-    for _, prankName in ipairs(PrankConfig.Order) do
-        local btn = prankCol:FindFirstChild("Prank_" .. prankName)
-        if btn then
-            local prank = PrankConfig.Pranks[prankName]
-            btn.MouseButton1Click:Connect(function()
-                print("[HUDFix] SKILL CLICKED: " .. prankName)
-                if btn:GetAttribute("Locked") then
-                    print("[HUDFix]   → locked, ignored")
-                    return
-                end
-                local npc = nearestNPC(prank.rangeStuds or 24)
-                if not npc then
-                    -- fallback: auto-summon a target then prank it
-                    print("[HUDFix]   → no target in range, auto-summoning")
-                    Remotes.RequestSummonHuman:FireServer()
-                    task.wait(0.6)
-                    npc = nearestNPC((prank.rangeStuds or 24) * 2)
-                end
-                if npc then
-                    print("[HUDFix]   → firing " .. prankName .. " on " .. tostring(npc.Name))
-                    Remotes.RequestPrank:FireServer(prankName, npc)
-                else
-                    print("[HUDFix]   → still no NPC after summon")
-                end
-            end)
-            print("[HUDFix] wired skill slot: " .. prankName)
-        end
+local function firePrank(prankName)
+    print("[HUDFix] firePrank called: " .. prankName)
+    local prank = PrankConfig.Pranks[prankName]
+    if not prank then warn("[HUDFix]   no PrankConfig entry for " .. prankName); return end
+    local npc = nearestNPC((prank.rangeStuds or 24) * 1.5)
+    if not npc then
+        print("[HUDFix]   no NPC in range, auto-summoning")
+        Remotes.RequestSummonHuman:FireServer()
+        task.wait(0.7)
+        npc = nearestNPC((prank.rangeStuds or 24) * 2.5)
+    end
+    if npc then
+        print("[HUDFix]   firing " .. prankName .. " on " .. tostring(npc.Name))
+        Remotes.RequestPrank:FireServer(prankName, npc)
+    else
+        print("[HUDFix]   STILL no NPC after summon")
     end
 end
 
 -- ============================================================
--- 3. RE-WIRE HOTKEYS 1-8
+-- 1. REMOVE SUMMON BUTTON ENTIRELY
 -- ============================================================
-local NUM_TO_KEYCODE = {
-    Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four,
-    Enum.KeyCode.Five, Enum.KeyCode.Six, Enum.KeyCode.Seven, Enum.KeyCode.Eight,
+local summonBtn = hud:WaitForChild("SummonButton", 15)
+if summonBtn then
+    summonBtn.Visible = false
+    summonBtn:Destroy()
+    print("[HUDFix] SummonButton destroyed (per user request)")
+end
+
+-- ============================================================
+-- 2. RE-WIRE SKILL BAR SLOTS — THIS IS THE CRITICAL FIX
+-- ============================================================
+local prankCol = hud:WaitForChild("PrankColumn", 15)
+if prankCol then
+    print("[HUDFix] PrankColumn found, wiring " .. #PrankConfig.Order .. " slots")
+    for slot, prankName in ipairs(PrankConfig.Order) do
+        local btn = prankCol:WaitForChild("Prank_" .. prankName, 5)
+        if btn then
+            -- Hide the duplicate FallbackLabel since LockOverlay shows "LV X"
+            local fallback = btn:FindFirstChild("FallbackLabel")
+            if fallback then
+                if btn:GetAttribute("Locked") then
+                    fallback.Visible = false  -- hide ASCII; show only "LV X"
+                else
+                    fallback.Visible = true
+                end
+            end
+            -- Wire click
+            btn.MouseButton1Click:Connect(function()
+                print("[HUDFix] SKILL CLICKED slot " .. slot .. ": " .. prankName)
+                if btn:GetAttribute("Locked") then
+                    print("[HUDFix]   slot is locked")
+                    return
+                end
+                firePrank(prankName)
+            end)
+            print("[HUDFix]   wired slot " .. slot .. " (" .. prankName .. ") locked=" .. tostring(btn:GetAttribute("Locked")))
+        end
+    end
+else
+    warn("[HUDFix] PrankColumn never appeared")
+end
+
+-- ============================================================
+-- 3. HOTKEYS 1-8
+-- ============================================================
+local NUM_KC = {
+    [Enum.KeyCode.One]=1, [Enum.KeyCode.Two]=2, [Enum.KeyCode.Three]=3, [Enum.KeyCode.Four]=4,
+    [Enum.KeyCode.Five]=5, [Enum.KeyCode.Six]=6, [Enum.KeyCode.Seven]=7, [Enum.KeyCode.Eight]=8,
 }
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
-    for slot, kc in ipairs(NUM_TO_KEYCODE) do
-        if input.KeyCode == kc then
-            local prankName = PrankConfig.Order[slot]
-            if not prankName then return end
-            print("[HUDFix] HOTKEY " .. slot .. " pressed → " .. prankName)
-            local btn = prankCol and prankCol:FindFirstChild("Prank_" .. prankName)
-            if btn and btn:GetAttribute("Locked") then
-                print("[HUDFix]   → " .. prankName .. " locked, ignored")
-                return
-            end
-            local prank = PrankConfig.Pranks[prankName]
-            local npc = nearestNPC((prank.rangeStuds or 24) * 1.5)
-            if not npc then
-                Remotes.RequestSummonHuman:FireServer()
-                task.wait(0.6)
-                npc = nearestNPC((prank.rangeStuds or 24) * 2)
-            end
-            if npc then
-                print("[HUDFix]   → firing " .. prankName)
-                Remotes.RequestPrank:FireServer(prankName, npc)
-            end
+    local slot = NUM_KC[input.KeyCode]
+    if slot then
+        local prankName = PrankConfig.Order[slot]
+        if not prankName then return end
+        print("[HUDFix] HOTKEY " .. slot .. " pressed → " .. prankName)
+        local btn = prankCol and prankCol:FindFirstChild("Prank_" .. prankName)
+        if btn and btn:GetAttribute("Locked") then
+            print("[HUDFix]   locked")
             return
         end
+        firePrank(prankName)
     end
 end)
 
 -- ============================================================
--- 4. MOVE INV/TOP/REBIRTH/SHOP TO TOP-RIGHT (per user request)
--- Hide the bottom bar, create a vertical icon column under the TopBar
--- and above the MAP minimap.
+-- 4. WIRE BOTTOM BAR (INV/TOP/REBIRTH/SHOP)
 -- ============================================================
 local bottomBar = hud:WaitForChild("BottomBar", 15)
 if bottomBar then
-    bottomBar.Visible = false  -- hide original
-    print("[HUDFix] hid original BottomBar")
+    print("[HUDFix] BottomBar found")
+    local function toggleModal(modalName)
+        local m = hud:FindFirstChild(modalName)
+        if m then m.Visible = not m.Visible; print("[HUDFix]   " .. modalName .. " toggled to " .. tostring(m.Visible)) end
+    end
+
+    local shopBtn = bottomBar:FindFirstChild("ShopButton")
+    if shopBtn then shopBtn.MouseButton1Click:Connect(function() print("[HUDFix] SHOP clicked"); toggleModal("ShopModal") end); print("[HUDFix]   SHOP wired") end
+
+    local invBtn = bottomBar:FindFirstChild("InventoryButton")
+    if invBtn then invBtn.MouseButton1Click:Connect(function() print("[HUDFix] INV clicked"); toggleModal("ShopModal") end); print("[HUDFix]   INV wired") end
+
+    local rebBtn = bottomBar:FindFirstChild("RebirthButton")
+    if rebBtn then
+        rebBtn.MouseButton1Click:Connect(function()
+            print("[HUDFix] REBIRTH clicked")
+            local ok, err = pcall(function() return Remotes.RequestRebirth:InvokeServer() end)
+            if not ok then warn("[HUDFix]   rebirth failed: " .. tostring(err)) end
+        end)
+        print("[HUDFix]   REBIRTH wired")
+    end
+
+    local topBtn = bottomBar:FindFirstChild("LeaderboardButton")
+    if topBtn then topBtn.MouseButton1Click:Connect(function() print("[HUDFix] TOP clicked"); toggleModal("LeaderboardModal") end); print("[HUDFix]   TOP wired") end
 end
 
--- New top-right icon column
-local rightCol = Instance.new("Frame")
-rightCol.Name = "TopRightActions"
-rightCol.Size = UDim2.new(0, 56, 0, 240)
-rightCol.AnchorPoint = Vector2.new(1, 0)
-rightCol.Position = UDim2.new(1, -16, 0, 130) -- below TopBar (~y=124), above MAP minimap
-rightCol.BackgroundTransparency = 1
-rightCol.Parent = hud
-
-local rcLayout = Instance.new("UIListLayout", rightCol)
-rcLayout.FillDirection = Enum.FillDirection.Vertical
-rcLayout.Padding = UDim.new(0, 6)
-rcLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local function makeActionIcon(name, label, color, layoutOrder, onClick)
-    local btn = Instance.new("TextButton")
-    btn.Name = name
-    btn.Size = UDim2.new(0, 48, 0, 48)
-    btn.BackgroundColor3 = color
-    btn.Text = label
-    btn.Font = Enum.Font.GothamBlack
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextScaled = true
-    btn.TextStrokeTransparency = 0.4
-    btn.AutoButtonColor = true
-    btn.LayoutOrder = layoutOrder
-    btn.Parent = rightCol
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-    local stroke = Instance.new("UIStroke", btn)
-    stroke.Thickness = 2
-    stroke.Color = Color3.fromRGB(40, 25, 12)
-    btn.MouseButton1Click:Connect(function()
-        print("[HUDFix] " .. name .. " icon clicked")
-        if onClick then onClick() end
-    end)
-    return btn
-end
-
-local function toggleModal(modalName)
-    local modal = hud:FindFirstChild(modalName)
-    if modal then
-        modal.Visible = not modal.Visible
-        print("[HUDFix]   → " .. modalName .. " toggled to " .. tostring(modal.Visible))
-    else
-        print("[HUDFix]   → modal " .. modalName .. " not found in HUD")
+-- ============================================================
+-- 5. REPOSITION ACH + PASS so they don't cut off
+-- ============================================================
+local achPanel = hud:FindFirstChild("AchButton") or hud:FindFirstChild("AchievementsButton") or hud:FindFirstChild("ACH")
+local passPanel = hud:FindFirstChild("PassButton") or hud:FindFirstChild("BattlePassButton") or hud:FindFirstChild("PASS")
+-- Search descendants for any frame named ACH or PASS
+for _, child in ipairs(hud:GetDescendants()) do
+    if child:IsA("GuiObject") then
+        if (not achPanel) and (child.Name == "ACH" or child.Name:find("Achievement") or child.Name:find("ACH")) then achPanel = child end
+        if (not passPanel) and (child.Name == "PASS" or child.Name:find("BattlePass") or child.Name:find("PASS")) then passPanel = child end
     end
 end
 
-makeActionIcon("ShopIcon",    "SHOP", Color3.fromRGB(95, 165, 80),  1, function() toggleModal("ShopModal") end)
-makeActionIcon("InvIcon",     "INV",  Color3.fromRGB(140, 95, 60),  2, function() toggleModal("ShopModal") end)
-makeActionIcon("RebirthIcon", "REB",  Color3.fromRGB(220, 150, 60), 3, function()
-    local ok, err = pcall(function() return Remotes.RequestRebirth:InvokeServer() end)
-    if not ok then warn("[HUDFix] Rebirth invoke failed: " .. tostring(err)) end
-end)
-makeActionIcon("TopIcon",     "TOP",  Color3.fromRGB(85, 130, 175), 4, function() toggleModal("LeaderboardModal") end)
+-- Move ACH and PASS to a safe top-right column at x=-72 (so they fit on-screen with margin)
+if achPanel and achPanel:IsA("GuiObject") then
+    achPanel.AnchorPoint = Vector2.new(1, 0)
+    achPanel.Position = UDim2.new(1, -16, 0, 200)
+    achPanel.Size = UDim2.new(0, 56, 0, 40)
+    print("[HUDFix] ACH repositioned top-right at y=200")
+end
+if passPanel and passPanel:IsA("GuiObject") then
+    passPanel.AnchorPoint = Vector2.new(1, 0)
+    passPanel.Position = UDim2.new(1, -16, 0, 248)
+    passPanel.Size = UDim2.new(0, 56, 0, 40)
+    print("[HUDFix] PASS repositioned top-right at y=248")
+end
 
 -- ============================================================
--- 5. ADD HEALTH BAR (top-left, below SurvivalContainer)
+-- 6. CUSTOM HEALTH BAR (top-left below survival)
 -- ============================================================
 local healthFrame = Instance.new("Frame")
 healthFrame.Name = "HealthBar"
 healthFrame.Size = UDim2.new(0, 232, 0, 18)
-healthFrame.Position = UDim2.new(0, 12, 0, 196) -- below SurvivalContainer (which is at y=126 + 60 + 6)
+healthFrame.Position = UDim2.new(0, 12, 0, 196)
 healthFrame.BackgroundColor3 = Color3.fromRGB(40, 14, 14)
 healthFrame.BorderSizePixel = 0
 healthFrame.ZIndex = 10
@@ -232,22 +235,11 @@ local function trackHealth(char)
     end
     update()
     hum.HealthChanged:Connect(update)
+    hum.HealthDisplayDistance = 100
+    hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOn
 end
 if player.Character then trackHealth(player.Character) end
 player.CharacterAdded:Connect(trackHealth)
 print("[HUDFix] HealthBar created at y=196")
 
--- ============================================================
--- 6. CHARACTER OVERHEAD HEALTH (Roblox default fallback)
--- ============================================================
-local function setHealthDisplay(char)
-    local hum = char:WaitForChild("Humanoid", 5)
-    if hum then
-        hum.HealthDisplayDistance = 100
-        hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOn
-    end
-end
-if player.Character then setHealthDisplay(player.Character) end
-player.CharacterAdded:Connect(setHealthDisplay)
-
-print("[HUDFix v3.67] all wiring + layout fixes applied")
+print("[HUDFix v3.68] all wiring + layout fixes applied")
