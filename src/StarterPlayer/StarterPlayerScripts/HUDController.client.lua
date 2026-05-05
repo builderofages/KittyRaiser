@@ -94,6 +94,10 @@ local function refresh()
             local locked = (CurrentData.level or 1) < unlock
             local overlay = btn:FindFirstChild("LockOverlay")
             if overlay then overlay.Visible = locked end
+            -- v3.76: also toggle FallbackLabel (PIE/HAI/ANV ASCII) so unlocked
+            -- slots show their prank label, locked slots hide it (LV X overlay reads cleanly)
+            local fb = btn:FindFirstChild("FallbackLabel")
+            if fb then fb.Visible = not locked end
             btn:SetAttribute("Locked", locked)
         end
     end
@@ -107,9 +111,25 @@ end)
 Remotes.LevelUp.OnClientEvent:Connect(function(newLevel, unlocked)
     spawnToast("LEVEL UP!  " .. newLevel, Color3.fromRGB(50, 220, 100), 2.5)
     playSoundIfHas("level_up", 0.8)
+    -- v3.76: refresh slot lock UI immediately on level up (don't wait for UpdatePlayerData race)
+    if CurrentData then
+        CurrentData.level = newLevel
+        refresh()
+    end
     if unlocked and #unlocked > 0 then
         for _, prankName in ipairs(unlocked) do
             spawnToast("NEW PRANK UNLOCKED:  " .. prankName, Color3.fromRGB(255, 200, 0), 3.5)
+            -- Visual flash on the unlocked slot
+            local btn = prankCol:FindFirstChild("Prank_" .. prankName)
+            if btn then
+                local flash = Instance.new("Frame", btn)
+                flash.Size = UDim2.fromScale(1, 1); flash.BackgroundColor3 = Color3.fromRGB(255, 230, 80)
+                flash.BackgroundTransparency = 0.3; flash.ZIndex = 10
+                Instance.new("UICorner", flash).CornerRadius = UDim.new(0, 8)
+                game:GetService("TweenService"):Create(flash, TweenInfo.new(0.8),
+                    {BackgroundTransparency = 1}):Play()
+                game:GetService("Debris"):AddItem(flash, 1.0)
+            end
         end
     end
 end)

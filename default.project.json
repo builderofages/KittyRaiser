@@ -192,6 +192,9 @@
       },
       "CopAggro": {
         "$path": "src/ServerScriptService/CopAggro.server.lua"
+      },
+      "CityPolishV2": {
+        "$path": "src/ServerScriptService/CityPolishV2.server.lua"
       }
     },
     "StarterGui": {

@@ -3259,6 +3259,220 @@ print("[CityDensityBoost v1] online — boosting city density at boot")
     </Item>
     <Item class="Script" referent="27">
       <Properties>
+        <string name="Name">CityPolishV2</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- CityPolishV2.server.lua  v1
+-- Replaces "scattered randomly" cars with cars LINED UP along streets (proper urban look).
+-- Adds window NPCs (silhouettes peering out from skyscraper windows).
+-- Adds street lights at intersections, neon signs on building facades.
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local function getMesh(name)
+    local cache = _G.KittyRaiserMeshes
+    if cache and cache[name] and cache[name].meshTemplate then
+        return cache[name].meshTemplate
+    end
+    return nil
+end
+
+task.spawn(function()
+    -- Wait for MeshLoader + CityRebuild + CityDensityBoost
+    for _ = 1, 40 do
+        if _G.KittyRaiserMeshes and Workspace:FindFirstChild("CityDensityBoost") then break end
+        task.wait(0.5)
+    end
+
+    local container = Workspace:FindFirstChild("CityPolishV2") or Instance.new("Folder")
+    container.Name = "CityPolishV2"
+    container:ClearAllChildren()
+    container.Parent = Workspace
+
+    -- ============ 1. PARKED CARS ALONG ASPHALT STREETS ============
+    -- Asphalt cardinal cross is at z=±20 (E-W street) and x=±20 (N-S street).
+    -- Park cars at z=22 (north sidewalk), z=-22 (south sidewalk), x=22, x=-22.
+    local CAR_MESHES = {"mesh_taxi_yellow", "mesh_delivery_van", "mesh_food_truck", "mesh_cop_car", "mesh_fire_truck"}
+    local CAR_COLORS = {
+        Color3.fromRGB(255, 200, 0), Color3.fromRGB(220, 60, 60),
+        Color3.fromRGB(60, 100, 180), Color3.fromRGB(220, 220, 220),
+        Color3.fromRGB(40, 40, 50),
+    }
+
+    local function placeCar(meshIdx, position, rotY)
+        local mesh = getMesh(CAR_MESHES[meshIdx])
+        local p
+        if mesh then
+            p = mesh:Clone()
+            p.Anchored = true; p.CanCollide = true
+            p.Size = Vector3.new(6, 3, 12)
+        else
+            p = Instance.new("Part")
+            p.Anchored = true; p.CanCollide = true
+            p.Size = Vector3.new(6, 3, 12)
+            p.Material = Enum.Material.SmoothPlastic
+            p.Color = CAR_COLORS[meshIdx] or Color3.fromRGB(140, 140, 140)
+        end
+        p.CFrame = CFrame.new(position) * CFrame.Angles(0, math.rad(rotY), 0)
+        p.Parent = container
+    end
+
+    -- Cars lined up parallel along E-W street (z = +22 north side, -22 south side)
+    -- Span from x=-200 to x=200, every 18 studs
+    for x = -200, 200, 18 do
+        if math.abs(x) > 30 then  -- skip plaza intersection
+            placeCar(((x // 18) % 5) + 1, Vector3.new(x, 1.5, 22), 90)
+            placeCar((((x + 9) // 18) % 5) + 1, Vector3.new(x, 1.5, -22), -90)
+        end
+    end
+    -- Cars lined up parallel along N-S street (x = +22 east side, -22 west side)
+    for z = -200, 200, 18 do
+        if math.abs(z) > 30 then
+            placeCar(((z // 18) % 5) + 1, Vector3.new(22, 1.5, z), 0)
+            placeCar((((z + 9) // 18) % 5) + 1, Vector3.new(-22, 1.5, z), 180)
+        end
+    end
+
+    -- ============ 2. STREET LAMPS at intersections (every 60 studs along axis) ============
+    for d = -240, 240, 60 do
+        if math.abs(d) > 30 then
+            for _, axis in ipairs({"x", "z"}) do
+                for _, sign in ipairs({-1, 1}) do
+                    local lampMesh = getMesh("mesh_streetlamp")
+                    local lamp
+                    if lampMesh then
+                        lamp = lampMesh:Clone()
+                        lamp.Anchored = true; lamp.CanCollide = true
+                        lamp.Size = Vector3.new(1, 8, 1)
+                    else
+                        lamp = Instance.new("Part")
+                        lamp.Anchored = true; lamp.CanCollide = true
+                        lamp.Size = Vector3.new(1, 8, 1)
+                        lamp.Material = Enum.Material.SmoothPlastic
+                        lamp.Color = Color3.fromRGB(80, 70, 60)
+                    end
+                    if axis == "x" then
+                        lamp.Position = Vector3.new(d, 4, sign * 26)
+                    else
+                        lamp.Position = Vector3.new(sign * 26, 4, d)
+                    end
+                    lamp.Parent = container
+                    -- glow point light
+                    local light = Instance.new("PointLight", lamp)
+                    light.Color = Color3.fromRGB(255, 220, 140)
+                    light.Brightness = 1.2
+                    light.Range = 18
+                end
+            end
+        end
+    end
+
+    -- ============ 3. WINDOW NPCS (peering silhouettes in skyscraper facades) ============
+    -- Skyscraper clusters at the 6 city zones (CityDensityBoost places 4-pack at each).
+    -- For each cluster center, add 12 little window-NPC silhouettes on visible faces.
+    local CITY_ZONES = {
+        Vector3.new( 350, 0,  350), Vector3.new(-350, 0,  350),
+        Vector3.new( 350, 0, -350), Vector3.new(-350, 0, -350),
+        Vector3.new( 600, 0,    0), Vector3.new(-600, 0,    0),
+    }
+    for _, center in ipairs(CITY_ZONES) do
+        for floor = 1, 4 do  -- 4 visible floors
+            for col = 1, 3 do  -- 3 windows per face
+                local h = 4 + floor * 5
+                local x = center.X + (col - 2) * 6
+                local z = center.Z + 18  -- front face
+                -- silhouette
+                local sil = Instance.new("Part")
+                sil.Name = "WindowNPC"
+                sil.Size = Vector3.new(2, 2, 0.5)
+                sil.Anchored = true; sil.CanCollide = false
+                sil.Position = Vector3.new(x, h, z)
+                sil.Material = Enum.Material.Neon
+                sil.Color = Color3.fromRGB(255, 220, 120)
+                sil.Transparency = 0.3
+                sil.Parent = container
+                -- subtle pulse
+                TweenService:Create(sil, TweenInfo.new(2 + math.random(),
+                    Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+                    {Transparency = 0.6}):Play()
+            end
+        end
+    end
+
+    -- ============ 4. NEON SHOP SIGNS on building facades ============
+    local SHOP_NEON_COLORS = {
+        Color3.fromRGB(255, 60, 100), Color3.fromRGB(60, 200, 255),
+        Color3.fromRGB(255, 200, 60), Color3.fromRGB(200, 60, 255),
+        Color3.fromRGB(60, 255, 100),
+    }
+    for _, center in ipairs(CITY_ZONES) do
+        for i, color in ipairs(SHOP_NEON_COLORS) do
+            local sign = Instance.new("Part")
+            sign.Name = "NeonShopSign"
+            sign.Anchored = true; sign.CanCollide = false
+            sign.Size = Vector3.new(8, 1.5, 0.4)
+            sign.Material = Enum.Material.Neon
+            sign.Color = color
+            local angle = ((i - 1) / #SHOP_NEON_COLORS) * math.pi * 2
+            sign.CFrame = CFrame.new(center.X + math.cos(angle) * 22, 8, center.Z + math.sin(angle) * 22)
+                          * CFrame.Angles(0, -angle + math.pi/2, 0)
+            sign.Parent = container
+            local light = Instance.new("PointLight", sign)
+            light.Color = color; light.Brightness = 1.8; light.Range = 16
+        end
+    end
+
+    -- ============ 5. PLAZA FOUNTAIN with water particles ============
+    local pillar = Instance.new("Part")
+    pillar.Anchored = true; pillar.CanCollide = true
+    pillar.Size = Vector3.new(2, 5, 2)
+    pillar.Position = Vector3.new(0, 2.5, 0)
+    pillar.Material = Enum.Material.Marble
+    pillar.Color = Color3.fromRGB(220, 215, 200)
+    pillar.Parent = container
+
+    local pool = Instance.new("Part")
+    pool.Anchored = true; pool.CanCollide = true
+    pool.Size = Vector3.new(14, 1, 14)
+    pool.Position = Vector3.new(0, 0.5, 0)
+    pool.Shape = Enum.PartType.Cylinder
+    pool.Material = Enum.Material.Marble
+    pool.Color = Color3.fromRGB(220, 215, 200)
+    pool.Orientation = Vector3.new(0, 0, 90)
+    pool.Parent = container
+
+    local water = Instance.new("Part")
+    water.Anchored = true; water.CanCollide = false
+    water.Size = Vector3.new(12, 0.6, 12)
+    water.Position = Vector3.new(0, 1, 0)
+    water.Shape = Enum.PartType.Cylinder
+    water.Material = Enum.Material.Glass
+    water.Color = Color3.fromRGB(140, 200, 230)
+    water.Transparency = 0.3
+    water.Orientation = Vector3.new(0, 0, 90)
+    water.Parent = container
+
+    -- water spray particle on pillar
+    local emitter = Instance.new("Attachment", pillar)
+    emitter.Position = Vector3.new(0, 2.5, 0)
+    local particle = Instance.new("ParticleEmitter", emitter)
+    particle.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+    particle.Color = ColorSequence.new(Color3.fromRGB(180, 230, 255))
+    particle.Lifetime = NumberRange.new(0.6, 1.2)
+    particle.Rate = 30
+    particle.Speed = NumberRange.new(8, 12)
+    particle.SpreadAngle = Vector2.new(20, 20)
+    particle.Acceleration = Vector3.new(0, -20, 0)
+    particle.Size = NumberSequence.new(0.4)
+
+    print(string.format("[CityPolishV2 v1] %d objects placed: street-aligned cars + lamps + window NPCs + neon shops + plaza fountain",
+        #container:GetChildren()))
+end)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="28">
+      <Properties>
         <string name="Name">CityRebuild</string>
         <token name="RunContext">0</token>
         <string name="Source"><![CDATA[-- CityRebuild.server.lua  v6 — sunny daytime cartoon city.
@@ -4048,7 +4262,7 @@ print("[CityRebuild v7] sunny daytime cartoon city ready")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="28">
+    <Item class="Script" referent="29">
       <Properties>
         <string name="Name">CivilianPanic</string>
         <token name="RunContext">0</token>
@@ -4117,7 +4331,7 @@ print("[CivilianPanic v1] online — NPCs flee when cat within 18 studs")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="29">
+    <Item class="Script" referent="30">
       <Properties>
         <string name="Name">CodeRedemption</string>
         <token name="RunContext">0</token>
@@ -4220,7 +4434,7 @@ end)() .. " active codes")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="30">
+    <Item class="Script" referent="31">
       <Properties>
         <string name="Name">CopAggro</string>
         <token name="RunContext">0</token>
@@ -4314,7 +4528,7 @@ print("[CopAggro v1] online — cops chase player within 60 studs, deal 5 dmg/se
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="31">
+    <Item class="Script" referent="32">
       <Properties>
         <string name="Name">CopSystem</string>
         <token name="RunContext">0</token>
@@ -4636,7 +4850,7 @@ print("[CopSystem v1] online — pranks build heat; at threshold a cop chases yo
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="32">
+    <Item class="Script" referent="33">
       <Properties>
         <string name="Name">CosmeticHandler</string>
         <token name="RunContext">0</token>
@@ -4776,7 +4990,7 @@ return CosmeticHandler
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="33">
+    <Item class="Script" referent="34">
       <Properties>
         <string name="Name">DailyRewardSystem</string>
         <token name="RunContext">0</token>
@@ -4884,7 +5098,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="34">
+    <Item class="Script" referent="35">
       <Properties>
         <string name="Name">DataHandler</string>
         <token name="RunContext">0</token>
@@ -5179,7 +5393,7 @@ return DataHandler
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="35">
+    <Item class="Script" referent="36">
       <Properties>
         <string name="Name">DayNightCycle</string>
         <token name="RunContext">0</token>
@@ -5367,7 +5581,7 @@ print("[DayNightCycle v1] online — " .. CYCLE_SECONDS .. "s real time = 24 in-
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="36">
+    <Item class="Script" referent="37">
       <Properties>
         <string name="Name">DiagnosticDump</string>
         <token name="RunContext">0</token>
@@ -5477,7 +5691,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="37">
+    <Item class="Script" referent="38">
       <Properties>
         <string name="Name">EmoteSystem</string>
         <token name="RunContext">0</token>
@@ -5516,7 +5730,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="38">
+    <Item class="Script" referent="39">
       <Properties>
         <string name="Name">EventScheduler</string>
         <token name="RunContext">0</token>
@@ -5651,7 +5865,7 @@ print("[EventScheduler v1] online — " .. #EVENTS .. " events scheduled")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="39">
+    <Item class="Script" referent="40">
       <Properties>
         <string name="Name">FoodDropSystem</string>
         <token name="RunContext">0</token>
@@ -5815,7 +6029,7 @@ print("[FoodDropSystem v1] online — food/water drops + 2% NPC drops + breakabl
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="40">
+    <Item class="Script" referent="41">
       <Properties>
         <string name="Name">LeaderboardHandler</string>
         <token name="RunContext">0</token>
@@ -5865,7 +6079,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="41">
+    <Item class="Script" referent="42">
       <Properties>
         <string name="Name">LifecycleSystem</string>
         <token name="RunContext">0</token>
@@ -5988,7 +6202,7 @@ print("[LifecycleSystem v1] online — AFK kick at "..IDLE_KICK_S.."s, respawn-a
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="42">
+    <Item class="Script" referent="43">
       <Properties>
         <string name="Name">MeshDiagnostic</string>
         <token name="RunContext">0</token>
@@ -6028,7 +6242,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="43">
+    <Item class="Script" referent="44">
       <Properties>
         <string name="Name">MeshLoader</string>
         <token name="RunContext">0</token>
@@ -6110,7 +6324,7 @@ print(("[MeshLoader] %d/%d meshes loaded and cached"):format(loaded, #NAMES))
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="44">
+    <Item class="Script" referent="45">
       <Properties>
         <string name="Name">MonetizationAudit</string>
         <token name="RunContext">0</token>
@@ -6165,7 +6379,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="45">
+    <Item class="Script" referent="46">
       <Properties>
         <string name="Name">MonetizationHandler</string>
         <token name="RunContext">0</token>
@@ -6404,7 +6618,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="46">
+    <Item class="Script" referent="47">
       <Properties>
         <string name="Name">MusicSystem</string>
         <token name="RunContext">0</token>
@@ -6470,7 +6684,7 @@ print("[MusicSystem v1] online — will cycle 5 chaotic-cat tracks")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="47">
+    <Item class="Script" referent="48">
       <Properties>
         <string name="Name">NPCOutfits</string>
         <token name="RunContext">0</token>
@@ -6534,7 +6748,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="48">
+    <Item class="Script" referent="49">
       <Properties>
         <string name="Name">NpcReactions</string>
         <token name="RunContext">0</token>
@@ -6706,7 +6920,7 @@ print("[NpcReactions v1] online — civilians panic on nearby pranks; skittish N
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="49">
+    <Item class="Script" referent="50">
       <Properties>
         <string name="Name">PerfOptimize</string>
         <token name="RunContext">0</token>
@@ -6746,7 +6960,7 @@ print("[PerfOptimize] StreamingEnabled, Box collision, mobile tuned")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="50">
+    <Item class="Script" referent="51">
       <Properties>
         <string name="Name">PerkSystem</string>
         <token name="RunContext">0</token>
@@ -6886,7 +7100,7 @@ return PerkSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="51">
+    <Item class="Script" referent="52">
       <Properties>
         <string name="Name">PetSystem</string>
         <token name="RunContext">0</token>
@@ -7100,7 +7314,7 @@ end)() .. " pet kinds")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="52">
+    <Item class="Script" referent="53">
       <Properties>
         <string name="Name">PrankSystem</string>
         <token name="RunContext">0</token>
@@ -7351,7 +7565,7 @@ return PrankSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="53">
+    <Item class="Script" referent="54">
       <Properties>
         <string name="Name">QuestSystem</string>
         <token name="RunContext">0</token>
@@ -7551,7 +7765,7 @@ print("[QuestSystem v1] daily quests online: ", #QuestConfig.Daily, " quests")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="54">
+    <Item class="Script" referent="55">
       <Properties>
         <string name="Name">RagdollOnPrank</string>
         <token name="RunContext">0</token>
@@ -7730,7 +7944,7 @@ print("[RagdollOnPrank] ready - NPCs ragdoll + drop coins on prank")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="55">
+    <Item class="Script" referent="56">
       <Properties>
         <string name="Name">RebirthHandler</string>
         <token name="RunContext">0</token>
@@ -7798,7 +8012,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="56">
+    <Item class="Script" referent="57">
       <Properties>
         <string name="Name">RemotesBootstrap</string>
         <token name="RunContext">0</token>
@@ -7862,7 +8076,7 @@ print("[RemotesBootstrap] created " .. #EVENTS .. " RemoteEvents + " .. #FUNCTIO
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="57">
+    <Item class="Script" referent="58">
       <Properties>
         <string name="Name">SafetyGuard</string>
         <token name="RunContext">0</token>
@@ -7942,7 +8156,7 @@ print("[SafetyGuard] watching for DataHandler / AntiCheat globals")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="58">
+    <Item class="Script" referent="59">
       <Properties>
         <string name="Name">SpawnEnforcer</string>
         <token name="RunContext">0</token>
@@ -8003,7 +8217,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="59">
+    <Item class="Script" referent="60">
       <Properties>
         <string name="Name">StrayLighting</string>
         <token name="RunContext">0</token>
@@ -8109,7 +8323,7 @@ print("[StrayLighting v3] sunny daytime cartoon-city theme applied")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="60">
+    <Item class="Script" referent="61">
       <Properties>
         <string name="Name">SummonSystem</string>
         <token name="RunContext">0</token>
@@ -8555,7 +8769,7 @@ return SummonSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="61">
+    <Item class="Script" referent="62">
       <Properties>
         <string name="Name">SurvivalSystem</string>
         <token name="RunContext">0</token>
@@ -8704,7 +8918,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="62">
+    <Item class="Script" referent="63">
       <Properties>
         <string name="Name">TerrainBiome</string>
         <token name="RunContext">0</token>
@@ -8754,7 +8968,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="63">
+    <Item class="Script" referent="64">
       <Properties>
         <string name="Name">WalkAnim</string>
         <token name="RunContext">0</token>
@@ -8803,7 +9017,7 @@ print("[WalkAnim v2] online — using Roblox default Animate script")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="64">
+    <Item class="Script" referent="65">
       <Properties>
         <string name="Name">WeatherSystem</string>
         <token name="RunContext">0</token>
@@ -8887,11 +9101,11 @@ return true
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterGui" referent="65">
+  <Item class="StarterGui" referent="66">
     <Properties>
       <string name="Name">StarterGui</string>
     </Properties>
-    <Item class="LocalScript" referent="66">
+    <Item class="LocalScript" referent="67">
       <Properties>
         <string name="Name">HUDBuilder</string>
         <string name="Source"><![CDATA[-- HUDBuilder.client.lua
@@ -9606,15 +9820,15 @@ return screenGui
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="67">
+  <Item class="StarterPlayer" referent="68">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="68">
+    <Item class="StarterPlayerScripts" referent="69">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="69">
+      <Item class="LocalScript" referent="70">
         <Properties>
           <string name="Name">AchievementsViewer</string>
           <string name="Source"><![CDATA[-- AchievementsViewer.client.lua  v1 — browseable achievement list.
@@ -9852,7 +10066,7 @@ print("[AchievementsViewer v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="70">
+      <Item class="LocalScript" referent="71">
         <Properties>
           <string name="Name">BattlePassPanel</string>
           <string name="Source"><![CDATA[-- BattlePassPanel.client.lua  v1 — browseable battle-pass tier list.
@@ -10112,7 +10326,7 @@ print("[BattlePassPanel v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="71">
+      <Item class="LocalScript" referent="72">
         <Properties>
           <string name="Name">BossBanner</string>
           <string name="Source"><![CDATA[-- BossBanner.client.lua
@@ -10270,7 +10484,7 @@ print("[BossBanner v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="72">
+      <Item class="LocalScript" referent="73">
         <Properties>
           <string name="Name">ChatHider</string>
           <string name="Source"><![CDATA[-- ChatHider.client.lua
@@ -10312,7 +10526,7 @@ print("[ChatHider] default chat UI hidden")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="73">
+      <Item class="LocalScript" referent="74">
         <Properties>
           <string name="Name">CombatFeel</string>
           <string name="Source"><![CDATA[-- CombatFeel.client.lua  v2 — hit-stop, damage numbers, combo, screen flash.
@@ -10554,7 +10768,7 @@ print("[CombatFeel v2] FOV pulse, soft flash, bounded text, combo")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="74">
+      <Item class="LocalScript" referent="75">
         <Properties>
           <string name="Name">DailyRewardPopup</string>
           <string name="Source"><![CDATA[-- DailyRewardPopup.client.lua
@@ -10782,7 +10996,7 @@ print("[DailyRewardPopup] showed daily reward streak " .. streak .. ", day " .. 
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="75">
+      <Item class="LocalScript" referent="76">
         <Properties>
           <string name="Name">DeathScreen</string>
           <string name="Source"><![CDATA[-- DeathScreen.client.lua  v1
@@ -10957,7 +11171,7 @@ print("[DeathScreen v1] death overlay + respawn ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="76">
+      <Item class="LocalScript" referent="77">
         <Properties>
           <string name="Name">EffectsController</string>
           <string name="Source"><![CDATA[-- EffectsController.client.lua
@@ -11385,7 +11599,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="77">
+      <Item class="LocalScript" referent="78">
         <Properties>
           <string name="Name">EmoteWheel</string>
           <string name="Source"><![CDATA[-- EmoteWheel.client.lua  v2 — radial emote wheel, responsive, warm theme.
@@ -11557,7 +11771,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="78">
+      <Item class="LocalScript" referent="79">
         <Properties>
           <string name="Name">EventBanner</string>
           <string name="Source"><![CDATA[-- EventBanner.client.lua  v1 — server-wide event broadcast banner.
@@ -11650,7 +11864,7 @@ print("[EventBanner v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="79">
+      <Item class="LocalScript" referent="80">
         <Properties>
           <string name="Name">HUDController</string>
           <string name="Source"><![CDATA[-- HUDController.client.lua
@@ -11749,6 +11963,10 @@ local function refresh()
             local locked = (CurrentData.level or 1) < unlock
             local overlay = btn:FindFirstChild("LockOverlay")
             if overlay then overlay.Visible = locked end
+            -- v3.76: also toggle FallbackLabel (PIE/HAI/ANV ASCII) so unlocked
+            -- slots show their prank label, locked slots hide it (LV X overlay reads cleanly)
+            local fb = btn:FindFirstChild("FallbackLabel")
+            if fb then fb.Visible = not locked end
             btn:SetAttribute("Locked", locked)
         end
     end
@@ -11762,9 +11980,25 @@ end)
 Remotes.LevelUp.OnClientEvent:Connect(function(newLevel, unlocked)
     spawnToast("LEVEL UP!  " .. newLevel, Color3.fromRGB(50, 220, 100), 2.5)
     playSoundIfHas("level_up", 0.8)
+    -- v3.76: refresh slot lock UI immediately on level up (don't wait for UpdatePlayerData race)
+    if CurrentData then
+        CurrentData.level = newLevel
+        refresh()
+    end
     if unlocked and #unlocked > 0 then
         for _, prankName in ipairs(unlocked) do
             spawnToast("NEW PRANK UNLOCKED:  " .. prankName, Color3.fromRGB(255, 200, 0), 3.5)
+            -- Visual flash on the unlocked slot
+            local btn = prankCol:FindFirstChild("Prank_" .. prankName)
+            if btn then
+                local flash = Instance.new("Frame", btn)
+                flash.Size = UDim2.fromScale(1, 1); flash.BackgroundColor3 = Color3.fromRGB(255, 230, 80)
+                flash.BackgroundTransparency = 0.3; flash.ZIndex = 10
+                Instance.new("UICorner", flash).CornerRadius = UDim.new(0, 8)
+                game:GetService("TweenService"):Create(flash, TweenInfo.new(0.8),
+                    {BackgroundTransparency = 1}):Play()
+                game:GetService("Debris"):AddItem(flash, 1.0)
+            end
         end
     end
 end)
@@ -11966,7 +12200,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="80">
+      <Item class="LocalScript" referent="81">
         <Properties>
           <string name="Name">HUDFix</string>
           <string name="Source"><![CDATA[-- HUDFix.client.lua  v3.69 — clean HUD overhaul per user feedback
@@ -12189,7 +12423,7 @@ print("[HUDFix v3.69] DONE — destroyed SUMMON, hid BottomBar+ACH+PASS+duplicat
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="81">
+      <Item class="LocalScript" referent="82">
         <Properties>
           <string name="Name">HUDPolish</string>
           <string name="Source"><![CDATA[-- HUDPolish.client.lua  v2 — surgical, not blanket.
@@ -12283,7 +12517,7 @@ print("[HUDPolish v2] surgical polish applied (bars + primary buttons + prank bt
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="82">
+      <Item class="LocalScript" referent="83">
         <Properties>
           <string name="Name">InputHandler</string>
           <string name="Source"><![CDATA[-- InputHandler.client.lua
@@ -12457,7 +12691,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="83">
+      <Item class="LocalScript" referent="84">
         <Properties>
           <string name="Name">KillFeed</string>
           <string name="Source"><![CDATA[-- KillFeed.client.lua — top-right scrolling feed of recent prank events
@@ -12588,7 +12822,7 @@ print("[KillFeed] right-side prank/level feed ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="84">
+      <Item class="LocalScript" referent="85">
         <Properties>
           <string name="Name">LoadingScreen</string>
           <string name="Source"><![CDATA[-- LoadingScreen.client.lua  v1
@@ -12759,7 +12993,7 @@ print("[LoadingScreen v1] showing while HUD spins up")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="85">
+      <Item class="LocalScript" referent="86">
         <Properties>
           <string name="Name">Minimap</string>
           <string name="Source"><![CDATA[-- Minimap.client.lua  v2 — responsive top-right minimap with player + NPC dots.
@@ -12935,7 +13169,7 @@ print("[Minimap v2] responsive minimap, warm palette")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="86">
+      <Item class="LocalScript" referent="87">
         <Properties>
           <string name="Name">MultiplayerFeel</string>
           <string name="Source"><![CDATA[-- MultiplayerFeel.client.lua  v1 — Phase-12 social glue.
@@ -13121,7 +13355,7 @@ print("[MultiplayerFeel v1] online — floating text + squad combo + friends rib
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="87">
+      <Item class="LocalScript" referent="88">
         <Properties>
           <string name="Name">OnboardingFlow</string>
           <string name="Source"><![CDATA[-- OnboardingFlow.client.lua — Grok's #1 priority: 15-sec guided first-prank tutorial with massive payoff
@@ -13413,7 +13647,7 @@ print("[OnboardingFlow] cinematic 2-step + massive payoff active")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="88">
+      <Item class="LocalScript" referent="89">
         <Properties>
           <string name="Name">PerkUI</string>
           <string name="Source"><![CDATA[-- PerkUI.client.lua  v2 — Perk picker + stats allocation modals.
@@ -13733,7 +13967,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="89">
+      <Item class="LocalScript" referent="90">
         <Properties>
           <string name="Name">PhotoMode</string>
           <string name="Source"><![CDATA[-- PhotoMode.client.lua  v1 — F1 toggles a free-camera mode that:
@@ -13861,7 +14095,7 @@ print("[PhotoMode v1] online — F1 to toggle")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="90">
+      <Item class="LocalScript" referent="91">
         <Properties>
           <string name="Name">PreSpawnLobby</string>
           <string name="Source"><![CDATA[-- PreSpawnLobby v4 — compact UI revamp.
@@ -14493,7 +14727,7 @@ print("[PreSpawnLobby v4 compact] ready, requestSpawn = " .. tostring(requestSpa
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="91">
+      <Item class="LocalScript" referent="92">
         <Properties>
           <string name="Name">QuestPanel</string>
           <string name="Source"><![CDATA[-- QuestPanel.client.lua  v1
@@ -14667,7 +14901,7 @@ print("[QuestPanel v1] daily quests panel ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="92">
+      <Item class="LocalScript" referent="93">
         <Properties>
           <string name="Name">ReactionBubbles</string>
           <string name="Source"><![CDATA[-- ReactionBubbles.client.lua  v1 — speech bubble feedback above NPCs
@@ -14758,7 +14992,7 @@ print("[ReactionBubbles v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="93">
+      <Item class="LocalScript" referent="94">
         <Properties>
           <string name="Name">SettingsMenu</string>
           <string name="Source"><![CDATA[-- SettingsMenu.client.lua  v1
@@ -15263,7 +15497,7 @@ print("[SettingsMenu v1] menu + volume + graphics + motion + controls help ready
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="94">
+      <Item class="LocalScript" referent="95">
         <Properties>
           <string name="Name">SocialBadges</string>
           <string name="Source"><![CDATA[-- SocialBadges.client.lua
@@ -15356,7 +15590,7 @@ print("[SocialBadges v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="95">
+      <Item class="LocalScript" referent="96">
         <Properties>
           <string name="Name">SurvivalUI</string>
           <string name="Source"><![CDATA[-- SurvivalUI.client.lua  v2 — hunger + thirst bars, warm theme, responsive.
@@ -15488,7 +15722,7 @@ print("[SurvivalUI v2] hunger + thirst bars, warm theme")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="96">
+      <Item class="LocalScript" referent="97">
         <Properties>
           <string name="Name">TutorialController</string>
           <string name="Source"><![CDATA[-- TutorialController.client.lua
@@ -15564,7 +15798,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="97">
+      <Item class="LocalScript" referent="98">
         <Properties>
           <string name="Name">WeatherClient</string>
           <string name="Source"><![CDATA[-- WeatherClient.client.lua
@@ -15710,7 +15944,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="98">
+      <Item class="LocalScript" referent="99">
         <Properties>
           <string name="Name">ZoneAmbience</string>
           <string name="Source"><![CDATA[-- ZoneAmbience.client.lua
@@ -15819,7 +16053,7 @@ print("[ZoneAmbience v1] online")
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="99">
+  <Item class="Workspace" referent="100">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>
