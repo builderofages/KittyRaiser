@@ -121,7 +121,7 @@ local function buildCatShape(character, furColor)
 	-- v3.60 emergency fix: SCALE 1.0 -> 1.6. Players reported the cat
 	-- looked like a 'tiny orange bean' from default camera. Bigger cat
 	-- means HipHeight needs to scale too: 1.5 -> 2.4.
-	local SCALE = 1.6
+	local SCALE = 0.8  -- v3.69: 50% smaller per user feedback
 	local function s(v) return v * SCALE end
 
 	local function attach(part, anchor)
@@ -420,9 +420,9 @@ local function setCatBodyScales(humanoid)
 	-- for paws to touch ground (paw bottom at -1.5 from HRP center).
 	-- HipHeight scaled up for the v3.60 SCALE=1.6 cat. Paw bottom is at
 	-- -1.5 * 1.6 = -2.4 from HRP center, so HipHeight=2.4 puts paws on ground.
-	humanoid.HipHeight = 2.4
+	humanoid.HipHeight = 1.2  -- v3.69: scaled for SCALE=0.8 (paw bottom = -1.5*0.8 = -1.2)
 	-- Camera offset lifted to frame the larger cat and the world ahead.
-	humanoid.CameraOffset = Vector3.new(0, 2.0, 0)
+	humanoid.CameraOffset = Vector3.new(0, 1.0, 0)  -- v3.69: smaller cat = closer camera
 end
 
 -- =====================================================================

@@ -1,11 +1,12 @@
--- HUDFix.client.lua  v3.68 — comprehensive layout + wiring fix
--- 1. REMOVE SummonButton entirely (clicks auto-summon now via skill click)
--- 2. Reposition ACH + PASS into a top-right ICON column (under TopBar, above MAP) so they don't cut off
--- 3. Reliably re-wire INV/TOP/REBIRTH/SHOP and every prank slot using WaitForChild
--- 4. Hide the duplicate "LV X" fallback label that was overlapping with prank ASCII
--- 5. Custom HealthBar
--- 6. Hotkey 1-8 redundantly wired
--- 7. Console prints for every wiring step + click event
+-- HUDFix.client.lua  v3.69 — clean HUD overhaul per user feedback
+-- 1. DESTROY SummonButton entirely
+-- 2. HIDE BottomBar (INV/TOP/REBIRTH/SHOP all gone — clutter)
+-- 3. KEEP only top-right chaos counter, hide top-left coin + top-center gem duplicates
+-- 4. HIDE ACH + PASS (clutter, were cut off anyway)
+-- 5. Move PrankColumn skill bar DOWN to where bottom bar was (more screen space)
+-- 6. Custom HP / HUNGER / THIRST bars stacked top-left under TopBar
+-- 7. Reliable click + hotkey wiring for all 8 skill slots
+-- 8. Auto-summon fallback when no NPC in range
 
 local Players          = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -20,11 +21,8 @@ local player = Players.LocalPlayer
 local hud    = player:WaitForChild("PlayerGui"):WaitForChild("MainHUD", 30)
 if not hud then warn("[HUDFix] MainHUD not found"); return end
 
-print("[HUDFix v3.68] starting — full HUD layout + click wiring fix")
+print("[HUDFix v3.69] starting — clean HUD overhaul")
 
--- ============================================================
--- NEAREST NPC (scans both PrankNPCs AND AmbientCrowd)
--- ============================================================
 local function nearestNPC(maxRange)
     local char = player.Character
     if not char then return nil end
@@ -39,9 +37,7 @@ local function nearestNPC(maxRange)
                     local p = m.PrimaryPart or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChildWhichIsA("BasePart")
                     if p then
                         local d = (p.Position - hrp.Position).Magnitude
-                        if d < dist and d <= maxRange then
-                            dist = d; closest = m
-                        end
+                        if d < dist and d <= maxRange then dist = d; closest = m end
                     end
                 end
             end
@@ -51,195 +47,171 @@ local function nearestNPC(maxRange)
 end
 
 local function firePrank(prankName)
-    print("[HUDFix] firePrank called: " .. prankName)
+    print("[HUDFix] firePrank " .. prankName)
     local prank = PrankConfig.Pranks[prankName]
-    if not prank then warn("[HUDFix]   no PrankConfig entry for " .. prankName); return end
+    if not prank then return end
     local npc = nearestNPC((prank.rangeStuds or 24) * 1.5)
     if not npc then
-        print("[HUDFix]   no NPC in range, auto-summoning")
         Remotes.RequestSummonHuman:FireServer()
         task.wait(0.7)
         npc = nearestNPC((prank.rangeStuds or 24) * 2.5)
     end
     if npc then
-        print("[HUDFix]   firing " .. prankName .. " on " .. tostring(npc.Name))
         Remotes.RequestPrank:FireServer(prankName, npc)
+        print("[HUDFix]   fired on " .. tostring(npc.Name))
     else
-        print("[HUDFix]   STILL no NPC after summon")
+        print("[HUDFix]   no NPC found")
     end
 end
 
--- ============================================================
--- 1. REMOVE SUMMON BUTTON ENTIRELY
--- ============================================================
+-- ============ 1. DESTROY SummonButton ============
 local summonBtn = hud:WaitForChild("SummonButton", 15)
-if summonBtn then
-    summonBtn.Visible = false
-    summonBtn:Destroy()
-    print("[HUDFix] SummonButton destroyed (per user request)")
+if summonBtn then summonBtn:Destroy(); print("[HUDFix] SummonButton destroyed") end
+
+-- ============ 2. HIDE BottomBar entirely ============
+local bottomBar = hud:WaitForChild("BottomBar", 15)
+if bottomBar then bottomBar.Visible = false; print("[HUDFix] BottomBar hidden") end
+
+-- ============ 3. HIDE duplicate currency cells (keep only top-right) ============
+-- TopBar has chaosWrap (top-left), hellWrap (gem, top-center), and the right-side count.
+-- Per user: keep only top-right yellow chaos counter.
+local topBar = hud:WaitForChild("TopBar", 15)
+if topBar then
+    local chaosWrap = topBar:FindFirstChild("ChaosWrap")
+    local hellWrap = topBar:FindFirstChild("HellWrap")
+    if chaosWrap then chaosWrap.Visible = false; print("[HUDFix] hid ChaosWrap (top-left coin)") end
+    if hellWrap then hellWrap.Visible = false; print("[HUDFix] hid HellWrap (top-center gem)") end
 end
 
--- ============================================================
--- 2. RE-WIRE SKILL BAR SLOTS — THIS IS THE CRITICAL FIX
--- ============================================================
+-- ============ 4. HIDE ACH + PASS buttons (clutter, were cut off) ============
+for _, child in ipairs(hud:GetDescendants()) do
+    if child:IsA("GuiObject") then
+        local n = child.Name
+        if n == "ACH" or n == "AchButton" or n == "AchievementsButton"
+           or n == "PASS" or n == "PassButton" or n == "BattlePassButton" then
+            child.Visible = false
+            print("[HUDFix] hid " .. n)
+        end
+    end
+end
+
+-- ============ 5. MOVE PrankColumn DOWN ============
 local prankCol = hud:WaitForChild("PrankColumn", 15)
 if prankCol then
-    print("[HUDFix] PrankColumn found, wiring " .. #PrankConfig.Order .. " slots")
+    -- Move skill bar down to ~y=1, -32 (just above bottom edge) since BottomBar is gone
+    prankCol.AnchorPoint = Vector2.new(0.5, 1)
+    prankCol.Position = UDim2.new(0.5, 0, 1, -16)
+    print("[HUDFix] PrankColumn moved to bottom-center")
+
+    print("[HUDFix] wiring " .. #PrankConfig.Order .. " skill slots")
     for slot, prankName in ipairs(PrankConfig.Order) do
         local btn = prankCol:WaitForChild("Prank_" .. prankName, 5)
         if btn then
-            -- Hide the duplicate FallbackLabel since LockOverlay shows "LV X"
+            -- Hide duplicate FallbackLabel on locked slots so LV X reads cleanly
             local fallback = btn:FindFirstChild("FallbackLabel")
-            if fallback then
-                if btn:GetAttribute("Locked") then
-                    fallback.Visible = false  -- hide ASCII; show only "LV X"
-                else
-                    fallback.Visible = true
-                end
-            end
-            -- Wire click
+            if fallback and btn:GetAttribute("Locked") then fallback.Visible = false end
             btn.MouseButton1Click:Connect(function()
-                print("[HUDFix] SKILL CLICKED slot " .. slot .. ": " .. prankName)
-                if btn:GetAttribute("Locked") then
-                    print("[HUDFix]   slot is locked")
-                    return
-                end
+                print("[HUDFix] SKILL " .. slot .. " clicked: " .. prankName)
+                if btn:GetAttribute("Locked") then return end
                 firePrank(prankName)
             end)
-            print("[HUDFix]   wired slot " .. slot .. " (" .. prankName .. ") locked=" .. tostring(btn:GetAttribute("Locked")))
+            print("[HUDFix]   slot " .. slot .. " (" .. prankName .. ") locked=" .. tostring(btn:GetAttribute("Locked")))
         end
     end
-else
-    warn("[HUDFix] PrankColumn never appeared")
 end
 
--- ============================================================
--- 3. HOTKEYS 1-8
--- ============================================================
-local NUM_KC = {
-    [Enum.KeyCode.One]=1, [Enum.KeyCode.Two]=2, [Enum.KeyCode.Three]=3, [Enum.KeyCode.Four]=4,
-    [Enum.KeyCode.Five]=5, [Enum.KeyCode.Six]=6, [Enum.KeyCode.Seven]=7, [Enum.KeyCode.Eight]=8,
-}
+-- ============ 6. HOTKEYS 1-8 ============
+local NUM_KC = {[Enum.KeyCode.One]=1,[Enum.KeyCode.Two]=2,[Enum.KeyCode.Three]=3,[Enum.KeyCode.Four]=4,
+                [Enum.KeyCode.Five]=5,[Enum.KeyCode.Six]=6,[Enum.KeyCode.Seven]=7,[Enum.KeyCode.Eight]=8}
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     local slot = NUM_KC[input.KeyCode]
     if slot then
         local prankName = PrankConfig.Order[slot]
         if not prankName then return end
-        print("[HUDFix] HOTKEY " .. slot .. " pressed → " .. prankName)
+        print("[HUDFix] HOTKEY " .. slot)
         local btn = prankCol and prankCol:FindFirstChild("Prank_" .. prankName)
-        if btn and btn:GetAttribute("Locked") then
-            print("[HUDFix]   locked")
-            return
-        end
+        if btn and btn:GetAttribute("Locked") then return end
         firePrank(prankName)
     end
 end)
 
--- ============================================================
--- 4. WIRE BOTTOM BAR (INV/TOP/REBIRTH/SHOP)
--- ============================================================
-local bottomBar = hud:WaitForChild("BottomBar", 15)
-if bottomBar then
-    print("[HUDFix] BottomBar found")
-    local function toggleModal(modalName)
-        local m = hud:FindFirstChild(modalName)
-        if m then m.Visible = not m.Visible; print("[HUDFix]   " .. modalName .. " toggled to " .. tostring(m.Visible)) end
-    end
+-- ============ 7. CUSTOM HP / HUNGER / THIRST BARS (top-left stacked) ============
+local barsContainer = Instance.new("Frame")
+barsContainer.Name = "VitalsContainer"
+barsContainer.Size = UDim2.new(0, 232, 0, 96)
+barsContainer.Position = UDim2.new(0, 12, 0, 130)  -- below TopBar
+barsContainer.BackgroundTransparency = 1
+barsContainer.ZIndex = 15
+barsContainer.Parent = hud
 
-    local shopBtn = bottomBar:FindFirstChild("ShopButton")
-    if shopBtn then shopBtn.MouseButton1Click:Connect(function() print("[HUDFix] SHOP clicked"); toggleModal("ShopModal") end); print("[HUDFix]   SHOP wired") end
+local barLayout = Instance.new("UIListLayout", barsContainer)
+barLayout.FillDirection = Enum.FillDirection.Vertical
+barLayout.Padding = UDim.new(0, 4)
+barLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-    local invBtn = bottomBar:FindFirstChild("InventoryButton")
-    if invBtn then invBtn.MouseButton1Click:Connect(function() print("[HUDFix] INV clicked"); toggleModal("ShopModal") end); print("[HUDFix]   INV wired") end
-
-    local rebBtn = bottomBar:FindFirstChild("RebirthButton")
-    if rebBtn then
-        rebBtn.MouseButton1Click:Connect(function()
-            print("[HUDFix] REBIRTH clicked")
-            local ok, err = pcall(function() return Remotes.RequestRebirth:InvokeServer() end)
-            if not ok then warn("[HUDFix]   rebirth failed: " .. tostring(err)) end
-        end)
-        print("[HUDFix]   REBIRTH wired")
-    end
-
-    local topBtn = bottomBar:FindFirstChild("LeaderboardButton")
-    if topBtn then topBtn.MouseButton1Click:Connect(function() print("[HUDFix] TOP clicked"); toggleModal("LeaderboardModal") end); print("[HUDFix]   TOP wired") end
+local function makeVital(name, color, layoutOrder, getValue)
+    local row = Instance.new("Frame")
+    row.Name = name .. "Bar"
+    row.Size = UDim2.new(1, 0, 0, 22)
+    row.BackgroundColor3 = Color3.fromRGB(30, 18, 12)
+    row.BorderSizePixel = 0
+    row.LayoutOrder = layoutOrder
+    row.ZIndex = 16
+    row.Parent = barsContainer
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+    local fill = Instance.new("Frame", row)
+    fill.Name = "Fill"
+    fill.Size = UDim2.new(1, 0, 1, 0)
+    fill.BackgroundColor3 = color
+    fill.BorderSizePixel = 0
+    fill.ZIndex = 17
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 6)
+    local lbl = Instance.new("TextLabel", row)
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = name
+    lbl.Font = Enum.Font.GothamBlack
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.TextStrokeTransparency = 0.3
+    lbl.TextScaled = true
+    lbl.ZIndex = 18
+    return fill, lbl
 end
 
--- ============================================================
--- 5. REPOSITION ACH + PASS so they don't cut off
--- ============================================================
-local achPanel = hud:FindFirstChild("AchButton") or hud:FindFirstChild("AchievementsButton") or hud:FindFirstChild("ACH")
-local passPanel = hud:FindFirstChild("PassButton") or hud:FindFirstChild("BattlePassButton") or hud:FindFirstChild("PASS")
--- Search descendants for any frame named ACH or PASS
-for _, child in ipairs(hud:GetDescendants()) do
-    if child:IsA("GuiObject") then
-        if (not achPanel) and (child.Name == "ACH" or child.Name:find("Achievement") or child.Name:find("ACH")) then achPanel = child end
-        if (not passPanel) and (child.Name == "PASS" or child.Name:find("BattlePass") or child.Name:find("PASS")) then passPanel = child end
-    end
-end
+local hpFill, hpLbl = makeVital("HP", Color3.fromRGB(220, 70, 60), 1)
+local hungerFill, hungerLbl = makeVital("HUNGER", Color3.fromRGB(230, 140, 60), 2)
+local thirstFill, thirstLbl = makeVital("THIRST", Color3.fromRGB(80, 160, 220), 3)
 
--- Move ACH and PASS to a safe top-right column at x=-72 (so they fit on-screen with margin)
-if achPanel and achPanel:IsA("GuiObject") then
-    achPanel.AnchorPoint = Vector2.new(1, 0)
-    achPanel.Position = UDim2.new(1, -16, 0, 200)
-    achPanel.Size = UDim2.new(0, 56, 0, 40)
-    print("[HUDFix] ACH repositioned top-right at y=200")
-end
-if passPanel and passPanel:IsA("GuiObject") then
-    passPanel.AnchorPoint = Vector2.new(1, 0)
-    passPanel.Position = UDim2.new(1, -16, 0, 248)
-    passPanel.Size = UDim2.new(0, 56, 0, 40)
-    print("[HUDFix] PASS repositioned top-right at y=248")
-end
-
--- ============================================================
--- 6. CUSTOM HEALTH BAR (top-left below survival)
--- ============================================================
-local healthFrame = Instance.new("Frame")
-healthFrame.Name = "HealthBar"
-healthFrame.Size = UDim2.new(0, 232, 0, 18)
-healthFrame.Position = UDim2.new(0, 12, 0, 196)
-healthFrame.BackgroundColor3 = Color3.fromRGB(40, 14, 14)
-healthFrame.BorderSizePixel = 0
-healthFrame.ZIndex = 10
-healthFrame.Parent = hud
-Instance.new("UICorner", healthFrame).CornerRadius = UDim.new(1, 0)
-
-local healthFill = Instance.new("Frame", healthFrame)
-healthFill.Name = "Fill"
-healthFill.Size = UDim2.new(1, 0, 1, 0)
-healthFill.BackgroundColor3 = Color3.fromRGB(220, 70, 60)
-healthFill.BorderSizePixel = 0
-healthFill.ZIndex = 11
-Instance.new("UICorner", healthFill).CornerRadius = UDim.new(1, 0)
-
-local healthLbl = Instance.new("TextLabel", healthFrame)
-healthLbl.Size = UDim2.new(1, 0, 1, 0)
-healthLbl.BackgroundTransparency = 1
-healthLbl.Text = "HP"
-healthLbl.Font = Enum.Font.GothamBlack
-healthLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-healthLbl.TextStrokeTransparency = 0.3
-healthLbl.TextScaled = true
-healthLbl.ZIndex = 12
-
+-- HP tracking
 local function trackHealth(char)
     local hum = char:WaitForChild("Humanoid", 5)
     if not hum then return end
     local function update()
         local h = math.max(0, hum.Health) / math.max(1, hum.MaxHealth)
-        TweenService:Create(healthFill, TweenInfo.new(0.2), {Size = UDim2.new(h, 0, 1, 0)}):Play()
-        healthLbl.Text = string.format("HP  %d/%d", math.floor(hum.Health), math.floor(hum.MaxHealth))
+        TweenService:Create(hpFill, TweenInfo.new(0.2), {Size = UDim2.new(h, 0, 1, 0)}):Play()
+        hpLbl.Text = string.format("HP  %d/%d", math.floor(hum.Health), math.floor(hum.MaxHealth))
     end
     update()
     hum.HealthChanged:Connect(update)
-    hum.HealthDisplayDistance = 100
-    hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOn
 end
 if player.Character then trackHealth(player.Character) end
 player.CharacterAdded:Connect(trackHealth)
-print("[HUDFix] HealthBar created at y=196")
 
-print("[HUDFix v3.68] all wiring + layout fixes applied")
+-- Hunger/Thirst tracking via SurvivalUpdate remote (if exists)
+if Remotes.SurvivalUpdate then
+    Remotes.SurvivalUpdate.OnClientEvent:Connect(function(hunger, thirst)
+        local h = math.clamp((hunger or 100) / 100, 0, 1)
+        local th = math.clamp((thirst or 100) / 100, 0, 1)
+        TweenService:Create(hungerFill, TweenInfo.new(0.2), {Size = UDim2.new(h, 0, 1, 0)}):Play()
+        TweenService:Create(thirstFill, TweenInfo.new(0.2), {Size = UDim2.new(th, 0, 1, 0)}):Play()
+        hungerLbl.Text = string.format("HUNGER  %d", math.floor(hunger or 0))
+        thirstLbl.Text = string.format("THIRST  %d", math.floor(thirst or 0))
+    end)
+end
+
+-- Hide the original SurvivalContainer to avoid duplicate bars
+local oldSurv = hud:FindFirstChild("SurvivalContainer")
+if oldSurv then oldSurv.Visible = false; print("[HUDFix] hid old SurvivalContainer") end
+
+print("[HUDFix v3.69] DONE — destroyed SUMMON, hid BottomBar+ACH+PASS+duplicate currencies, moved skill bar down, added HP/HUNGER/THIRST bars")

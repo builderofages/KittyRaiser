@@ -129,6 +129,41 @@ function PrankSystem.handlePrankRequest(player, prankName, targetModel)
         rewardMult = rewardMult * 1.5
     end
     local chaos, xp = awardChaosAndXP(player, prank.baseChaos * rewardMult)
+    -- v3.69: NPC HP system. Non-boss NPCs start at 3 HP. Each prank reduces by 1.
+    -- Only flag Pranked (which kills/ragdolls them) when HP hits 0. Player gets
+    -- chaos+XP per HIT, but only the killing blow triggers cleanup.
+    if not targetModel:GetAttribute("Boss") then
+        local npcHp = targetModel:GetAttribute("NpcHp")
+        if not npcHp then
+            npcHp = 3
+            targetModel:SetAttribute("NpcHp", npcHp)
+        end
+        npcHp = npcHp - 1
+        targetModel:SetAttribute("NpcHp", math.max(0, npcHp))
+        if npcHp > 0 then
+            -- Show floating damage number above NPC head
+            local head = targetModel:FindFirstChild("Head")
+            if head then
+                local g = Instance.new("BillboardGui")
+                g.Size = UDim2.new(0, 60, 0, 24)
+                g.AlwaysOnTop = true
+                g.StudsOffset = Vector3.new(0, 1.5, 0)
+                g.Parent = head
+                local lbl = Instance.new("TextLabel", g)
+                lbl.Size = UDim2.new(1, 0, 1, 0)
+                lbl.BackgroundTransparency = 1
+                lbl.Text = "-1 HP (" .. npcHp .. " left)"
+                lbl.Font = Enum.Font.GothamBlack
+                lbl.TextScaled = true
+                lbl.TextColor3 = Color3.fromRGB(255, 200, 60)
+                lbl.TextStrokeTransparency = 0
+                game:GetService("Debris"):AddItem(g, 1.2)
+            end
+            -- Award chaos+XP for the hit but DON'T mark as Pranked yet
+            -- (already awarded earlier in awardChaosAndXP at the top of handlePrankRequest)
+            return  -- skip markPranked, NPC is still alive
+        end
+    end
     SummonSystem.markPranked(targetModel)
 
     -- Quest tracker hook (no-op if QuestSystem hasn't loaded)
