@@ -122,20 +122,16 @@ UserInputService.InputBegan:Connect(function(input, gp)
             lastMouseFire = now
             Remotes.RequestPrank:FireServer(prankName, npc)
         else
-            -- Click missed: brief toast so player knows nothing's in range.
-            -- Throttle the toast itself separately so spam-clicking doesn't flood.
-            if now - lastMouseFire > 1.5 then
+            -- v3.64: click with no target -> auto-summon a civilian and
+            -- queue the attack for when it lands. Player click ALWAYS does
+            -- something; no more dead clicks early-game.
+            if now - lastMouseFire > 1.0 then
                 lastMouseFire = now
-                local hud = playerGui:FindFirstChild("MainHUD")
-                local toastFrame = hud and hud:FindFirstChild("ToastFrame")
-                if toastFrame then
-                    pcall(function()
-                        local UIUtil = require(ReplicatedStorage.Modules.UIUtil)
-                        UIUtil.makeToast(toastFrame,
-                            "MOVE CLOSER  -  no target in range",
-                            Color3.fromRGB(180, 130, 60), 1.6)
-                    end)
-                end
+                Remotes.RequestSummonHuman:FireServer()
+                task.delay(1.2, function()
+                    local n = nearestNPC(prank.rangeStuds * 1.6)
+                    if n then Remotes.RequestPrank:FireServer(prankName, n) end
+                end)
             end
         end
         return

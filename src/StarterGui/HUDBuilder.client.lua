@@ -402,9 +402,26 @@ for i, prankName in ipairs(PrankConfig.Order) do
     local hkc = Instance.new("UITextSizeConstraint", hotkey); hkc.MinTextSize = 9; hkc.MaxTextSize = 12
 
     -- Real icon asset preferred; ASCII abbreviation fallback.
+    -- v3.64: ALWAYS render a 3-letter ASCII fallback label as the bottom
+    -- layer (PIE / ANV / PUR / etc.). Icon ImageLabel layers ON TOP. So if
+    -- the icon asset fails to load (moderation, replication delay), the
+    -- player still sees a labeled slot — never a blank square.
+    local short = (prankName:upper()):sub(1, 3)
+    local fallbackTxt = Instance.new("TextLabel", btn)
+    fallbackTxt.Name = "FallbackLabel"
+    fallbackTxt.Size = UDim2.fromScale(1, 1)
+    fallbackTxt.BackgroundTransparency = 1
+    fallbackTxt.Text = short
+    fallbackTxt.TextColor3 = Color3.fromRGB(255, 230, 180)
+    fallbackTxt.TextStrokeTransparency = 0.3
+    fallbackTxt.TextStrokeColor3 = Color3.fromRGB(40, 25, 10)
+    fallbackTxt.Font = Enum.Font.GothamBlack
+    fallbackTxt.TextScaled = true
+    fallbackTxt.ZIndex = 1
+    local flc = Instance.new("UITextSizeConstraint", fallbackTxt); flc.MinTextSize = 12; flc.MaxTextSize = 22
+
     local iconKey = PRANK_ICON[prankName]
     if iconKey and AssetIds.has(iconKey) then
-        -- Drop shadow under the icon
         local shadow = Instance.new("ImageLabel")
         shadow.Name = "PrankIconShadow"
         shadow.BackgroundTransparency = 1
@@ -414,8 +431,8 @@ for i, prankName in ipairs(PrankConfig.Order) do
         shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
         shadow.ImageTransparency = 0.55
         shadow.ScaleType = Enum.ScaleType.Fit
+        shadow.ZIndex = 2
         shadow.Parent = btn
-        -- White icon (gets re-tinted by lock state below if needed)
         local img = Instance.new("ImageLabel")
         img.Name = "PrankIcon"
         img.BackgroundTransparency = 1
@@ -424,12 +441,8 @@ for i, prankName in ipairs(PrankConfig.Order) do
         img.Image = AssetIds[iconKey]
         img.ImageColor3 = Color3.fromRGB(255, 250, 235)
         img.ScaleType = Enum.ScaleType.Fit
+        img.ZIndex = 3
         img.Parent = btn
-    else
-        local short = (prankName:upper()):sub(1, 3)
-        btn.Text = short
-        btn.TextScaled = true
-        bind(btn, 16, 28)
     end
     -- Locked overlay: dark scrim + bold "Lv N" text. Initial visibility is
     -- set by unlockLevel so first prank (unlockLevel=1) is immediately

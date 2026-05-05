@@ -408,6 +408,23 @@ Remotes.RequestSummonHuman.OnServerEvent:Connect(function(player)
     SummonSystem.summon(player)
 end)
 
+-- v3.64: auto-summon 2 civilians on first spawn so players have something
+-- to click immediately. Bypasses the 1.5s cooldown via direct internal
+-- summon. Without this, new players land in an empty plaza, click a few
+-- times to no effect, and bounce.
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(char)
+        task.wait(1.5)  -- let the cat finish spawning + camera settle
+        if not player.Parent then return end
+        -- Force a couple summons by temporarily clearing cooldown
+        lastSummonTime[player.UserId] = 0
+        SummonSystem.summon(player)
+        task.wait(0.4)
+        lastSummonTime[player.UserId] = 0
+        SummonSystem.summon(player)
+    end)
+end)
+
 Players.PlayerRemoving:Connect(function(player)
     lastSummonTime[player.UserId] = nil
     -- Despawn this player's NPCs

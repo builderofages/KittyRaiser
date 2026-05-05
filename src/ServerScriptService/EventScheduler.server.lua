@@ -26,8 +26,8 @@ local EVENTS = {
         title = "RUSH HOUR",
         message = "1.5x CHAOS for 5 minutes! Stack pranks fast.",
         durationS = 300,
-        intervalS = 20 * 60,
-        startsAtS = 60,        -- first occurrence 1 minute into server uptime
+        intervalS = 12 * 60,
+        startsAtS = 30,        -- v3.64: 60s -> 30s so new joiners see it fast
         flag = "EventRushHour",
         buff = {chaosMultiplier = 1.5},
     },
@@ -36,8 +36,8 @@ local EVENTS = {
         title = "BOSS SURGE",
         message = "Every summon spawns a BOSS for 3 minutes.",
         durationS = 180,
-        intervalS = 30 * 60,
-        startsAtS = 8 * 60,
+        intervalS = 18 * 60,   -- v3.64: 30min -> 18min cycle
+        startsAtS = 4 * 60,    -- v3.64: 8min -> 4min initial
         flag = "EventBossSurge",
         buff = {bossEveryTime = true},
     },
@@ -46,8 +46,8 @@ local EVENTS = {
         title = "CROWD WAVE",
         message = "Sidewalks are PACKED for 4 minutes.",
         durationS = 240,
-        intervalS = 25 * 60,
-        startsAtS = 4 * 60,
+        intervalS = 15 * 60,   -- v3.64: 25min -> 15min cycle
+        startsAtS = 2 * 60,    -- v3.64: 4min -> 2min initial
         flag = "EventCrowdWave",
         buff = {crowdDense = true},
     },
