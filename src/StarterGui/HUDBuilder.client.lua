@@ -267,14 +267,15 @@ bind(makeLabel({
 }), 14, 32)
 
 -- ===== CENTER BOTTOM: SUMMON BUTTON (icon + glow ring) =====
-local summonSize = IS_MOBILE and 130 or 110
--- Position summon button so its bottom edge sits ABOVE the bottom bar.
--- BottomBar height ≈ 60+10 padding = 70; summon bottom should clear that.
--- (Previously offset 30 caused 40px overlap with the bottom bar.)
+local summonSize = IS_MOBILE and 88 or 78
+-- v3.62 HUD revamp: SUMMON moved to bottom-LEFT corner so it doesn't cover
+-- the cat visually. Smaller (110/130 -> 78/88). Bottom-bar still centers
+-- below; PrankColumn still right-side. Player-mental-model: 'summon left,
+-- attack right'.
 local summonBtn = makeButton({
     Name = "SummonButton",
     Size = UDim2.new(0, summonSize, 0, summonSize),
-    Position = UDim2.new(0.5, -summonSize/2, 1, -(summonSize + 90)),
+    Position = UDim2.new(0, 16, 1, -(summonSize + 84)),  -- bottom-left, above bottom bar
     BackgroundColor3 = PALETTE_DANGER,
     Text = "",
     Parent = screenGui,
@@ -330,13 +331,24 @@ sLabel.Parent = summonBtn
 bind(sLabel, 12, 20)
 
 -- ===== RIGHT SIDE: PRANK BUTTONS =====
+-- v3.62: moved inward 50px (was flush against right edge, blending with the
+-- minimap into a 'LV X markers' look). Now 50px in from edge with a darker
+-- panel background so the column reads as a discrete action bar.
+local PRANK_W = IS_MOBILE and 88 or 76
 local prankColumn = makeFrame({
     Name = "PrankColumn",
-    Size = UDim2.new(0, IS_MOBILE and 80 or 70, 0, 4 * (IS_MOBILE and 90 or 80)),
-    Position = UDim2.new(1, -(IS_MOBILE and 90 or 80), 0.5, -(2 * (IS_MOBILE and 90 or 80))),
-    BackgroundTransparency = 1,
+    Size = UDim2.new(0, PRANK_W + 16, 0, 8 * (PRANK_W + 6) + 16),
+    AnchorPoint = Vector2.new(1, 0.5),
+    Position = UDim2.new(1, -64, 0.5, 80),  -- offset down so it clears minimap
+    BackgroundColor3 = Color3.fromRGB(50, 35, 20),
+    BackgroundTransparency = 0.25,
     Parent = screenGui,
 })
+Instance.new("UICorner", prankColumn).CornerRadius = UDim.new(0, 14)
+local pcStroke = Instance.new("UIStroke", prankColumn)
+pcStroke.Thickness = 2; pcStroke.Color = Color3.fromRGB(110, 75, 40)
+local pcPad = Instance.new("UIPadding", prankColumn)
+pcPad.PaddingTop = UDim.new(0, 8); pcPad.PaddingBottom = UDim.new(0, 8)
 local listLayout = Instance.new("UIListLayout")
 listLayout.FillDirection = Enum.FillDirection.Vertical
 listLayout.Padding = UDim.new(0, 6)
@@ -360,7 +372,7 @@ for i, prankName in ipairs(PrankConfig.Order) do
     local prank = PrankConfig.Pranks[prankName]
     local btn = makeButton({
         Name = "Prank_" .. prankName,
-        Size = UDim2.new(0, IS_MOBILE and 72 or 64, 0, IS_MOBILE and 72 or 64),
+        Size = UDim2.new(0, PRANK_W, 0, PRANK_W),
         BackgroundColor3 = Color3.fromRGB(70, 50, 35),
         Text = "",
         LayoutOrder = i,
@@ -441,47 +453,47 @@ for i, prankName in ipairs(PrankConfig.Order) do
 end
 
 -- ===== BOTTOM BAR: SHOP / INVENTORY / REBIRTH / LEADERBOARD =====
+-- v3.62: tighter — buttons 80x54 -> 64x44, padding 6 -> 4, container narrower.
+-- STATS + MENU buttons hooked in by PerkUI/SettingsMenu so total fits 6 in
+-- 6*64 + 5*4 = 404px on desktop comfortably within the 420px container.
 local bottomBar = makeFrame({
     Name = "BottomBar",
-    Size = UDim2.new(0, IS_MOBILE and 360 or 320, 0, IS_MOBILE and 60 or 50),
+    Size = UDim2.new(0, IS_MOBILE and 460 or 420, 0, IS_MOBILE and 52 or 44),
     AnchorPoint = Vector2.new(0.5, 1),
-    Position = UDim2.new(0.5, 0, 1, -10),
-    BackgroundTransparency = 1,
+    Position = UDim2.new(0.5, 0, 1, -8),
+    BackgroundColor3 = Color3.fromRGB(50, 35, 20),
+    BackgroundTransparency = 0.25,
     Parent = screenGui,
 })
+Instance.new("UICorner", bottomBar).CornerRadius = UDim.new(0, 12)
+local bbStroke = Instance.new("UIStroke", bottomBar)
+bbStroke.Thickness = 2; bbStroke.Color = Color3.fromRGB(110, 75, 40)
+local bbPad = Instance.new("UIPadding", bottomBar)
+bbPad.PaddingLeft = UDim.new(0, 6); bbPad.PaddingRight = UDim.new(0, 6)
+bbPad.PaddingTop  = UDim.new(0, 4); bbPad.PaddingBottom = UDim.new(0, 4)
 local botLayout = Instance.new("UIListLayout")
 botLayout.FillDirection = Enum.FillDirection.Horizontal
-botLayout.Padding = UDim.new(0, 6)
+botLayout.Padding = UDim.new(0, 4)
 botLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+botLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 botLayout.Parent = bottomBar
 
 local function bottomButton(name, label, iconKey, color, layoutOrder)
     local btn = makeButton({
         Name = name,
-        Size = UDim2.new(0, IS_MOBILE and 90 or 80, 0, IS_MOBILE and 64 or 54),
+        Size = UDim2.new(0, IS_MOBILE and 72 or 64, 0, IS_MOBILE and 48 or 40),
         BackgroundColor3 = color,
         Text = "",
         LayoutOrder = layoutOrder,
         Parent = bottomBar,
     })
-    -- Drop shadow under the icon for depth
+    -- Smaller icon to fit the 64x40 button. Icon top, label bottom.
     if iconKey and AssetIds.has(iconKey) then
-        local shadow = Instance.new("ImageLabel")
-        shadow.Name = "IconShadow"
-        shadow.BackgroundTransparency = 1
-        shadow.Size = UDim2.new(0, 26, 0, 26)
-        shadow.Position = UDim2.new(0.5, -13, 0, 6)
-        shadow.Image = AssetIds[iconKey]
-        shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-        shadow.ImageTransparency = 0.65
-        shadow.ScaleType = Enum.ScaleType.Fit
-        shadow.Parent = btn
-
         local icon = Instance.new("ImageLabel")
         icon.Name = "Icon"
         icon.BackgroundTransparency = 1
-        icon.Size = UDim2.new(0, 26, 0, 26)
-        icon.Position = UDim2.new(0.5, -13, 0, 4)
+        icon.Size = UDim2.new(0, 18, 0, 18)
+        icon.Position = UDim2.new(0.5, -9, 0, 3)
         icon.Image = AssetIds[iconKey]
         icon.ImageColor3 = Color3.fromRGB(255, 255, 255)
         icon.ScaleType = Enum.ScaleType.Fit
@@ -489,8 +501,8 @@ local function bottomButton(name, label, iconKey, color, layoutOrder)
     end
     local labelText = Instance.new("TextLabel")
     labelText.Name = "Label"
-    labelText.Size = UDim2.new(1, -8, 0, 18)
-    labelText.Position = UDim2.new(0, 4, 1, -22)
+    labelText.Size = UDim2.new(1, -4, 0, 14)
+    labelText.Position = UDim2.new(0, 2, 1, -16)
     labelText.BackgroundTransparency = 1
     labelText.Text = label
     labelText.Font = Enum.Font.GothamBlack
@@ -499,7 +511,7 @@ local function bottomButton(name, label, iconKey, color, layoutOrder)
     labelText.TextStrokeColor3 = Color3.new(0, 0, 0)
     labelText.TextScaled = true
     labelText.Parent = btn
-    bind(labelText, 11, 16)
+    bind(labelText, 9, 13)
     return btn
 end
 

@@ -434,27 +434,26 @@ local function hookMenuButton()
     if botBar:FindFirstChild("MenuButton") then return end
     local menuBtn = Instance.new("TextButton")
     menuBtn.Name = "MenuButton"
-    menuBtn.Size = UDim2.new(0, 84, 0, 60)
+    menuBtn.Size = UDim2.new(0, 64, 0, 40)  -- v3.62 match HUDBuilder revamp
     menuBtn.BackgroundColor3 = UIUtil.Palette.panel
     menuBtn.AutoButtonColor = true
     menuBtn.Text = ""
     menuBtn.LayoutOrder = 6
-    Instance.new("UICorner", menuBtn).CornerRadius = UIUtil.Token.cornerMd
+    Instance.new("UICorner", menuBtn).CornerRadius = UIUtil.Token.cornerSm
     local sStr = Instance.new("UIStroke", menuBtn)
     sStr.Thickness = UIUtil.Token.strokeReg; sStr.Color = UIUtil.Palette.stroke
     menuBtn.Parent = botBar
-    -- Use slot icon (gear-like) if available
     if AssetIds.has("slot") then
         local img = Instance.new("ImageLabel", menuBtn)
         img.BackgroundTransparency = 1
-        img.Size = UDim2.new(0, 26, 0, 26)
-        img.Position = UDim2.new(0.5, -13, 0, 6)
+        img.Size = UDim2.new(0, 18, 0, 18)
+        img.Position = UDim2.new(0.5, -9, 0, 3)
         img.Image = AssetIds.slot
         img.ScaleType = Enum.ScaleType.Fit
     end
     local lbl = Instance.new("TextLabel", menuBtn)
-    lbl.Size = UDim2.new(1, -8, 0, 18)
-    lbl.Position = UDim2.new(0, 4, 1, -22)
+    lbl.Size = UDim2.new(1, -4, 0, 14)
+    lbl.Position = UDim2.new(0, 2, 1, -16)
     lbl.BackgroundTransparency = 1
     lbl.Text = "MENU"
     lbl.Font = UIUtil.Token.fontHeader
@@ -462,7 +461,7 @@ local function hookMenuButton()
     lbl.TextStrokeTransparency = 0.4
     lbl.TextStrokeColor3 = UIUtil.Palette.stroke
     lbl.TextScaled = true
-    UIUtil.boundText(lbl, 11, 16)
+    UIUtil.boundText(lbl, 9, 13)
     menuBtn.MouseButton1Click:Connect(function()
         setMenuVisible(not modal.Visible)
     end)

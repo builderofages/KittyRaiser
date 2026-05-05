@@ -264,29 +264,28 @@ local function hookStatsButton()
     if botBar:FindFirstChild("StatsButton") then return end
     local statsBtn = Instance.new("TextButton")
     statsBtn.Name = "StatsButton"
-    statsBtn.Size = UDim2.new(0, 84, 0, 60)
+    statsBtn.Size = UDim2.new(0, 64, 0, 40)  -- v3.62 match HUDBuilder revamp
     statsBtn.BackgroundColor3 = UIUtil.Palette.accent
     statsBtn.AutoButtonColor = true
     statsBtn.Text = ""
     statsBtn.LayoutOrder = 5
-    Instance.new("UICorner", statsBtn).CornerRadius = UIUtil.Token.cornerMd
+    Instance.new("UICorner", statsBtn).CornerRadius = UIUtil.Token.cornerSm
     local sStr = Instance.new("UIStroke", statsBtn)
     sStr.Thickness = UIUtil.Token.strokeReg; sStr.Color = UIUtil.Palette.stroke
     statsBtn.Parent = botBar
 
-    -- Use bars icon (we already have it uploaded)
     local AssetIds = require(ReplicatedStorage.Modules.AssetIds)
     if AssetIds.has("bars") then
         local img = Instance.new("ImageLabel", statsBtn)
         img.BackgroundTransparency = 1
-        img.Size = UDim2.new(0, 26, 0, 26)
-        img.Position = UDim2.new(0.5, -13, 0, 6)
+        img.Size = UDim2.new(0, 18, 0, 18)
+        img.Position = UDim2.new(0.5, -9, 0, 3)
         img.Image = AssetIds.bars
         img.ScaleType = Enum.ScaleType.Fit
     end
     local lbl = Instance.new("TextLabel", statsBtn)
-    lbl.Size = UDim2.new(1, -8, 0, 18)
-    lbl.Position = UDim2.new(0, 4, 1, -22)
+    lbl.Size = UDim2.new(1, -4, 0, 14)
+    lbl.Position = UDim2.new(0, 2, 1, -16)
     lbl.BackgroundTransparency = 1
     lbl.Text = "STATS"
     lbl.Font = UIUtil.Token.fontHeader
@@ -294,7 +293,7 @@ local function hookStatsButton()
     lbl.TextStrokeTransparency = 0.4
     lbl.TextStrokeColor3 = UIUtil.Palette.stroke
     lbl.TextScaled = true
-    UIUtil.boundText(lbl, 11, 16)
+    UIUtil.boundText(lbl, 9, 13)
 
     statsBtn.MouseButton1Click:Connect(function()
         statsModal.Visible = not statsModal.Visible
