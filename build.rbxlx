@@ -11199,7 +11199,7 @@ return true
       <Item class="LocalScript" referent="71">
         <Properties>
           <string name="Name">HUDFix</string>
-          <string name="Source"><![CDATA[-- HUDFix.client.lua  v3.66
+          <string name="Source"><![CDATA[-- HUDFix.client.lua  v3.66.1 published
 -- Bypass layer that runs AFTER HUDBuilder/HUDController/InputHandler and:
 --   1. Re-wires every clickable HUD button with explicit prints + working handlers
 --   2. Moves INV/TOP/REBIRTH/SHOP to TOP-RIGHT as small icon buttons (under TopBar, above MAP)
