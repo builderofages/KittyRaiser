@@ -16035,20 +16035,42 @@ end
 -- Per user: keep only top-right yellow chaos counter.
 local topBar = hud:WaitForChild("TopBar", 15)
 if topBar then
-    local chaosWrap = topBar:FindFirstChild("ChaosWrap")
-    local hellWrap = topBar:FindFirstChild("HellWrap")
-    if chaosWrap then chaosWrap.Visible = false; print("[HUDFix] hid ChaosWrap (top-left coin)") end
-    if hellWrap then hellWrap.Visible = false; print("[HUDFix] hid HellWrap (top-center gem)") end
+    -- v3.99.1: hide ALL currency wraps EXCEPT the right-side primary chaos label.
+    -- Defensive: don't trust any specific child names. Walk children and hide
+    -- any Frame whose name contains 'Wrap' or matches known currency keywords,
+    -- KEEP one that's anchored top-right (RightCount / ChaosLabel host).
+    for _, child in ipairs(topBar:GetChildren()) do
+        if child:IsA("GuiObject") then
+            local n = child.Name:lower()
+            local isLeftSide = (child.AnchorPoint.X < 0.5) or (child.Position.X.Scale < 0.4)
+            local isCurrency = n:find("wrap") or n:find("chaos") or n:find("hell") or n:find("gem") or n:find("coin")
+            if isCurrency and isLeftSide then
+                child.Visible = false
+                print("[HUDFix] hid duplicate currency " .. child.Name)
+            end
+        end
+    end
 end
 
 -- ============ 4. HIDE ACH + PASS buttons (clutter, were cut off) ============
 for _, child in ipairs(hud:GetDescendants()) do
     if child:IsA("GuiObject") then
-        local n = child.Name
-        if n == "ACH" or n == "AchButton" or n == "AchievementsButton"
-           or n == "PASS" or n == "PassButton" or n == "BattlePassButton" then
+        local n = (child.Name or ""):lower()
+        local matchesAch = n:find("ach") or n == "ach"
+        local matchesPass = n:find("pass") or n == "pass"
+        if (matchesAch or matchesPass) and child:IsA("GuiButton") then
             child.Visible = false
-            print("[HUDFix] hid " .. n)
+            print("[HUDFix] hid " .. child.Name)
+        end
+    end
+end
+-- Also walk by displayed text for robustness
+for _, child in ipairs(hud:GetDescendants()) do
+    if child:IsA("TextButton") and child.Visible then
+        local txt = (child.Text or ""):upper()
+        if txt == "ACH" or txt == "PASS" or txt == "ACHIEVEMENTS" or txt == "BATTLE PASS" then
+            child.Visible = false
+            print("[HUDFix] hid by text: " .. txt)
         end
     end
 end
@@ -16102,7 +16124,7 @@ barsContainer.Size = UDim2.new(0, 232, 0, 96)
 -- so the vitals column doesn't sit directly under the Roblox top-left
 -- icons (Roblox menu, hamburger, headphones). 130 -> 80 vertical so they
 -- sit under the TopBar bottom edge cleanly.
-barsContainer.Position = UDim2.new(0, 220, 0, 80)
+barsContainer.Position = UDim2.new(0, 16, 0, 140)  -- v3.99.1: was y=80 hiding behind TopBar; now y=140 just below it
 barsContainer.BackgroundTransparency = 1
 barsContainer.ZIndex = 15
 barsContainer.Parent = hud
