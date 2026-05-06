@@ -16525,7 +16525,8 @@ local playerGui = player:WaitForChild("PlayerGui")
 local hud = playerGui:WaitForChild("MainHUD", 30)
 if not hud then return end
 
-local summonBtn = hud:WaitForChild("SummonButton")
+-- v291 hotfix: SummonButton was nuked from HUD. Use 2sec timeout, optional.
+local summonBtn = hud:WaitForChild("SummonButton", 2)
 local prankCol = hud:WaitForChild("PrankColumn")
 
 -- ===== Find nearest valid NPC =====
@@ -16567,10 +16568,20 @@ local function pop(btn)
     end)
 end
 
--- ===== Summon =====
-summonBtn.MouseButton1Click:Connect(function()
-    pop(summonBtn)
-    Remotes.RequestSummonHuman:FireServer()
+-- ===== Summon (button optional in v291+; press E key as primary) =====
+if summonBtn then
+    summonBtn.MouseButton1Click:Connect(function()
+        pop(summonBtn)
+        Remotes.RequestSummonHuman:FireServer()
+    end)
+end
+-- E key always summons regardless of button presence
+local UserInputService = game:GetService("UserInputService")
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.E then
+        Remotes.RequestSummonHuman:FireServer()
+    end
 end)
 
 -- ===== Prank buttons =====
