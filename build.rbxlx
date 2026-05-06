@@ -16191,6 +16191,135 @@ print("[HUDFix v3.69] DONE — destroyed SUMMON, hid BottomBar+ACH+PASS+duplicat
       </Item>
       <Item class="LocalScript" referent="101">
         <Properties>
+          <string name="Name">HUDNuke</string>
+          <string name="Source"><![CDATA[-- HUDNuke.client.lua  v3.99.3
+-- Brute-force HUD cleanup that runs every Heartbeat. No name guessing.
+-- Hides duplicates, force-shows vitals, kills nameplates, dedupes prompts.
+local Players       = game:GetService("Players")
+local RunService    = game:GetService("RunService")
+local Workspace     = game:GetService("Workspace")
+local TweenService  = game:GetService("TweenService")
+local player        = Players.LocalPlayer
+local playerGui     = player:WaitForChild("PlayerGui")
+
+-- ===== 1. Build always-on-top HP/HUNGER/THIRST bars at ZIndex 9999 =====
+local hud = playerGui:WaitForChild("MainHUD", 30)
+if not hud then return end
+
+local nukeContainer = Instance.new("Frame")
+nukeContainer.Name = "HUDNuke_Vitals"
+nukeContainer.Size = UDim2.new(0, 220, 0, 96)
+nukeContainer.Position = UDim2.new(0, 16, 0, 160)
+nukeContainer.BackgroundTransparency = 1
+nukeContainer.ZIndex = 9999
+nukeContainer.Parent = hud
+
+local layout = Instance.new("UIListLayout", nukeContainer)
+layout.FillDirection = Enum.FillDirection.Vertical
+layout.Padding = UDim.new(0, 4)
+
+local function makeBar(name, color, order)
+    local row = Instance.new("Frame", nukeContainer)
+    row.Name = name
+    row.Size = UDim2.new(1, 0, 0, 26)
+    row.BackgroundColor3 = Color3.fromRGB(20, 14, 10)
+    row.BorderSizePixel = 0
+    row.LayoutOrder = order
+    row.ZIndex = 9999
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+    local fill = Instance.new("Frame", row)
+    fill.Name = "Fill"
+    fill.Size = UDim2.new(1, 0, 1, 0)
+    fill.BackgroundColor3 = color
+    fill.BorderSizePixel = 0
+    fill.ZIndex = 10000
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 6)
+    local lbl = Instance.new("TextLabel", row)
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = name
+    lbl.Font = Enum.Font.GothamBlack
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.TextStrokeTransparency = 0.2
+    lbl.TextScaled = true
+    lbl.ZIndex = 10001
+    return fill, lbl
+end
+
+local hpFill, hpLbl     = makeBar("HP",     Color3.fromRGB(220, 70, 60), 1)
+local hungerFill, hLbl  = makeBar("HUNGER", Color3.fromRGB(230, 140, 60), 2)
+local thirstFill, tLbl  = makeBar("THIRST", Color3.fromRGB(80, 160, 220), 3)
+
+local function trackHealth(char)
+    local hum = char:WaitForChild("Humanoid", 5); if not hum then return end
+    local function update()
+        local r = math.max(0, hum.Health) / math.max(1, hum.MaxHealth)
+        TweenService:Create(hpFill, TweenInfo.new(0.2), {Size = UDim2.new(r, 0, 1, 0)}):Play()
+        hpLbl.Text = string.format("HP  %d/%d", hum.Health, hum.MaxHealth)
+    end
+    update()
+    hum.HealthChanged:Connect(update)
+end
+if player.Character then trackHealth(player.Character) end
+player.CharacterAdded:Connect(trackHealth)
+
+-- ===== 2. Heartbeat sweep: hide left+center TopBar children, kill nameplates, dedupe prompts =====
+local TOP_BAR_KEEP_NAME_HINTS = {"level", "xp", "rebirth"}  -- keep level + rebirth
+local nameplatesKilled = {}  -- humanoid -> true
+local promptsClipped = {}    -- BillboardGui -> true
+
+RunService.Heartbeat:Connect(function()
+    -- A) TopBar duplicate currency hide
+    local topBar = hud:FindFirstChild("TopBar")
+    if topBar then
+        for _, c in ipairs(topBar:GetChildren()) do
+            if c:IsA("GuiObject") then
+                local lname = c.Name:lower()
+                local keep = false
+                for _, hint in ipairs(TOP_BAR_KEEP_NAME_HINTS) do
+                    if lname:find(hint) then keep = true; break end
+                end
+                -- Right-side anchored = primary count, keep
+                if c.Position.X.Scale > 0.5 or c.AnchorPoint.X > 0.5 then keep = true end
+                -- Hide left+center currency wraps
+                if not keep and (lname:find("chaos") or lname:find("hell") or lname:find("wrap") or lname:find("coin") or lname:find("gem")) then
+                    c.Visible = false
+                end
+            end
+        end
+    end
+
+    -- B) Force-disable Roblox auto-nameplate on every player character
+    for _, p in ipairs(Players:GetPlayers()) do
+        local char = p.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and not nameplatesKilled[hum] then
+                hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+                hum.NameDisplayDistance = 0
+                hum.HealthDisplayDistance = 0
+                nameplatesKilled[hum] = true
+            end
+        end
+    end
+
+    -- C) BillboardGui prompt dedupe — clamp MaxDistance on every world BillboardGui
+    for _, bb in ipairs(Workspace:GetDescendants()) do
+        if bb:IsA("BillboardGui") and not promptsClipped[bb] then
+            if bb.MaxDistance == 0 or bb.MaxDistance > 18 then
+                bb.MaxDistance = 12
+            end
+            promptsClipped[bb] = true
+        end
+    end
+end)
+
+print("[HUDNuke v3.99.3] online — vitals top-left ZIndex 9999, currency dedupe, nameplate kill, prompt dedupe")
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="LocalScript" referent="102">
+        <Properties>
           <string name="Name">HUDPolish</string>
           <string name="Source"><![CDATA[-- HUDPolish.client.lua  v2 — surgical, not blanket.
 -- The previous version slapped a purple gradient + pink stroke on EVERY frame
@@ -16283,7 +16412,7 @@ print("[HUDPolish v2] surgical polish applied (bars + primary buttons + prank bt
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="102">
+      <Item class="LocalScript" referent="103">
         <Properties>
           <string name="Name">HitStop</string>
           <string name="Source"><![CDATA[-- HitStop.client.lua  v1 — micro time-stop on prank land for chunky feel.
@@ -16355,7 +16484,7 @@ print("[HitStop v1] online — flash + FOV punch + gravity-slow on prank land")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="103">
+      <Item class="LocalScript" referent="104">
         <Properties>
           <string name="Name">HousingPanel</string>
           <string name="Source"><![CDATA[-- HousingPanel.client.lua  v1 — UI for HousingSystem.
@@ -16532,7 +16661,7 @@ print("[HousingPanel v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="104">
+      <Item class="LocalScript" referent="105">
         <Properties>
           <string name="Name">InputHandler</string>
           <string name="Source"><![CDATA[-- InputHandler.client.lua
@@ -16717,7 +16846,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="105">
+      <Item class="LocalScript" referent="106">
         <Properties>
           <string name="Name">KillCam</string>
           <string name="Source"><![CDATA[-- KillCam.client.lua  v1 — short cinematic camera punch on boss-kill or
@@ -16787,7 +16916,7 @@ print("[KillCam v1] online - triggers on big-chaos hits (>=200), 8s cooldown")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="106">
+      <Item class="LocalScript" referent="107">
         <Properties>
           <string name="Name">KillFeed</string>
           <string name="Source"><![CDATA[-- KillFeed.client.lua — top-right scrolling feed of recent prank events
@@ -16918,7 +17047,7 @@ print("[KillFeed] right-side prank/level feed ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="107">
+      <Item class="LocalScript" referent="108">
         <Properties>
           <string name="Name">LoadingScreen</string>
           <string name="Source"><![CDATA[-- LoadingScreen.client.lua  v1
@@ -17089,7 +17218,7 @@ print("[LoadingScreen v1] showing while HUD spins up")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="108">
+      <Item class="LocalScript" referent="109">
         <Properties>
           <string name="Name">Minimap</string>
           <string name="Source"><![CDATA[-- Minimap.client.lua  v2 — responsive top-right minimap with player + NPC dots.
@@ -17265,7 +17394,7 @@ print("[Minimap v2] responsive minimap, warm palette")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="109">
+      <Item class="LocalScript" referent="110">
         <Properties>
           <string name="Name">MultiplayerFeel</string>
           <string name="Source"><![CDATA[-- MultiplayerFeel.client.lua  v1 — Phase-12 social glue.
@@ -17451,7 +17580,7 @@ print("[MultiplayerFeel v1] online — floating text + squad combo + friends rib
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="110">
+      <Item class="LocalScript" referent="111">
         <Properties>
           <string name="Name">OnboardingFlow</string>
           <string name="Source"><![CDATA[-- OnboardingFlow.client.lua — Grok's #1 priority: 15-sec guided first-prank tutorial with massive payoff
@@ -17743,7 +17872,7 @@ print("[OnboardingFlow] cinematic 2-step + massive payoff active")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="111">
+      <Item class="LocalScript" referent="112">
         <Properties>
           <string name="Name">PerkUI</string>
           <string name="Source"><![CDATA[-- PerkUI.client.lua  v2 — Perk picker + stats allocation modals.
@@ -18063,7 +18192,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="112">
+      <Item class="LocalScript" referent="113">
         <Properties>
           <string name="Name">PhotoMode</string>
           <string name="Source"><![CDATA[-- PhotoMode.client.lua  v1 — F1 toggles a free-camera mode that:
@@ -18191,7 +18320,7 @@ print("[PhotoMode v1] online — F1 to toggle")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="113">
+      <Item class="LocalScript" referent="114">
         <Properties>
           <string name="Name">PreSpawnLobby</string>
           <string name="Source"><![CDATA[-- PreSpawnLobby v4 — compact UI revamp.
@@ -18823,7 +18952,7 @@ print("[PreSpawnLobby v4 compact] ready, requestSpawn = " .. tostring(requestSpa
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="114">
+      <Item class="LocalScript" referent="115">
         <Properties>
           <string name="Name">QuestPanel</string>
           <string name="Source"><![CDATA[-- QuestPanel.client.lua  v1
@@ -18997,7 +19126,7 @@ print("[QuestPanel v1] daily quests panel ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="115">
+      <Item class="LocalScript" referent="116">
         <Properties>
           <string name="Name">ReactionBubbles</string>
           <string name="Source"><![CDATA[-- ReactionBubbles.client.lua  v1 — speech bubble feedback above NPCs
@@ -19088,7 +19217,7 @@ print("[ReactionBubbles v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="116">
+      <Item class="LocalScript" referent="117">
         <Properties>
           <string name="Name">SettingsMenu</string>
           <string name="Source"><![CDATA[-- SettingsMenu.client.lua  v1
@@ -19593,7 +19722,7 @@ print("[SettingsMenu v1] menu + volume + graphics + motion + controls help ready
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="117">
+      <Item class="LocalScript" referent="118">
         <Properties>
           <string name="Name">SocialBadges</string>
           <string name="Source"><![CDATA[-- SocialBadges.client.lua
@@ -19686,7 +19815,7 @@ print("[SocialBadges v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="118">
+      <Item class="LocalScript" referent="119">
         <Properties>
           <string name="Name">SurvivalUI</string>
           <string name="Source"><![CDATA[-- SurvivalUI.client.lua  v2 — hunger + thirst bars, warm theme, responsive.
@@ -19818,7 +19947,7 @@ print("[SurvivalUI v2] hunger + thirst bars, warm theme")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="119">
+      <Item class="LocalScript" referent="120">
         <Properties>
           <string name="Name">TerritoryHUD</string>
           <string name="Source"><![CDATA[-- TerritoryHUD.client.lua  v1 — top-of-screen banner shows current zone
@@ -19898,7 +20027,7 @@ print("[TerritoryHUD v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="120">
+      <Item class="LocalScript" referent="121">
         <Properties>
           <string name="Name">TradePanel</string>
           <string name="Source"><![CDATA[-- TradePanel.client.lua  v1 — UI for TradingSystem.
@@ -20177,7 +20306,7 @@ print("[TradePanel v1] online - press T near another player to start a trade")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="121">
+      <Item class="LocalScript" referent="122">
         <Properties>
           <string name="Name">TutorialController</string>
           <string name="Source"><![CDATA[-- TutorialController.client.lua
@@ -20253,7 +20382,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="122">
+      <Item class="LocalScript" referent="123">
         <Properties>
           <string name="Name">VersionDisplay</string>
           <string name="Source"><![CDATA[-- VersionDisplay.client.lua  v1 — small chip bottom-right showing what
@@ -20317,7 +20446,7 @@ print("[VersionDisplay] running " .. VersionInfo.tag .. " (" .. VersionInfo.comm
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="123">
+      <Item class="LocalScript" referent="124">
         <Properties>
           <string name="Name">WeatherClient</string>
           <string name="Source"><![CDATA[-- WeatherClient.client.lua
@@ -20463,7 +20592,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="124">
+      <Item class="LocalScript" referent="125">
         <Properties>
           <string name="Name">ZoneAmbience</string>
           <string name="Source"><![CDATA[-- ZoneAmbience.client.lua
@@ -20572,7 +20701,7 @@ print("[ZoneAmbience v1] online")
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="125">
+  <Item class="Workspace" referent="126">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>

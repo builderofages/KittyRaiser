@@ -371,6 +371,9 @@
         },
         "VersionDisplay": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/VersionDisplay.client.lua"
+        },
+        "HUDNuke": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/HUDNuke.client.lua"
         }
       }
     },
