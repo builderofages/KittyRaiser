@@ -21,11 +21,11 @@ task.spawn(function()
         local tmpl = entry.meshTemplate
         if tmpl and tmpl:IsA("MeshPart") and tmpl.MeshId and tmpl.MeshId ~= "" then
             withMesh = withMesh + 1
-            print(string.format("[MeshDiag]  ✓ %s — MeshId=%s, Size=%s",
+            print(string.format("[MeshDiag]  OK %s - MeshId=%s, Size=%s",
                 name, tostring(tmpl.MeshId):sub(-30), tostring(tmpl.Size)))
         else
             empty = empty + 1
-            warn(string.format("[MeshDiag]  ✗ %s — NO MESH (template=%s)", name, tostring(tmpl)))
+            warn(string.format("[MeshDiag]  MISSING %s - NO MESH (template=%s)", name, tostring(tmpl)))
         end
     end
     print(string.format("===== %d/%d meshes have actual geometry, %d are empty/missing =====",
