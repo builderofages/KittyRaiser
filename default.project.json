@@ -38,6 +38,9 @@
         },
         "BattlePassConfig": {
           "$path": "src/ReplicatedStorage/Modules/BattlePassConfig.lua"
+        },
+        "VersionInfo": {
+          "$path": "src/ReplicatedStorage/Modules/VersionInfo.lua"
         }
       }
     },
@@ -365,6 +368,9 @@
         },
         "TradePanel": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/TradePanel.client.lua"
+        },
+        "VersionDisplay": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/VersionDisplay.client.lua"
         }
       }
     },
