@@ -59,6 +59,10 @@ AssetIds.city_ambient             = "rbxassetid://104379163206023"  -- looping b
 AssetIds.cat_purr_loop            = "rbxassetid://85676718403186"  -- looping purr for emote, SFX channel
 AssetIds.cat_hiss                 = "rbxassetid://96907205236145"  -- short hiss for emote, SFX channel
 AssetIds.ticket_buzz              = "rbxassetid://123900645230046"  -- short angry buzz when cop tickets you
+-- v3.80 NPC scream variants — pending Suno render. Gracefully gated by AssetIds.has().
+AssetIds.npc_scream_1             = "rbxassetid://0"
+AssetIds.npc_scream_2             = "rbxassetid://0"
+AssetIds.npc_scream_3             = "rbxassetid://0"
 
 -- ===== MESHES (already uploaded) =====
 AssetIds.mesh_anvil               = "rbxassetid://112707712825379"
