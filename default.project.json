@@ -237,6 +237,12 @@
       },
       "WorldPowerups": {
         "$path": "src/ServerScriptService/WorldPowerups.server.lua"
+      },
+      "ClanSystem": {
+        "$path": "src/ServerScriptService/ClanSystem.server.lua"
+      },
+      "HousingSystem": {
+        "$path": "src/ServerScriptService/HousingSystem.server.lua"
       }
     },
     "StarterGui": {

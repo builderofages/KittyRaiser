@@ -4562,6 +4562,311 @@ print("[CivilianPanic v1] online — NPCs flee when cat within 18 studs")
     </Item>
     <Item class="Script" referent="31">
       <Properties>
+        <string name="Name">ClanSystem</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- ClanSystem.server.lua  v1 — clan creation, invite/join/leave/kick.
+--
+-- Storage:
+--   * DataHandler per-player additions: d.clanId (string), d.clanRank ("leader"|"officer"|"member")
+--   * Separate ClanStore DataStore: keyed on clanId, value = {name, tag, members={[uid]=rank}, treasury, level, xp, createdAt}
+--
+-- Security:
+--   * Rate-limited invites (max 1 outgoing per 5s per inviter)
+--   * Only leader can disband; only leader/officer can kick
+--   * Tag/name validated (3-12 chars, no special chars beyond letters/digits)
+--   * 2,000 chaos cost to create (server-deducted via DataHandler.modify)
+--   * Per-player can be in at most ONE clan
+--   * Treasury is donate-only; only leader can withdraw
+--   * Audit print on every leadership-affecting action
+
+local Players          = game:GetService("Players")
+local DataStoreService = game:GetService("DataStoreService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage.Modules.RemoteEvents)
+
+local function ensureRemote(name, kind)
+    local folder = ReplicatedStorage:FindFirstChild("RemoteEventsFolder")
+    if not folder then
+        folder = Instance.new("Folder"); folder.Name = "RemoteEventsFolder"; folder.Parent = ReplicatedStorage
+    end
+    local existing = folder:FindFirstChild(name)
+    if existing then return existing end
+    local r = Instance.new(kind); r.Name = name; r.Parent = folder
+    return r
+end
+local RequestCreateClan = ensureRemote("RequestCreateClan",   "RemoteFunction")
+local RequestInviteClan = ensureRemote("RequestInviteClan",   "RemoteFunction")
+local RequestAcceptInvite = ensureRemote("RequestAcceptClanInvite", "RemoteFunction")
+local RequestLeaveClan  = ensureRemote("RequestLeaveClan",    "RemoteFunction")
+local RequestKickFromClan = ensureRemote("RequestKickFromClan", "RemoteFunction")
+local RequestClanInfo   = ensureRemote("RequestClanInfo",     "RemoteFunction")
+local RequestDonateClan = ensureRemote("RequestDonateClan",   "RemoteFunction")
+local ClanInviteEvent   = ensureRemote("ClanInviteEvent",     "Event")
+
+local DataHandler
+task.spawn(function()
+    while not _G.KittyRaiserData do task.wait() end
+    DataHandler = _G.KittyRaiserData
+end)
+
+local clanStore = DataStoreService:GetDataStore("KR_ClanStore_v1")
+
+local CREATE_COST = 2000
+local pendingInvites = {}    -- [targetUid] = {[clanId] = {fromUid, expiresT}}
+local lastInviteT = {}       -- [fromUid] = clock; rate limit invites
+
+local function notify(p, msg, kind)
+    if Remotes.NotifyClient then
+        Remotes.NotifyClient:FireClient(p, msg, kind or "info")
+    end
+end
+
+local function validName(name)
+    if typeof(name) ~= "string" then return false end
+    if #name < 3 or #name > 18 then return false end
+    return name:match("^[%w%s]+$") ~= nil
+end
+
+local function validTag(tag)
+    if typeof(tag) ~= "string" then return false end
+    if #tag < 2 or #tag > 5 then return false end
+    return tag:match("^[%w]+$") ~= nil
+end
+
+local function loadClan(clanId)
+    local ok, data = pcall(function() return clanStore:GetAsync(clanId) end)
+    if ok and data then return data end
+    return nil
+end
+
+local function saveClan(clanId, data)
+    local ok, err = pcall(function() clanStore:SetAsync(clanId, data) end)
+    if not ok then warn("[ClanSystem] save failed: " .. tostring(err)) end
+end
+
+-- =====================================================================
+-- CREATE
+-- =====================================================================
+RequestCreateClan.OnServerInvoke = function(player, name, tag)
+    if not DataHandler then return false, "data_loading" end
+    if not validName(name) then return false, "invalid_name" end
+    if not validTag(tag) then return false, "invalid_tag" end
+    local data = DataHandler.getData(player)
+    if not data then return false, "data_loading" end
+    if data.clanId then return false, "already_in_clan" end
+    if (data.chaosPoints or 0) < CREATE_COST then return false, "insufficient_chaos" end
+
+    local clanId = "C_" .. player.UserId .. "_" .. os.time()
+    local clanData = {
+        id = clanId,
+        name = name,
+        tag = tag:upper(),
+        members = {[tostring(player.UserId)] = "leader"},
+        memberCount = 1,
+        treasury = 0,
+        level = 1,
+        xp = 0,
+        createdAt = os.time(),
+        founderUid = player.UserId,
+    }
+    saveClan(clanId, clanData)
+    DataHandler.modify(player, function(d)
+        d.chaosPoints = (d.chaosPoints or 0) - CREATE_COST
+        d.clanId = clanId
+        d.clanRank = "leader"
+    end)
+    print(string.format("[ClanSystem] CLAN CREATED %s by %s, id=%s", name, player.Name, clanId))
+    notify(player, "CLAN [" .. clanData.tag .. "] " .. name .. " created", "good")
+    return true, clanId
+end
+
+-- =====================================================================
+-- INVITE
+-- =====================================================================
+RequestInviteClan.OnServerInvoke = function(player, targetUid)
+    if not DataHandler then return false, "data_loading" end
+    if typeof(targetUid) ~= "number" then return false, "invalid_target" end
+    local now = os.clock()
+    if lastInviteT[player.UserId] and now - lastInviteT[player.UserId] < 5 then
+        return false, "rate_limit"
+    end
+    local data = DataHandler.getData(player)
+    if not data or not data.clanId then return false, "no_clan" end
+    if data.clanRank ~= "leader" and data.clanRank ~= "officer" then
+        return false, "rank_too_low"
+    end
+    local target = Players:GetPlayerByUserId(targetUid)
+    if not target then return false, "target_offline" end
+    local tdata = DataHandler.getData(target)
+    if not tdata then return false, "target_data_loading" end
+    if tdata.clanId then return false, "target_in_clan" end
+
+    pendingInvites[targetUid] = pendingInvites[targetUid] or {}
+    pendingInvites[targetUid][data.clanId] = {fromUid=player.UserId, expiresT=os.time()+120}
+    lastInviteT[player.UserId] = now
+
+    local clanData = loadClan(data.clanId)
+    if clanData then
+        ClanInviteEvent:FireClient(target, {
+            fromName = player.DisplayName,
+            clanId = data.clanId,
+            clanName = clanData.name,
+            clanTag = clanData.tag,
+        })
+    end
+    return true, "sent"
+end
+
+-- =====================================================================
+-- ACCEPT INVITE
+-- =====================================================================
+RequestAcceptInvite.OnServerInvoke = function(player, clanId)
+    if not DataHandler then return false, "data_loading" end
+    if typeof(clanId) ~= "string" then return false, "invalid" end
+    local data = DataHandler.getData(player)
+    if not data or data.clanId then return false, "already_in_clan" end
+    local invites = pendingInvites[player.UserId]
+    if not invites or not invites[clanId] then return false, "no_invite" end
+    if os.time() > invites[clanId].expiresT then
+        invites[clanId] = nil
+        return false, "expired"
+    end
+    local clanData = loadClan(clanId)
+    if not clanData then return false, "clan_missing" end
+    clanData.members[tostring(player.UserId)] = "member"
+    clanData.memberCount = (clanData.memberCount or 0) + 1
+    saveClan(clanId, clanData)
+    DataHandler.modify(player, function(d)
+        d.clanId = clanId
+        d.clanRank = "member"
+    end)
+    pendingInvites[player.UserId] = nil
+    print(string.format("[ClanSystem] %s joined clan %s", player.Name, clanData.tag))
+    notify(player, "JOINED [" .. clanData.tag .. "] " .. clanData.name, "good")
+    return true, "ok"
+end
+
+-- =====================================================================
+-- LEAVE
+-- =====================================================================
+RequestLeaveClan.OnServerInvoke = function(player)
+    if not DataHandler then return false, "data_loading" end
+    local data = DataHandler.getData(player)
+    if not data or not data.clanId then return false, "no_clan" end
+    local clanData = loadClan(data.clanId)
+    if clanData then
+        clanData.members[tostring(player.UserId)] = nil
+        clanData.memberCount = math.max(0, (clanData.memberCount or 0) - 1)
+        if data.clanRank == "leader" and clanData.memberCount > 0 then
+            -- Auto-promote: pick any officer or any member
+            local newLeader
+            for uid, rank in pairs(clanData.members) do
+                if rank == "officer" then newLeader = uid; break end
+            end
+            if not newLeader then newLeader = next(clanData.members) end
+            if newLeader then clanData.members[newLeader] = "leader" end
+            print(string.format("[ClanSystem] LEADER LEFT %s, promoted %s", clanData.tag, tostring(newLeader)))
+        end
+        saveClan(data.clanId, clanData)
+    end
+    DataHandler.modify(player, function(d)
+        d.clanId = nil; d.clanRank = nil
+    end)
+    notify(player, "LEFT CLAN", "info")
+    return true
+end
+
+-- =====================================================================
+-- KICK
+-- =====================================================================
+RequestKickFromClan.OnServerInvoke = function(player, targetUid)
+    if not DataHandler then return false, "data_loading" end
+    local data = DataHandler.getData(player)
+    if not data or not data.clanId then return false, "no_clan" end
+    if data.clanRank ~= "leader" and data.clanRank ~= "officer" then
+        return false, "rank_too_low"
+    end
+    if targetUid == player.UserId then return false, "cannot_kick_self" end
+    local clanData = loadClan(data.clanId)
+    if not clanData then return false, "clan_missing" end
+    if not clanData.members[tostring(targetUid)] then return false, "not_in_clan" end
+    if clanData.members[tostring(targetUid)] == "leader" then return false, "cannot_kick_leader" end
+    -- Officers can't kick officers; only leader can
+    if clanData.members[tostring(targetUid)] == "officer" and data.clanRank ~= "leader" then
+        return false, "cannot_kick_officer"
+    end
+    clanData.members[tostring(targetUid)] = nil
+    clanData.memberCount = math.max(0, (clanData.memberCount or 0) - 1)
+    saveClan(data.clanId, clanData)
+    -- If the kicked player is online, clear their clan
+    local target = Players:GetPlayerByUserId(targetUid)
+    if target then
+        DataHandler.modify(target, function(d)
+            d.clanId = nil; d.clanRank = nil
+        end)
+        notify(target, "KICKED FROM CLAN", "warn")
+    end
+    print(string.format("[ClanSystem] KICKED uid=%d from %s by %s", targetUid, clanData.tag, player.Name))
+    return true
+end
+
+-- =====================================================================
+-- INFO
+-- =====================================================================
+RequestClanInfo.OnServerInvoke = function(player)
+    if not DataHandler then return nil end
+    local data = DataHandler.getData(player)
+    if not data or not data.clanId then return nil end
+    return loadClan(data.clanId)
+end
+
+-- =====================================================================
+-- DONATE TO TREASURY
+-- =====================================================================
+RequestDonateClan.OnServerInvoke = function(player, amount)
+    if not DataHandler then return false end
+    if typeof(amount) ~= "number" or amount <= 0 then return false, "invalid_amount" end
+    amount = math.floor(amount)
+    local data = DataHandler.getData(player)
+    if not data or not data.clanId then return false, "no_clan" end
+    if (data.chaosPoints or 0) < amount then return false, "insufficient" end
+    local clanData = loadClan(data.clanId)
+    if not clanData then return false, "clan_missing" end
+    DataHandler.modify(player, function(d)
+        d.chaosPoints = (d.chaosPoints or 0) - amount
+    end)
+    clanData.treasury = (clanData.treasury or 0) + amount
+    saveClan(data.clanId, clanData)
+    notify(player, "DONATED " .. amount .. " CHAOS to clan", "good")
+    return true
+end
+
+-- =====================================================================
+-- CLAN XP HOOK — bumped on every successful prank via global called from
+-- PrankSystem.handlePrankRequest.
+-- =====================================================================
+_G.KittyRaiserBumpClanXP = function(player, amount)
+    if not DataHandler then return end
+    local data = DataHandler.getData(player)
+    if not data or not data.clanId then return end
+    local clanData = loadClan(data.clanId)
+    if not clanData then return end
+    clanData.xp = (clanData.xp or 0) + (amount or 1)
+    -- Level up at 1000 * level XP
+    while clanData.xp >= (clanData.level or 1) * 1000 and (clanData.level or 1) < 50 do
+        clanData.xp = clanData.xp - (clanData.level * 1000)
+        clanData.level = (clanData.level or 1) + 1
+    end
+    saveClan(data.clanId, clanData)
+end
+
+print("[ClanSystem v1] online - DataStore-backed, leader/officer/member ranks")
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="32">
+      <Properties>
         <string name="Name">CodeRedemption</string>
         <token name="RunContext">0</token>
         <string name="Source"><![CDATA[-- CodeRedemption.server.lua  v1 — promo code redemption.
@@ -4663,7 +4968,7 @@ end)() .. " active codes")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="32">
+    <Item class="Script" referent="33">
       <Properties>
         <string name="Name">CombatJuice</string>
         <token name="RunContext">0</token>
@@ -4804,7 +5109,7 @@ print("[CombatJuice v1] online — knockback + ragdoll + scream on prank")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="33">
+    <Item class="Script" referent="34">
       <Properties>
         <string name="Name">CopAggro</string>
         <token name="RunContext">0</token>
@@ -4898,7 +5203,7 @@ print("[CopAggro v1] online — cops chase player within 60 studs, deal 5 dmg/se
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="34">
+    <Item class="Script" referent="35">
       <Properties>
         <string name="Name">CopSystem</string>
         <token name="RunContext">0</token>
@@ -5220,7 +5525,7 @@ print("[CopSystem v1] online — pranks build heat; at threshold a cop chases yo
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="35">
+    <Item class="Script" referent="36">
       <Properties>
         <string name="Name">CosmeticHandler</string>
         <token name="RunContext">0</token>
@@ -5360,7 +5665,7 @@ return CosmeticHandler
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="36">
+    <Item class="Script" referent="37">
       <Properties>
         <string name="Name">DailyRewardSystem</string>
         <token name="RunContext">0</token>
@@ -5468,7 +5773,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="37">
+    <Item class="Script" referent="38">
       <Properties>
         <string name="Name">DamageTracker</string>
         <token name="RunContext">0</token>
@@ -5504,7 +5809,7 @@ print("[DamageTracker v1] online")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="38">
+    <Item class="Script" referent="39">
       <Properties>
         <string name="Name">DataHandler</string>
         <token name="RunContext">0</token>
@@ -5799,7 +6104,7 @@ return DataHandler
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="39">
+    <Item class="Script" referent="40">
       <Properties>
         <string name="Name">DayNightCycle</string>
         <token name="RunContext">0</token>
@@ -5987,7 +6292,7 @@ print("[DayNightCycle v1] online — " .. CYCLE_SECONDS .. "s real time = 24 in-
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="40">
+    <Item class="Script" referent="41">
       <Properties>
         <string name="Name">DiagnosticDump</string>
         <token name="RunContext">0</token>
@@ -6097,7 +6402,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="41">
+    <Item class="Script" referent="42">
       <Properties>
         <string name="Name">DistrictExpansion</string>
         <token name="RunContext">0</token>
@@ -6453,7 +6758,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="42">
+    <Item class="Script" referent="43">
       <Properties>
         <string name="Name">DrivableVehicles</string>
         <token name="RunContext">0</token>
@@ -6610,7 +6915,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="43">
+    <Item class="Script" referent="44">
       <Properties>
         <string name="Name">EmoteSystem</string>
         <token name="RunContext">0</token>
@@ -6649,7 +6954,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="44">
+    <Item class="Script" referent="45">
       <Properties>
         <string name="Name">EventScheduler</string>
         <token name="RunContext">0</token>
@@ -6784,7 +7089,7 @@ print("[EventScheduler v1] online — " .. #EVENTS .. " events scheduled")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="45">
+    <Item class="Script" referent="46">
       <Properties>
         <string name="Name">FoodDropSystem</string>
         <token name="RunContext">0</token>
@@ -6948,7 +7253,7 @@ print("[FoodDropSystem v1] online — food/water drops + 2% NPC drops + breakabl
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="46">
+    <Item class="Script" referent="47">
       <Properties>
         <string name="Name">HideSeekSystem</string>
         <token name="RunContext">0</token>
@@ -7123,7 +7428,312 @@ print("[HideSeekSystem v1] online - rounds every " .. ROUND_INTERVAL_S .. "s")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="47">
+    <Item class="Script" referent="48">
+      <Properties>
+        <string name="Name">HousingSystem</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- HousingSystem.server.lua  v1 — per-player apartment with furniture placement.
+--
+-- Architecture:
+--   * Each player gets a 60x60 marble apartment in their own vertical shaft
+--     at (player.UserId % 1000 * 100, 5000 + player.UserId % 1000 * 80, 0).
+--   * Vertical separation 80 studs ensures rooms don't visually leak across.
+--   * Apartment building entrance at (-1500, 5, -200) with 1 doorway pad.
+--   * Touching the doorway teleports you to YOUR apartment.
+--   * Furniture stored as {kind, x, y, z, rotY} in d.apartment.
+--   * 10 furniture kinds, each ~free placement (0 cost) but capped at 30 pieces.
+--   * Public-vs-private flag: data.apartmentPublic = true means others can visit.
+--   * Server-validated: kind must be in catalog, position must be inside room
+--     (clamped to +/-28 stud horizontal, 0..28 vertical).
+
+local Players          = game:GetService("Players")
+local Workspace        = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+
+local function ensureRemote(name, kind)
+    local folder = ReplicatedStorage:FindFirstChild("RemoteEventsFolder")
+    if not folder then
+        folder = Instance.new("Folder"); folder.Name = "RemoteEventsFolder"; folder.Parent = ReplicatedStorage
+    end
+    local existing = folder:FindFirstChild(name)
+    if existing then return existing end
+    local r = Instance.new(kind); r.Name = name; r.Parent = folder
+    return r
+end
+local RequestEnterHome    = ensureRemote("RequestEnterHome",     "RemoteFunction")
+local RequestPlaceFurniture = ensureRemote("RequestPlaceFurniture", "RemoteFunction")
+local RequestRemoveFurniture = ensureRemote("RequestRemoveFurniture", "RemoteFunction")
+local RequestExitHome     = ensureRemote("RequestExitHome",      "RemoteFunction")
+local RequestSetHomePublic = ensureRemote("RequestSetHomePublic", "RemoteFunction")
+local RequestVisitPlayer  = ensureRemote("RequestVisitPlayer",   "RemoteFunction")
+
+local DataHandler
+task.spawn(function()
+    while not _G.KittyRaiserData do task.wait() end
+    DataHandler = _G.KittyRaiserData
+end)
+
+local FURNITURE = {
+    cat_bed       = {size=Vector3.new(4, 2, 6),  color=Color3.fromRGB(220, 180, 150)},
+    scratch_post  = {size=Vector3.new(2, 6, 2),  color=Color3.fromRGB(180, 130, 90)},
+    food_bowl     = {size=Vector3.new(2, 1, 2),  color=Color3.fromRGB(220, 100, 80)},
+    water_bowl    = {size=Vector3.new(2, 1, 2),  color=Color3.fromRGB(80, 160, 220)},
+    cat_tower     = {size=Vector3.new(4, 12, 4), color=Color3.fromRGB(140, 100, 70)},
+    hammock       = {size=Vector3.new(6, 1, 2),  color=Color3.fromRGB(220, 200, 170)},
+    fish_tank     = {size=Vector3.new(4, 4, 2),  color=Color3.fromRGB(120, 180, 220)},
+    treat_jar     = {size=Vector3.new(2, 3, 2),  color=Color3.fromRGB(220, 150, 60)},
+    window_perch  = {size=Vector3.new(6, 1, 2),  color=Color3.fromRGB(180, 175, 165)},
+    yarn_ball     = {size=Vector3.new(2, 2, 2),  color=Color3.fromRGB(220, 60, 60)},
+}
+local MAX_FURNITURE = 30
+
+local apartmentFolder = Workspace:FindFirstChild("Apartments") or Instance.new("Folder", Workspace)
+apartmentFolder.Name = "Apartments"
+
+local activeApartments = {}  -- [uid] = {center, parts={}}
+
+local function notify(p, msg, kind)
+    if Remotes.NotifyClient then
+        Remotes.NotifyClient:FireClient(p, msg, kind or "info")
+    end
+end
+
+local function apartmentCenter(uid)
+    -- Spread per-player apartments across a grid in the sky.
+    local idx = uid % 1024
+    local row = math.floor(idx / 32)
+    local col = idx % 32
+    return Vector3.new(col * 200 - 3000, 5000 + row * 80, -3000 + row * 200)
+end
+
+local function buildEmptyRoom(uid)
+    local center = apartmentCenter(uid)
+    local roomFolder = Instance.new("Folder", apartmentFolder)
+    roomFolder.Name = "Apt_" .. uid
+    -- Floor + ceiling + 4 walls (60x60 room)
+    local floor = Instance.new("Part", roomFolder)
+    floor.Anchored = true; floor.CanCollide = true
+    floor.Size = Vector3.new(60, 1, 60)
+    floor.Position = center + Vector3.new(0, -1, 0)
+    floor.Material = Enum.Material.Marble
+    floor.Color = Color3.fromRGB(225, 220, 205)
+    local ceiling = Instance.new("Part", roomFolder)
+    ceiling.Anchored = true; ceiling.CanCollide = true
+    ceiling.Size = Vector3.new(60, 1, 60)
+    ceiling.Position = center + Vector3.new(0, 30, 0)
+    ceiling.Material = Enum.Material.SmoothPlastic
+    ceiling.Color = Color3.fromRGB(180, 175, 165)
+    for _, w in ipairs({
+        {pos=center+Vector3.new( 0, 15,  30), size=Vector3.new(60, 30, 1)},
+        {pos=center+Vector3.new( 0, 15, -30), size=Vector3.new(60, 30, 1)},
+        {pos=center+Vector3.new( 30, 15, 0), size=Vector3.new(1, 30, 60)},
+        {pos=center+Vector3.new(-30, 15, 0), size=Vector3.new(1, 30, 60)},
+    }) do
+        local wall = Instance.new("Part", roomFolder)
+        wall.Anchored = true; wall.CanCollide = true
+        wall.Size = w.size; wall.Position = w.pos
+        wall.Material = Enum.Material.SmoothPlastic
+        wall.Color = Color3.fromRGB(195, 175, 150)
+    end
+    -- Exit doorway
+    local exitDoor = Instance.new("Part", roomFolder)
+    exitDoor.Name = "ExitDoor"
+    exitDoor.Anchored = true; exitDoor.CanCollide = false
+    exitDoor.Size = Vector3.new(8, 12, 1)
+    exitDoor.Position = center + Vector3.new(0, 6, 29)
+    exitDoor.Material = Enum.Material.Wood
+    exitDoor.Color = Color3.fromRGB(180, 140, 90)
+    exitDoor.Transparency = 0.3
+    local g = Instance.new("BillboardGui", exitDoor)
+    g.Size = UDim2.new(0, 100, 0, 30)
+    g.StudsOffset = Vector3.new(0, 8, 0)
+    g.AlwaysOnTop = true
+    local lbl = Instance.new("TextLabel", g)
+    lbl.Size = UDim2.fromScale(1, 1)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = "EXIT"
+    lbl.Font = Enum.Font.LuckiestGuy
+    lbl.TextScaled = true
+    lbl.TextColor3 = Color3.fromRGB(255, 240, 200)
+    lbl.TextStrokeTransparency = 0
+    lbl.TextStrokeColor3 = Color3.fromRGB(40, 25, 10)
+    -- Exit teleport
+    local exitFlag = {}
+    exitDoor.Touched:Connect(function(hit)
+        local model = hit:FindFirstAncestorOfClass("Model")
+        local p = model and Players:GetPlayerFromCharacter(model)
+        if not p or exitFlag[p.UserId] then return end
+        exitFlag[p.UserId] = true
+        if model.PrimaryPart then
+            model:PivotTo(CFrame.new(-1490, 5, -200))
+        end
+        task.delay(2, function() exitFlag[p.UserId] = nil end)
+    end)
+    return roomFolder, center
+end
+
+local function spawnFurniture(roomFolder, center, kind, lx, ly, lz, rotY)
+    local def = FURNITURE[kind]
+    if not def then return nil end
+    local part = Instance.new("Part", roomFolder)
+    part.Name = "Furniture_" .. kind
+    part.Anchored = true; part.CanCollide = true
+    part.Size = def.size
+    part.CFrame = CFrame.new(center + Vector3.new(lx, ly + def.size.Y/2, lz))
+        * CFrame.Angles(0, math.rad(rotY or 0), 0)
+    part.Color = def.color
+    part.Material = Enum.Material.SmoothPlastic
+    part:SetAttribute("FurnitureKind", kind)
+    return part
+end
+
+local function rebuildApartment(uid, includeFurniture)
+    -- Clear if exists
+    local existing = apartmentFolder:FindFirstChild("Apt_" .. uid)
+    if existing then existing:Destroy() end
+    local roomFolder, center = buildEmptyRoom(uid)
+    activeApartments[uid] = {center=center, folder=roomFolder}
+    -- Place furniture from data
+    if includeFurniture and DataHandler then
+        local p = Players:GetPlayerByUserId(uid)
+        if p then
+            local data = DataHandler.getData(p)
+            if data and data.apartment then
+                for _, item in ipairs(data.apartment) do
+                    spawnFurniture(roomFolder, center, item.kind, item.x, item.y, item.z, item.rotY)
+                end
+            end
+        end
+    end
+    return roomFolder, center
+end
+
+-- =====================================================================
+-- HANDLERS
+-- =====================================================================
+RequestEnterHome.OnServerInvoke = function(player)
+    if not DataHandler then return false, "data_loading" end
+    local roomFolder, center = rebuildApartment(player.UserId, true)
+    if player.Character then
+        player.Character:PivotTo(CFrame.new(center + Vector3.new(0, 4, 0)))
+    end
+    return true
+end
+
+RequestExitHome.OnServerInvoke = function(player)
+    if player.Character then
+        player.Character:PivotTo(CFrame.new(-1490, 5, -200))
+    end
+    return true
+end
+
+RequestPlaceFurniture.OnServerInvoke = function(player, kind, x, y, z, rotY)
+    if not DataHandler then return false, "data_loading" end
+    if typeof(kind) ~= "string" or not FURNITURE[kind] then return false, "invalid_kind" end
+    if typeof(x) ~= "number" or typeof(y) ~= "number" or typeof(z) ~= "number" then
+        return false, "invalid_pos"
+    end
+    -- Clamp inside the room
+    x = math.clamp(x, -28, 28); z = math.clamp(z, -28, 28); y = math.clamp(y, 0, 28)
+    rotY = math.clamp(rotY or 0, 0, 360)
+    local data = DataHandler.getData(player)
+    if not data then return false, "data_loading" end
+    data.apartment = data.apartment or {}
+    if #data.apartment >= MAX_FURNITURE then return false, "too_many" end
+    DataHandler.modify(player, function(d)
+        d.apartment = d.apartment or {}
+        table.insert(d.apartment, {kind=kind, x=x, y=y, z=z, rotY=rotY})
+    end)
+    -- If apartment is currently active, spawn the new piece live
+    local apt = activeApartments[player.UserId]
+    if apt then spawnFurniture(apt.folder, apt.center, kind, x, y, z, rotY) end
+    return true
+end
+
+RequestRemoveFurniture.OnServerInvoke = function(player, idx)
+    if not DataHandler then return false, "data_loading" end
+    if typeof(idx) ~= "number" then return false, "invalid_idx" end
+    local data = DataHandler.getData(player)
+    if not data or not data.apartment or not data.apartment[idx] then
+        return false, "no_such_item"
+    end
+    DataHandler.modify(player, function(d)
+        if d.apartment then table.remove(d.apartment, idx) end
+    end)
+    -- Re-render apartment
+    rebuildApartment(player.UserId, true)
+    return true
+end
+
+RequestSetHomePublic.OnServerInvoke = function(player, isPublic)
+    if not DataHandler then return false, "data_loading" end
+    DataHandler.modify(player, function(d)
+        d.apartmentPublic = isPublic and true or false
+    end)
+    return true
+end
+
+RequestVisitPlayer.OnServerInvoke = function(player, targetUid)
+    if not DataHandler then return false, "data_loading" end
+    if typeof(targetUid) ~= "number" then return false, "invalid_target" end
+    local target = Players:GetPlayerByUserId(targetUid)
+    if not target then return false, "target_offline" end
+    local tdata = DataHandler.getData(target)
+    if not tdata or not tdata.apartmentPublic then return false, "private" end
+    rebuildApartment(targetUid, true)
+    if player.Character then
+        local center = apartmentCenter(targetUid)
+        player.Character:PivotTo(CFrame.new(center + Vector3.new(0, 4, 0)))
+    end
+    return true
+end
+
+-- =====================================================================
+-- APARTMENT BUILDING ENTRANCE
+-- =====================================================================
+local entrance = Instance.new("Part", Workspace)
+entrance.Name = "ApartmentEntranceDoor"
+entrance.Anchored = true; entrance.CanCollide = false
+entrance.Size = Vector3.new(8, 12, 1)
+entrance.Position = Vector3.new(-1500, 5, -200)
+entrance.Material = Enum.Material.Wood
+entrance.Color = Color3.fromRGB(180, 140, 90)
+entrance.Transparency = 0.2
+local sg = Instance.new("BillboardGui", entrance)
+sg.Size = UDim2.new(0, 200, 0, 50)
+sg.StudsOffset = Vector3.new(0, 8, 0)
+local lbl = Instance.new("TextLabel", sg)
+lbl.Size = UDim2.fromScale(1, 1)
+lbl.BackgroundTransparency = 1
+lbl.Text = "YOUR APARTMENT"
+lbl.Font = Enum.Font.LuckiestGuy
+lbl.TextScaled = true
+lbl.TextColor3 = Color3.fromRGB(255, 240, 200)
+lbl.TextStrokeTransparency = 0
+lbl.TextStrokeColor3 = Color3.fromRGB(40, 25, 10)
+
+local enterFlag = {}
+entrance.Touched:Connect(function(hit)
+    local model = hit:FindFirstAncestorOfClass("Model")
+    local p = model and Players:GetPlayerFromCharacter(model)
+    if not p or enterFlag[p.UserId] then return end
+    enterFlag[p.UserId] = true
+    local _, center = rebuildApartment(p.UserId, true)
+    if model.PrimaryPart then
+        model:PivotTo(CFrame.new(center + Vector3.new(0, 4, 0)))
+    end
+    task.delay(2, function() enterFlag[p.UserId] = nil end)
+end)
+
+print("[HousingSystem v1] online - per-player apartments, " .. (function()
+    local n = 0; for _ in pairs(FURNITURE) do n = n + 1 end; return n
+end)() .. " furniture kinds, max " .. MAX_FURNITURE .. " pieces")
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="49">
       <Properties>
         <string name="Name">InteriorBuildings</string>
         <token name="RunContext">0</token>
@@ -7347,7 +7957,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="48">
+    <Item class="Script" referent="50">
       <Properties>
         <string name="Name">KOTHSystem</string>
         <token name="RunContext">0</token>
@@ -7487,7 +8097,7 @@ print("[KOTHSystem v1] online - 12-stud hill at plaza fountain, " .. ROUND_S .. 
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="49">
+    <Item class="Script" referent="51">
       <Properties>
         <string name="Name">LeaderboardHandler</string>
         <token name="RunContext">0</token>
@@ -7537,7 +8147,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="50">
+    <Item class="Script" referent="52">
       <Properties>
         <string name="Name">LifecycleSystem</string>
         <token name="RunContext">0</token>
@@ -7660,7 +8270,7 @@ print("[LifecycleSystem v1] online — AFK kick at "..IDLE_KICK_S.."s, respawn-a
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="51">
+    <Item class="Script" referent="53">
       <Properties>
         <string name="Name">MeshDiagnostic</string>
         <token name="RunContext">0</token>
@@ -7700,7 +8310,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="52">
+    <Item class="Script" referent="54">
       <Properties>
         <string name="Name">MeshLoader</string>
         <token name="RunContext">0</token>
@@ -7782,7 +8392,7 @@ print(("[MeshLoader] %d/%d meshes loaded and cached"):format(loaded, #NAMES))
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="53">
+    <Item class="Script" referent="55">
       <Properties>
         <string name="Name">MonetizationAudit</string>
         <token name="RunContext">0</token>
@@ -7837,7 +8447,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="54">
+    <Item class="Script" referent="56">
       <Properties>
         <string name="Name">MonetizationHandler</string>
         <token name="RunContext">0</token>
@@ -8076,7 +8686,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="55">
+    <Item class="Script" referent="57">
       <Properties>
         <string name="Name">MountSystem</string>
         <token name="RunContext">0</token>
@@ -8253,7 +8863,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="56">
+    <Item class="Script" referent="58">
       <Properties>
         <string name="Name">MusicSystem</string>
         <token name="RunContext">0</token>
@@ -8319,7 +8929,7 @@ print("[MusicSystem v1] online — will cycle 5 chaotic-cat tracks")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="57">
+    <Item class="Script" referent="59">
       <Properties>
         <string name="Name">NPCChatter</string>
         <token name="RunContext">0</token>
@@ -8439,7 +9049,7 @@ print("[NPCChatter v1] online — ambient + reaction phrases")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="58">
+    <Item class="Script" referent="60">
       <Properties>
         <string name="Name">NPCOutfits</string>
         <token name="RunContext">0</token>
@@ -8503,7 +9113,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="59">
+    <Item class="Script" referent="61">
       <Properties>
         <string name="Name">NpcReactions</string>
         <token name="RunContext">0</token>
@@ -8675,7 +9285,7 @@ print("[NpcReactions v1] online — civilians panic on nearby pranks; skittish N
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="60">
+    <Item class="Script" referent="62">
       <Properties>
         <string name="Name">PerfOptimize</string>
         <token name="RunContext">0</token>
@@ -8715,7 +9325,7 @@ print("[PerfOptimize] StreamingEnabled, Box collision, mobile tuned")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="61">
+    <Item class="Script" referent="63">
       <Properties>
         <string name="Name">PerkSystem</string>
         <token name="RunContext">0</token>
@@ -8855,7 +9465,7 @@ return PerkSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="62">
+    <Item class="Script" referent="64">
       <Properties>
         <string name="Name">PetSystem</string>
         <token name="RunContext">0</token>
@@ -9069,7 +9679,7 @@ end)() .. " pet kinds")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="63">
+    <Item class="Script" referent="65">
       <Properties>
         <string name="Name">PrankSystem</string>
         <token name="RunContext">0</token>
@@ -9329,7 +9939,7 @@ return PrankSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="64">
+    <Item class="Script" referent="66">
       <Properties>
         <string name="Name">QuestSystem</string>
         <token name="RunContext">0</token>
@@ -9529,7 +10139,7 @@ print("[QuestSystem v1] daily quests online: ", #QuestConfig.Daily, " quests")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="65">
+    <Item class="Script" referent="67">
       <Properties>
         <string name="Name">RaceMiniGame</string>
         <token name="RunContext">0</token>
@@ -9701,7 +10311,7 @@ print("[RaceMiniGame v1] online — 6-checkpoint course around plaza perimeter")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="66">
+    <Item class="Script" referent="68">
       <Properties>
         <string name="Name">RagdollOnPrank</string>
         <token name="RunContext">0</token>
@@ -9880,7 +10490,7 @@ print("[RagdollOnPrank] ready - NPCs ragdoll + drop coins on prank")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="67">
+    <Item class="Script" referent="69">
       <Properties>
         <string name="Name">RebirthHandler</string>
         <token name="RunContext">0</token>
@@ -9948,7 +10558,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="68">
+    <Item class="Script" referent="70">
       <Properties>
         <string name="Name">RemotesBootstrap</string>
         <token name="RunContext">0</token>
@@ -10012,7 +10622,7 @@ print("[RemotesBootstrap] created " .. #EVENTS .. " RemoteEvents + " .. #FUNCTIO
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="69">
+    <Item class="Script" referent="71">
       <Properties>
         <string name="Name">SafetyGuard</string>
         <token name="RunContext">0</token>
@@ -10092,7 +10702,7 @@ print("[SafetyGuard] watching for DataHandler / AntiCheat globals")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="70">
+    <Item class="Script" referent="72">
       <Properties>
         <string name="Name">SpawnEnforcer</string>
         <token name="RunContext">0</token>
@@ -10153,7 +10763,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="71">
+    <Item class="Script" referent="73">
       <Properties>
         <string name="Name">StrayLighting</string>
         <token name="RunContext">0</token>
@@ -10259,7 +10869,7 @@ print("[StrayLighting v3] sunny daytime cartoon-city theme applied")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="72">
+    <Item class="Script" referent="74">
       <Properties>
         <string name="Name">SummonSystem</string>
         <token name="RunContext">0</token>
@@ -10705,7 +11315,7 @@ return SummonSystem
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="73">
+    <Item class="Script" referent="75">
       <Properties>
         <string name="Name">SurvivalSystem</string>
         <token name="RunContext">0</token>
@@ -10854,7 +11464,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="74">
+    <Item class="Script" referent="76">
       <Properties>
         <string name="Name">TerrainBiome</string>
         <token name="RunContext">0</token>
@@ -10904,7 +11514,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="75">
+    <Item class="Script" referent="77">
       <Properties>
         <string name="Name">TerritorySystem</string>
         <token name="RunContext">0</token>
@@ -11116,7 +11726,7 @@ print("[TerritorySystem v1] online - 6 zones, " .. CAP_TIME_S .. "s capture time
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="76">
+    <Item class="Script" referent="78">
       <Properties>
         <string name="Name">TradingSystem</string>
         <token name="RunContext">0</token>
@@ -11393,7 +12003,7 @@ print("[TradingSystem v1] online - 5s lock + 45s damage gate + 60s pair cooldown
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="77">
+    <Item class="Script" referent="79">
       <Properties>
         <string name="Name">WalkAnim</string>
         <token name="RunContext">0</token>
@@ -11442,7 +12052,7 @@ print("[WalkAnim v2] online — using Roblox default Animate script")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="78">
+    <Item class="Script" referent="80">
       <Properties>
         <string name="Name">WeatherSystem</string>
         <token name="RunContext">0</token>
@@ -11525,7 +12135,7 @@ return true
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="79">
+    <Item class="Script" referent="81">
       <Properties>
         <string name="Name">WorldPowerups</string>
         <token name="RunContext">0</token>
@@ -11676,11 +12286,11 @@ print("[WorldPowerups v1] online — " .. TARGET_COUNT .. " orbs scattered, " ..
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterGui" referent="80">
+  <Item class="StarterGui" referent="82">
     <Properties>
       <string name="Name">StarterGui</string>
     </Properties>
-    <Item class="LocalScript" referent="81">
+    <Item class="LocalScript" referent="83">
       <Properties>
         <string name="Name">HUDBuilder</string>
         <string name="Source"><![CDATA[-- HUDBuilder.client.lua
@@ -12395,15 +13005,15 @@ return screenGui
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="82">
+  <Item class="StarterPlayer" referent="84">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="83">
+    <Item class="StarterPlayerScripts" referent="85">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="84">
+      <Item class="LocalScript" referent="86">
         <Properties>
           <string name="Name">AchievementsViewer</string>
           <string name="Source"><![CDATA[-- AchievementsViewer.client.lua  v1 — browseable achievement list.
@@ -12641,7 +13251,7 @@ print("[AchievementsViewer v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="85">
+      <Item class="LocalScript" referent="87">
         <Properties>
           <string name="Name">BattlePassPanel</string>
           <string name="Source"><![CDATA[-- BattlePassPanel.client.lua  v1 — browseable battle-pass tier list.
@@ -12901,7 +13511,7 @@ print("[BattlePassPanel v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="86">
+      <Item class="LocalScript" referent="88">
         <Properties>
           <string name="Name">BossBanner</string>
           <string name="Source"><![CDATA[-- BossBanner.client.lua
@@ -13059,7 +13669,7 @@ print("[BossBanner v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="87">
+      <Item class="LocalScript" referent="89">
         <Properties>
           <string name="Name">ChatHider</string>
           <string name="Source"><![CDATA[-- ChatHider.client.lua
@@ -13101,7 +13711,7 @@ print("[ChatHider] default chat UI hidden")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="88">
+      <Item class="LocalScript" referent="90">
         <Properties>
           <string name="Name">ClanPanel</string>
           <string name="Source"><![CDATA[-- ClanPanel.client.lua  v1 — UI for ClanSystem.
@@ -13401,7 +14011,7 @@ print("[ClanPanel v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="89">
+      <Item class="LocalScript" referent="91">
         <Properties>
           <string name="Name">CombatFeel</string>
           <string name="Source"><![CDATA[-- CombatFeel.client.lua  v2 — hit-stop, damage numbers, combo, screen flash.
@@ -13643,7 +14253,7 @@ print("[CombatFeel v2] FOV pulse, soft flash, bounded text, combo")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="90">
+      <Item class="LocalScript" referent="92">
         <Properties>
           <string name="Name">DailyRewardPopup</string>
           <string name="Source"><![CDATA[-- DailyRewardPopup.client.lua
@@ -13871,7 +14481,7 @@ print("[DailyRewardPopup] showed daily reward streak " .. streak .. ", day " .. 
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="91">
+      <Item class="LocalScript" referent="93">
         <Properties>
           <string name="Name">DeathScreen</string>
           <string name="Source"><![CDATA[-- DeathScreen.client.lua  v1
@@ -14046,7 +14656,7 @@ print("[DeathScreen v1] death overlay + respawn ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="92">
+      <Item class="LocalScript" referent="94">
         <Properties>
           <string name="Name">EffectsController</string>
           <string name="Source"><![CDATA[-- EffectsController.client.lua
@@ -14474,7 +15084,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="93">
+      <Item class="LocalScript" referent="95">
         <Properties>
           <string name="Name">EmoteWheel</string>
           <string name="Source"><![CDATA[-- EmoteWheel.client.lua  v2 — radial emote wheel, responsive, warm theme.
@@ -14646,7 +15256,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="94">
+      <Item class="LocalScript" referent="96">
         <Properties>
           <string name="Name">EventBanner</string>
           <string name="Source"><![CDATA[-- EventBanner.client.lua  v1 — server-wide event broadcast banner.
@@ -14739,7 +15349,7 @@ print("[EventBanner v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="95">
+      <Item class="LocalScript" referent="97">
         <Properties>
           <string name="Name">FirstSpawnTutorial</string>
           <string name="Source"><![CDATA[-- FirstSpawnTutorial.client.lua  v1 — 3-step welcome popup that surfaces
@@ -14873,7 +15483,7 @@ print("[FirstSpawnTutorial v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="96">
+      <Item class="LocalScript" referent="98">
         <Properties>
           <string name="Name">HUDController</string>
           <string name="Source"><![CDATA[-- HUDController.client.lua
@@ -15209,7 +15819,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="97">
+      <Item class="LocalScript" referent="99">
         <Properties>
           <string name="Name">HUDFix</string>
           <string name="Source"><![CDATA[-- HUDFix.client.lua  v3.69 — clean HUD overhaul per user feedback
@@ -15533,7 +16143,7 @@ print("[HUDFix v3.69] DONE — destroyed SUMMON, hid BottomBar+ACH+PASS+duplicat
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="98">
+      <Item class="LocalScript" referent="100">
         <Properties>
           <string name="Name">HUDPolish</string>
           <string name="Source"><![CDATA[-- HUDPolish.client.lua  v2 — surgical, not blanket.
@@ -15627,7 +16237,7 @@ print("[HUDPolish v2] surgical polish applied (bars + primary buttons + prank bt
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="99">
+      <Item class="LocalScript" referent="101">
         <Properties>
           <string name="Name">HitStop</string>
           <string name="Source"><![CDATA[-- HitStop.client.lua  v1 — micro time-stop on prank land for chunky feel.
@@ -15699,7 +16309,7 @@ print("[HitStop v1] online — flash + FOV punch + gravity-slow on prank land")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="100">
+      <Item class="LocalScript" referent="102">
         <Properties>
           <string name="Name">HousingPanel</string>
           <string name="Source"><![CDATA[-- HousingPanel.client.lua  v1 — UI for HousingSystem.
@@ -15876,7 +16486,7 @@ print("[HousingPanel v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="101">
+      <Item class="LocalScript" referent="103">
         <Properties>
           <string name="Name">InputHandler</string>
           <string name="Source"><![CDATA[-- InputHandler.client.lua
@@ -16050,7 +16660,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="102">
+      <Item class="LocalScript" referent="104">
         <Properties>
           <string name="Name">KillCam</string>
           <string name="Source"><![CDATA[-- KillCam.client.lua  v1 — short cinematic camera punch on boss-kill or
@@ -16120,7 +16730,7 @@ print("[KillCam v1] online - triggers on big-chaos hits (>=200), 8s cooldown")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="103">
+      <Item class="LocalScript" referent="105">
         <Properties>
           <string name="Name">KillFeed</string>
           <string name="Source"><![CDATA[-- KillFeed.client.lua — top-right scrolling feed of recent prank events
@@ -16251,7 +16861,7 @@ print("[KillFeed] right-side prank/level feed ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="104">
+      <Item class="LocalScript" referent="106">
         <Properties>
           <string name="Name">LoadingScreen</string>
           <string name="Source"><![CDATA[-- LoadingScreen.client.lua  v1
@@ -16422,7 +17032,7 @@ print("[LoadingScreen v1] showing while HUD spins up")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="105">
+      <Item class="LocalScript" referent="107">
         <Properties>
           <string name="Name">Minimap</string>
           <string name="Source"><![CDATA[-- Minimap.client.lua  v2 — responsive top-right minimap with player + NPC dots.
@@ -16598,7 +17208,7 @@ print("[Minimap v2] responsive minimap, warm palette")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="106">
+      <Item class="LocalScript" referent="108">
         <Properties>
           <string name="Name">MultiplayerFeel</string>
           <string name="Source"><![CDATA[-- MultiplayerFeel.client.lua  v1 — Phase-12 social glue.
@@ -16784,7 +17394,7 @@ print("[MultiplayerFeel v1] online — floating text + squad combo + friends rib
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="107">
+      <Item class="LocalScript" referent="109">
         <Properties>
           <string name="Name">OnboardingFlow</string>
           <string name="Source"><![CDATA[-- OnboardingFlow.client.lua — Grok's #1 priority: 15-sec guided first-prank tutorial with massive payoff
@@ -17076,7 +17686,7 @@ print("[OnboardingFlow] cinematic 2-step + massive payoff active")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="108">
+      <Item class="LocalScript" referent="110">
         <Properties>
           <string name="Name">PerkUI</string>
           <string name="Source"><![CDATA[-- PerkUI.client.lua  v2 — Perk picker + stats allocation modals.
@@ -17396,7 +18006,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="109">
+      <Item class="LocalScript" referent="111">
         <Properties>
           <string name="Name">PhotoMode</string>
           <string name="Source"><![CDATA[-- PhotoMode.client.lua  v1 — F1 toggles a free-camera mode that:
@@ -17524,7 +18134,7 @@ print("[PhotoMode v1] online — F1 to toggle")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="110">
+      <Item class="LocalScript" referent="112">
         <Properties>
           <string name="Name">PreSpawnLobby</string>
           <string name="Source"><![CDATA[-- PreSpawnLobby v4 — compact UI revamp.
@@ -18156,7 +18766,7 @@ print("[PreSpawnLobby v4 compact] ready, requestSpawn = " .. tostring(requestSpa
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="111">
+      <Item class="LocalScript" referent="113">
         <Properties>
           <string name="Name">QuestPanel</string>
           <string name="Source"><![CDATA[-- QuestPanel.client.lua  v1
@@ -18330,7 +18940,7 @@ print("[QuestPanel v1] daily quests panel ready")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="112">
+      <Item class="LocalScript" referent="114">
         <Properties>
           <string name="Name">ReactionBubbles</string>
           <string name="Source"><![CDATA[-- ReactionBubbles.client.lua  v1 — speech bubble feedback above NPCs
@@ -18421,7 +19031,7 @@ print("[ReactionBubbles v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="113">
+      <Item class="LocalScript" referent="115">
         <Properties>
           <string name="Name">SettingsMenu</string>
           <string name="Source"><![CDATA[-- SettingsMenu.client.lua  v1
@@ -18926,7 +19536,7 @@ print("[SettingsMenu v1] menu + volume + graphics + motion + controls help ready
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="114">
+      <Item class="LocalScript" referent="116">
         <Properties>
           <string name="Name">SocialBadges</string>
           <string name="Source"><![CDATA[-- SocialBadges.client.lua
@@ -19019,7 +19629,7 @@ print("[SocialBadges v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="115">
+      <Item class="LocalScript" referent="117">
         <Properties>
           <string name="Name">SurvivalUI</string>
           <string name="Source"><![CDATA[-- SurvivalUI.client.lua  v2 — hunger + thirst bars, warm theme, responsive.
@@ -19151,7 +19761,7 @@ print("[SurvivalUI v2] hunger + thirst bars, warm theme")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="116">
+      <Item class="LocalScript" referent="118">
         <Properties>
           <string name="Name">TerritoryHUD</string>
           <string name="Source"><![CDATA[-- TerritoryHUD.client.lua  v1 — top-of-screen banner shows current zone
@@ -19231,7 +19841,7 @@ print("[TerritoryHUD v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="117">
+      <Item class="LocalScript" referent="119">
         <Properties>
           <string name="Name">TradePanel</string>
           <string name="Source"><![CDATA[-- TradePanel.client.lua  v1 — UI for TradingSystem.
@@ -19510,7 +20120,7 @@ print("[TradePanel v1] online - press T near another player to start a trade")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="118">
+      <Item class="LocalScript" referent="120">
         <Properties>
           <string name="Name">TutorialController</string>
           <string name="Source"><![CDATA[-- TutorialController.client.lua
@@ -19586,7 +20196,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="119">
+      <Item class="LocalScript" referent="121">
         <Properties>
           <string name="Name">WeatherClient</string>
           <string name="Source"><![CDATA[-- WeatherClient.client.lua
@@ -19732,7 +20342,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="120">
+      <Item class="LocalScript" referent="122">
         <Properties>
           <string name="Name">ZoneAmbience</string>
           <string name="Source"><![CDATA[-- ZoneAmbience.client.lua
@@ -19841,7 +20451,7 @@ print("[ZoneAmbience v1] online")
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="121">
+  <Item class="Workspace" referent="123">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>
