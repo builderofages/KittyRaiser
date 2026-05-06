@@ -16342,6 +16342,48 @@ if Remotes and Remotes.PrankFailed then
     end)
     print("[HUDNuke] PrankFailed listener wired")
 end
+-- ===== 4. SHRINK INV/TOP/REBIRTH/SHOP to small top-right chips =====
+local CHIP_NAMES = {
+    InventoryButton = {label = "INV", y = 450, color = Color3.fromRGB(160, 110, 60)},
+    LeaderboardButton = {label = "TOP", y = 490, color = Color3.fromRGB(60, 120, 180)},
+    RebirthButton = {label = "RBT", y = 530, color = Color3.fromRGB(220, 140, 50)},
+    ShopButton = {label = "SHP", y = 570, color = Color3.fromRGB(80, 170, 80)},
+}
+local function styleChip(btn, info)
+    btn.AnchorPoint = Vector2.new(1, 0)
+    btn.Position = UDim2.new(1, -16, 0, info.y)
+    btn.Size = UDim2.new(0, 76, 0, 32)
+    btn.BackgroundColor3 = info.color
+    btn.Text = info.label
+    btn.Font = Enum.Font.GothamBlack
+    btn.TextColor3 = Color3.fromRGB(255, 250, 240)
+    btn.TextScaled = true
+    btn.ZIndex = 50
+    local corner = btn:FindFirstChildOfClass("UICorner") or Instance.new("UICorner", btn)
+    corner.CornerRadius = UDim.new(0, 8)
+    -- Hide inner icon labels that came from BottomBar styling
+    for _, c in ipairs(btn:GetDescendants()) do
+        if c:IsA("ImageLabel") or (c:IsA("TextLabel") and c.Name ~= "Label") then
+            c.Visible = false
+        end
+    end
+end
+RunService.Heartbeat:Connect(function()
+    local bottomBar = hud:FindFirstChild("BottomBar")
+    if not bottomBar then return end
+    bottomBar.Visible = false  -- kill the big bottom row entirely; chips live on each button now
+    for childName, info in pairs(CHIP_NAMES) do
+        local btn = bottomBar:FindFirstChild(childName) or hud:FindFirstChild(childName, true)
+        if btn and btn:IsA("GuiObject") then
+            -- Reparent into hud (out of bottomBar so it's visible) only once
+            if btn.Parent ~= hud then
+                btn.Parent = hud
+                styleChip(btn, info)
+                btn.Visible = true
+            end
+        end
+    end
+end)
 
 ]]></string>
         </Properties>
