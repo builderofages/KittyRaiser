@@ -399,8 +399,8 @@ for i, prankName in ipairs(PrankConfig.Order) do
     local hotkey = Instance.new("TextLabel", btn)
     hotkey.Name = "Hotkey"
     hotkey.AnchorPoint = Vector2.new(0, 0)
-    hotkey.Position = UDim2.new(0, 2, 0, 2)
-    hotkey.Size = UDim2.fromOffset(16, 16)
+    hotkey.Position = UDim2.new(0, 1, 0, 1)
+    hotkey.Size = UDim2.fromOffset(12, 12)  -- v3.99.2 smaller to clear LV text
     hotkey.BackgroundColor3 = Color3.fromRGB(40, 25, 12)
     hotkey.BackgroundTransparency = 0.2
     hotkey.Text = tostring(i)

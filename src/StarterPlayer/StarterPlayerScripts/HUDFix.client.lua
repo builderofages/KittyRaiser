@@ -203,28 +203,10 @@ if topBar then
     end
 end
 
--- ============ 4. HIDE ACH + PASS buttons (clutter, were cut off) ============
-for _, child in ipairs(hud:GetDescendants()) do
-    if child:IsA("GuiObject") then
-        local n = (child.Name or ""):lower()
-        local matchesAch = n:find("ach") or n == "ach"
-        local matchesPass = n:find("pass") or n == "pass"
-        if (matchesAch or matchesPass) and child:IsA("GuiButton") then
-            child.Visible = false
-            print("[HUDFix] hid " .. child.Name)
-        end
-    end
-end
--- Also walk by displayed text for robustness
-for _, child in ipairs(hud:GetDescendants()) do
-    if child:IsA("TextButton") and child.Visible then
-        local txt = (child.Text or ""):upper()
-        if txt == "ACH" or txt == "PASS" or txt == "ACHIEVEMENTS" or txt == "BATTLE PASS" then
-            child.Visible = false
-            print("[HUDFix] hid by text: " .. txt)
-        end
-    end
-end
+-- ============ 4. ACH/PASS PILLS RETAINED ============
+-- v3.99.2: ACH (AchievementsViewer:43) + PASS (BattlePassPanel:45) are
+-- LEGITIMATE buttons that open functional modals. Do NOT hide them.
+-- They sit at top-right Y=290, 330 above CLAN (370) + HOME (410) — clean stack.
 
 -- ============ 5. MOVE PrankColumn DOWN ============
 local prankCol = hud:WaitForChild("PrankColumn", 15)

@@ -79,6 +79,7 @@ local function spawnInteractable(kind, position)
     bb.Size = UDim2.new(0, 120, 0, 30)
     bb.StudsOffset = Vector3.new(0, 2, 0)
     bb.AlwaysOnTop = true
+    bb.MaxDistance = 14  -- v3.99.2: only show prompt within 14 studs to dedupe
     local lbl = Instance.new("TextLabel", bb)
     lbl.Size = UDim2.new(1, 0, 1, 0)
     lbl.BackgroundTransparency = 0.4

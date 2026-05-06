@@ -2838,6 +2838,10 @@ end
 -- so the welded cat shape sits on the ground.
 -- =====================================================================
 local function setCatBodyScales(humanoid)
+	-- v3.99.2: kill Roblox default nameplate so only our custom CatNameTag shows
+	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	humanoid.NameDisplayDistance = 0
+	humanoid.HealthDisplayDistance = 0
 	-- Disable Roblox's automatic scaling so our explicit values stick.
 	pcall(function() humanoid.AutomaticScalingEnabled = false end)
 	local scales = {
@@ -7193,6 +7197,7 @@ local function spawnInteractable(kind, position)
     bb.Size = UDim2.new(0, 120, 0, 30)
     bb.StudsOffset = Vector3.new(0, 2, 0)
     bb.AlwaysOnTop = true
+    bb.MaxDistance = 14  -- v3.99.2: only show prompt within 14 studs to dedupe
     local lbl = Instance.new("TextLabel", bb)
     lbl.Size = UDim2.new(1, 0, 1, 0)
     lbl.BackgroundTransparency = 0.4
@@ -12713,8 +12718,8 @@ for i, prankName in ipairs(PrankConfig.Order) do
     local hotkey = Instance.new("TextLabel", btn)
     hotkey.Name = "Hotkey"
     hotkey.AnchorPoint = Vector2.new(0, 0)
-    hotkey.Position = UDim2.new(0, 2, 0, 2)
-    hotkey.Size = UDim2.fromOffset(16, 16)
+    hotkey.Position = UDim2.new(0, 1, 0, 1)
+    hotkey.Size = UDim2.fromOffset(12, 12)  -- v3.99.2 smaller to clear LV text
     hotkey.BackgroundColor3 = Color3.fromRGB(40, 25, 12)
     hotkey.BackgroundTransparency = 0.2
     hotkey.Text = tostring(i)
@@ -16052,28 +16057,10 @@ if topBar then
     end
 end
 
--- ============ 4. HIDE ACH + PASS buttons (clutter, were cut off) ============
-for _, child in ipairs(hud:GetDescendants()) do
-    if child:IsA("GuiObject") then
-        local n = (child.Name or ""):lower()
-        local matchesAch = n:find("ach") or n == "ach"
-        local matchesPass = n:find("pass") or n == "pass"
-        if (matchesAch or matchesPass) and child:IsA("GuiButton") then
-            child.Visible = false
-            print("[HUDFix] hid " .. child.Name)
-        end
-    end
-end
--- Also walk by displayed text for robustness
-for _, child in ipairs(hud:GetDescendants()) do
-    if child:IsA("TextButton") and child.Visible then
-        local txt = (child.Text or ""):upper()
-        if txt == "ACH" or txt == "PASS" or txt == "ACHIEVEMENTS" or txt == "BATTLE PASS" then
-            child.Visible = false
-            print("[HUDFix] hid by text: " .. txt)
-        end
-    end
-end
+-- ============ 4. ACH/PASS PILLS RETAINED ============
+-- v3.99.2: ACH (AchievementsViewer:43) + PASS (BattlePassPanel:45) are
+-- LEGITIMATE buttons that open functional modals. Do NOT hide them.
+-- They sit at top-right Y=290, 330 above CLAN (370) + HOME (410) — clean stack.
 
 -- ============ 5. MOVE PrankColumn DOWN ============
 local prankCol = hud:WaitForChild("PrankColumn", 15)

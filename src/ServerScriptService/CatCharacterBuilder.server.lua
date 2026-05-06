@@ -402,6 +402,10 @@ end
 -- so the welded cat shape sits on the ground.
 -- =====================================================================
 local function setCatBodyScales(humanoid)
+	-- v3.99.2: kill Roblox default nameplate so only our custom CatNameTag shows
+	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	humanoid.NameDisplayDistance = 0
+	humanoid.HealthDisplayDistance = 0
 	-- Disable Roblox's automatic scaling so our explicit values stick.
 	pcall(function() humanoid.AutomaticScalingEnabled = false end)
 	local scales = {
