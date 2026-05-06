@@ -181,6 +181,10 @@ function PrankSystem.handlePrankRequest(player, prankName, targetModel)
     if _G.KittyRaiserAddHeat then
         pcall(_G.KittyRaiserAddHeat, player)
     end
+    -- Clan XP hook (v3.92)
+    if _G.KittyRaiserBumpClanXP then
+        pcall(_G.KittyRaiserBumpClanXP, player, 1)
+    end
 
     -- Squad-combo detection (Phase-12): if any other player pranked within
     -- 3s and 80 studs, broadcast SQUAD COMBO to both/all.
