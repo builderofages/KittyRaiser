@@ -60,6 +60,24 @@ RequestClaimBP.OnServerInvoke = function(player, tierNum, trackKind)
     local data = DataHandler.getData(player)
     if not data then return false, "data_loading" end
 
+    -- v3.85 weekly reset: if data.bpWeekStart is older than 7 days, wipe
+    -- bpClaimed + start a fresh week. Players can re-grind tiers for new
+    -- weekly chaos. Total prank counter persists; only the claimed-tier
+    -- list resets.
+    local NOW = os.time()
+    local WEEK_S = 7 * 24 * 60 * 60
+    if not data.bpWeekStart then
+        data.bpWeekStart = NOW
+    end
+    if NOW - data.bpWeekStart > WEEK_S then
+        DataHandler.modify(player, function(d)
+            d.bpWeekStart = NOW
+            d.bpClaimed = {free = {}, premium = {}}
+        end)
+        data = DataHandler.getData(player)
+        notify(player, "BATTLE PASS RESET  -  new week, all tiers claimable again", "info")
+    end
+
     local entry
     for _, t in ipairs(BattlePassConfig.Tiers) do
         if t.tier == tierNum then entry = t; break end
