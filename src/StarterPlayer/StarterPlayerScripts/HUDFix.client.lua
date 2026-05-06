@@ -145,6 +145,28 @@ if bottomBar then
         end
     end
     print("[HUDFix v3.78] BottomBar relocated to top-right vertical icon column")
+
+    -- v3.79: REDUNDANT modal click wiring. HUDController already wires
+    -- MouseButton1Click on these buttons — but if HUDFix runs first, or if
+    -- there's any race condition, the wiring may miss. Re-wire as belt-and-
+    -- suspenders so clicks ALWAYS open something.
+    local function wireModalToggle(btn, modalName, opts)
+        if not btn then return end
+        btn.MouseButton1Click:Connect(function()
+            print("[HUDFix v3.79] " .. (btn.Name or "?") .. " clicked")
+            local modal = hud:FindFirstChild(modalName)
+            if modal then
+                modal.Visible = not modal.Visible
+                print("[HUDFix v3.79]   toggled " .. modalName .. " to " .. tostring(modal.Visible))
+            else
+                print("[HUDFix v3.79]   WARN: " .. modalName .. " not found in HUD")
+            end
+        end)
+    end
+    wireModalToggle(bottomBar:FindFirstChild("ShopButton"), "ShopModal")
+    wireModalToggle(bottomBar:FindFirstChild("InventoryButton"), "ShopModal")
+    wireModalToggle(bottomBar:FindFirstChild("LeaderboardButton"), "LeaderboardModal")
+    -- REBIRTH stays as-is (it calls a remote, not a modal). We don't double-fire.
 end
 
 -- ============ 3. HIDE duplicate currency cells (keep only top-right) ============
