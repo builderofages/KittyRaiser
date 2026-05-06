@@ -128,6 +128,11 @@ function PrankSystem.handlePrankRequest(player, prankName, targetModel)
     if workspace:GetAttribute("EventRushHour") then
         rewardMult = rewardMult * 1.5
     end
+    -- v3.82 WorldPowerups "chaos_x2" buff: per-player attribute timeout.
+    local x2Until = player:GetAttribute("ChaosX2Until")
+    if x2Until and os.clock() < x2Until then
+        rewardMult = rewardMult * 2
+    end
     local chaos, xp = awardChaosAndXP(player, prank.baseChaos * rewardMult)
     -- v3.69: NPC HP system. Non-boss NPCs start at 3 HP. Each prank reduces by 1.
     -- Only flag Pranked (which kills/ragdolls them) when HP hits 0. Player gets
