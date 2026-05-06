@@ -96,7 +96,19 @@ UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 -- ============ 1. DESTROY SummonButton ============
-local summonBtn = hud:WaitForChild("SummonButton", 15)
+
+-- v290 HOTFIX: PERMANENT_SUMMON_KILLER — anything ever named SummonButton dies on sight
+hud.ChildAdded:Connect(function(child)
+    if child.Name == 'SummonButton' or child.Name == 'SummonButton_REMOVED' then
+        child:Destroy()
+        print('[HUDFix] killed late-spawned SummonButton')
+    end
+end)
+for _, c in ipairs(hud:GetChildren()) do
+    if c.Name == 'SummonButton' or c.Name == 'SummonButton_REMOVED' then c:Destroy() end
+end
+
+local summonBtn = hud:WaitForChild("SummonButton", 2)
 if summonBtn then summonBtn:Destroy(); print("[HUDFix] SummonButton destroyed") end
 
 -- ============ 2. RELOCATE BottomBar to top-right vertical icon column ============

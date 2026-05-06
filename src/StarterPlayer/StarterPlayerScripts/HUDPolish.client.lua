@@ -16,7 +16,7 @@ local POLISH_BARS = {
 	BottomBar = true,
 }
 local POLISH_BUTTONS = {
-	SummonButton = true,
+	-- SummonButton = true,  -- v290 HOTFIX removed
 	ShopButton = true, InventoryButton = true,
 	RebirthButton = true, LeaderboardButton = true,
 }

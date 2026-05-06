@@ -270,69 +270,75 @@ bind(makeLabel({
     Parent = rebirthWrap,
 }), 14, 32)
 
+-- v290 HOTFIX: SUMMON button removed from HUD entirely. Slot 1 (CAT) on bottom bar is the summon trigger.
+local summonBtn = Instance.new("TextButton")
+summonBtn.Name = "SummonButton_REMOVED"
+summonBtn.Visible = false
+summonBtn.Parent = screenGui
+
 -- ===== CENTER BOTTOM: SUMMON BUTTON (icon + glow ring) =====
-local summonSize = IS_MOBILE and 88 or 78
+-- [REMOVED v290hf] local summonSize = IS_MOBILE and 88 or 78
 -- v3.62 HUD revamp: SUMMON moved to bottom-LEFT corner so it doesn't cover
 -- the cat visually. Smaller (110/130 -> 78/88). Bottom-bar still centers
 -- below; PrankColumn still right-side. Player-mental-model: 'summon left,
 -- attack right'.
-local summonBtn = makeButton({
-    Name = "SummonButton",
-    Size = UDim2.new(0, summonSize, 0, summonSize),
-    Position = UDim2.new(0, 16, 1, -(summonSize + 84)),  -- bottom-left, above bottom bar
-    BackgroundColor3 = PALETTE_DANGER,
-    Text = "",
-    Parent = screenGui,
-})
-local sCorner = summonBtn:FindFirstChildOfClass("UICorner")
-if sCorner then sCorner.CornerRadius = UDim.new(1, 0) end
-local sStroke = summonBtn:FindFirstChildOfClass("UIStroke")
-if sStroke then sStroke.Color = Color3.fromRGB(80, 30, 25); sStroke.Thickness = 4 end
-local sGrad = Instance.new("UIGradient", summonBtn)
-sGrad.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 130, 110)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 50, 50)),
-}
-sGrad.Rotation = 90
+-- [REMOVED v290hf] local summonBtn = makeButton({
+-- [REMOVED v290hf]     Name = "SummonButton",
+-- [REMOVED v290hf]     Size = UDim2.new(0, summonSize, 0, summonSize),
+-- [REMOVED v290hf]     Position = UDim2.new(0, 16, 1, -(summonSize + 84)),  -- bottom-left, above bottom bar
+-- [REMOVED v290hf]     BackgroundColor3 = PALETTE_DANGER,
+-- [REMOVED v290hf]     Text = "",
+-- [REMOVED v290hf]     Parent = screenGui,
+-- [REMOVED v290hf] })
+-- [REMOVED v290hf] local sCorner = summonBtn:FindFirstChildOfClass("UICorner")
+-- [REMOVED v290hf] if sCorner then sCorner.CornerRadius = UDim.new(1, 0) end
+-- [REMOVED v290hf] local sStroke = summonBtn:FindFirstChildOfClass("UIStroke")
+-- [REMOVED v290hf] if sStroke then sStroke.Color = Color3.fromRGB(80, 30, 25); sStroke.Thickness = 4 end
+-- [REMOVED v290hf] local sGrad = Instance.new("UIGradient", summonBtn)
+-- [REMOVED v290hf] sGrad.Color = ColorSequence.new{
+-- [REMOVED v290hf]     ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 130, 110)),
+-- [REMOVED v290hf]     ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 50, 50)),
+-- [REMOVED v290hf] }
+-- [REMOVED v290hf] sGrad.Rotation = 90
 -- Skull icon centered + drop shadow
-if AssetIds.has("skull") then
-    local sIconSize = math.floor(summonSize * 0.45)
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "IconShadow"
-    shadow.BackgroundTransparency = 1
-    shadow.Size = UDim2.new(0, sIconSize, 0, sIconSize)
-    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-    shadow.Position = UDim2.new(0.5, 0, 0.42, 3)
-    shadow.Image = AssetIds.skull
-    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.ImageTransparency = 0.55
-    shadow.ScaleType = Enum.ScaleType.Fit
-    shadow.Parent = summonBtn
-    local icon = Instance.new("ImageLabel")
-    icon.Name = "Icon"
-    icon.BackgroundTransparency = 1
-    icon.Size = UDim2.new(0, sIconSize, 0, sIconSize)
-    icon.AnchorPoint = Vector2.new(0.5, 0.5)
-    icon.Position = UDim2.new(0.5, 0, 0.42, 0)
-    icon.Image = AssetIds.skull
-    icon.ImageColor3 = Color3.fromRGB(255, 245, 230)
-    icon.ScaleType = Enum.ScaleType.Fit
-    icon.Parent = summonBtn
-end
-local sLabel = Instance.new("TextLabel")
-sLabel.Name = "Label"
-sLabel.Size = UDim2.new(1, -16, 0, 22)
-sLabel.AnchorPoint = Vector2.new(0.5, 1)
-sLabel.Position = UDim2.new(0.5, 0, 1, -10)
-sLabel.BackgroundTransparency = 1
-sLabel.Text = "SUMMON"
-sLabel.Font = Enum.Font.GothamBlack
-sLabel.TextColor3 = Color3.fromRGB(255, 250, 240)
-sLabel.TextStrokeTransparency = 0.3
-sLabel.TextStrokeColor3 = Color3.fromRGB(60, 20, 15)
-sLabel.TextScaled = true
-sLabel.Parent = summonBtn
-bind(sLabel, 12, 20)
+-- [REMOVED v290hf] if AssetIds.has("skull") then
+-- [REMOVED v290hf]     local sIconSize = math.floor(summonSize * 0.45)
+-- [REMOVED v290hf]     local shadow = Instance.new("ImageLabel")
+-- [REMOVED v290hf]     shadow.Name = "IconShadow"
+-- [REMOVED v290hf]     shadow.BackgroundTransparency = 1
+-- [REMOVED v290hf]     shadow.Size = UDim2.new(0, sIconSize, 0, sIconSize)
+-- [REMOVED v290hf]     shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+-- [REMOVED v290hf]     shadow.Position = UDim2.new(0.5, 0, 0.42, 3)
+-- [REMOVED v290hf]     shadow.Image = AssetIds.skull
+-- [REMOVED v290hf]     shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+-- [REMOVED v290hf]     shadow.ImageTransparency = 0.55
+-- [REMOVED v290hf]     shadow.ScaleType = Enum.ScaleType.Fit
+-- [REMOVED v290hf]     shadow.Parent = summonBtn
+-- [REMOVED v290hf]     local icon = Instance.new("ImageLabel")
+-- [REMOVED v290hf]     icon.Name = "Icon"
+-- [REMOVED v290hf]     icon.BackgroundTransparency = 1
+-- [REMOVED v290hf]     icon.Size = UDim2.new(0, sIconSize, 0, sIconSize)
+-- [REMOVED v290hf]     icon.AnchorPoint = Vector2.new(0.5, 0.5)
+-- [REMOVED v290hf]     icon.Position = UDim2.new(0.5, 0, 0.42, 0)
+-- [REMOVED v290hf]     icon.Image = AssetIds.skull
+-- [REMOVED v290hf]     icon.ImageColor3 = Color3.fromRGB(255, 245, 230)
+-- [REMOVED v290hf]     icon.ScaleType = Enum.ScaleType.Fit
+-- [REMOVED v290hf]     icon.Parent = summonBtn
+-- [REMOVED v290hf] end
+-- [REMOVED v290hf] local sLabel = Instance.new("TextLabel")
+-- [REMOVED v290hf] sLabel.Name = "Label"
+-- [REMOVED v290hf] sLabel.Size = UDim2.new(1, -16, 0, 22)
+-- [REMOVED v290hf] sLabel.AnchorPoint = Vector2.new(0.5, 1)
+-- [REMOVED v290hf] sLabel.Position = UDim2.new(0.5, 0, 1, -10)
+-- [REMOVED v290hf] sLabel.BackgroundTransparency = 1
+-- [REMOVED v290hf] sLabel.Text = "SUMMON"
+-- [REMOVED v290hf] sLabel.Font = Enum.Font.GothamBlack
+-- [REMOVED v290hf] sLabel.TextColor3 = Color3.fromRGB(255, 250, 240)
+-- [REMOVED v290hf] sLabel.TextStrokeTransparency = 0.3
+-- [REMOVED v290hf] sLabel.TextStrokeColor3 = Color3.fromRGB(60, 20, 15)
+-- [REMOVED v290hf] sLabel.TextScaled = true
+-- [REMOVED v290hf] sLabel.Parent = summonBtn
+-- [REMOVED v290hf] bind(sLabel, 12, 20)
 
 -- ===== DIABLO-STYLE BOTTOM SKILL BAR (Phase-13) =====
 -- Was: vertical column flush against right edge — read as minimap clutter.
