@@ -195,6 +195,48 @@
       },
       "CityPolishV2": {
         "$path": "src/ServerScriptService/CityPolishV2.server.lua"
+      },
+      "CatDuelSystem": {
+        "$path": "src/ServerScriptService/CatDuelSystem.server.lua"
+      },
+      "CombatJuice": {
+        "$path": "src/ServerScriptService/CombatJuice.server.lua"
+      },
+      "DamageTracker": {
+        "$path": "src/ServerScriptService/DamageTracker.server.lua"
+      },
+      "DistrictExpansion": {
+        "$path": "src/ServerScriptService/DistrictExpansion.server.lua"
+      },
+      "DrivableVehicles": {
+        "$path": "src/ServerScriptService/DrivableVehicles.server.lua"
+      },
+      "HideSeekSystem": {
+        "$path": "src/ServerScriptService/HideSeekSystem.server.lua"
+      },
+      "InteriorBuildings": {
+        "$path": "src/ServerScriptService/InteriorBuildings.server.lua"
+      },
+      "KOTHSystem": {
+        "$path": "src/ServerScriptService/KOTHSystem.server.lua"
+      },
+      "MountSystem": {
+        "$path": "src/ServerScriptService/MountSystem.server.lua"
+      },
+      "NPCChatter": {
+        "$path": "src/ServerScriptService/NPCChatter.server.lua"
+      },
+      "RaceMiniGame": {
+        "$path": "src/ServerScriptService/RaceMiniGame.server.lua"
+      },
+      "TerritorySystem": {
+        "$path": "src/ServerScriptService/TerritorySystem.server.lua"
+      },
+      "TradingSystem": {
+        "$path": "src/ServerScriptService/TradingSystem.server.lua"
+      },
+      "WorldPowerups": {
+        "$path": "src/ServerScriptService/WorldPowerups.server.lua"
       }
     },
     "StarterGui": {
@@ -296,6 +338,27 @@
         },
         "HUDFix": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/HUDFix.client.lua"
+        },
+        "ClanPanel": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/ClanPanel.client.lua"
+        },
+        "FirstSpawnTutorial": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/FirstSpawnTutorial.client.lua"
+        },
+        "HitStop": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/HitStop.client.lua"
+        },
+        "HousingPanel": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/HousingPanel.client.lua"
+        },
+        "KillCam": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/KillCam.client.lua"
+        },
+        "TerritoryHUD": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/TerritoryHUD.client.lua"
+        },
+        "TradePanel": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/TradePanel.client.lua"
         }
       }
     },
