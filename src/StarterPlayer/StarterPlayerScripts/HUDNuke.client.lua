@@ -121,3 +121,28 @@ RunService.Heartbeat:Connect(function()
 end)
 
 print("[HUDNuke v3.99.3] online — vitals top-left ZIndex 9999, currency dedupe, nameplate kill, prompt dedupe")
+-- ===== 3. PrankFailed listener — show why prank rejected =====
+local Remotes = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("RemoteEvents"))
+if Remotes and Remotes.PrankFailed then
+    Remotes.PrankFailed.OnClientEvent:Connect(function(reason)
+        warn("[HUDNuke] prank rejected: " .. tostring(reason))
+        -- Show a toast at top-center
+        local toast = Instance.new("TextLabel")
+        toast.Name = "PrankFailToast"
+        toast.Size = UDim2.new(0, 280, 0, 40)
+        toast.AnchorPoint = Vector2.new(0.5, 0)
+        toast.Position = UDim2.new(0.5, 0, 0, 200)
+        toast.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+        toast.BackgroundTransparency = 0.1
+        toast.Text = "PRANK FAILED: " .. tostring(reason)
+        toast.Font = Enum.Font.GothamBlack
+        toast.TextColor3 = Color3.fromRGB(255, 255, 255)
+        toast.TextScaled = true
+        toast.ZIndex = 99999
+        Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 8)
+        toast.Parent = hud
+        task.delay(2.5, function() toast:Destroy() end)
+    end)
+    print("[HUDNuke] PrankFailed listener wired")
+end
+

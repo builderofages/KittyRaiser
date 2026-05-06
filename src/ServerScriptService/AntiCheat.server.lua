@@ -95,8 +95,11 @@ end
 -- ===== Validate target NPC =====
 function AntiCheat.isValidNPC(targetModel)
     if not targetModel or not targetModel:IsA("Model") then return false end
-    if not targetModel:GetAttribute("KittyRaiserNPC") then return false end
-    if targetModel:GetAttribute("Pranked") then return false end -- already pranked, prevent double-grant
+    -- v3.99.4 fix: accept both summoned (KittyRaiserNPC) AND ambient civilians (AmbientNPC).
+    -- Previously rejected ambient civilians, which is why pranking the city crowd never granted XP.
+    local isValid = targetModel:GetAttribute("KittyRaiserNPC") or targetModel:GetAttribute("AmbientNPC")
+    if not isValid then return false end
+    if targetModel:GetAttribute("Pranked") then return false end
     return true
 end
 
