@@ -49,6 +49,39 @@ local function nearestNPC(maxRange)
     return closest
 end
 
+-- v3.95: raycast from camera to exact click/tap position for precise NPC targeting
+local camera = workspace.CurrentCamera
+local function rayCastForNPC(screenPos)
+    local unitRay = camera:ScreenPointToRay(screenPos.X, screenPos.Y)
+    local params  = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local char = player.Character
+    if char then params.FilterDescendantsInstances = {char} end
+    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 80, params)
+    if not result then return nil end
+    -- Check model at hit point
+    local model = result.Instance:FindFirstAncestorOfClass('Model')
+    if model and (model:GetAttribute('KittyRaiserNPC') or model:GetAttribute('AmbientNPC'))
+        and not model:GetAttribute('Pranked') then
+        _G.KR_LastTarget = model
+        return model
+    end
+    -- Sphere fallback for HitZone parts
+    local op = OverlapParams.new()
+    op.FilterType = Enum.RaycastFilterType.Exclude
+    if char then op.FilterDescendantsInstances = {char} end
+    for _, part in ipairs(workspace:GetPartBoundsInRadius(result.Position, 4, op)) do
+        local m = part:FindFirstAncestorOfClass('Model')
+        if m and (m:GetAttribute('KittyRaiserNPC') or m:GetAttribute('AmbientNPC'))
+            and not m:GetAttribute('Pranked') then
+            _G.KR_LastTarget = m
+            return m
+        end
+    end
+    return nil
+end
+
+
 -- ===== Button pop animation =====
 local function pop(btn)
     local origSize = btn.Size
@@ -133,8 +166,9 @@ UserInputService.InputBegan:Connect(function(input, gp)
         local prankName = bestUnlockedPrank()
         if not prankName then return end
         local prank = PrankConfig.Pranks[prankName]
-        local npc = nearestNPC(prank.rangeStuds)
+        local npc = rayCastForNPC(input.Position) or nearestNPC(prank.rangeStuds)
         if npc then
+            _G.KR_LastTarget = npc
             lastMouseFire = now
             Remotes.RequestPrank:FireServer(prankName, npc)
         else
