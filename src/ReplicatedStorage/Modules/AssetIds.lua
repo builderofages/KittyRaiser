@@ -109,11 +109,11 @@ AssetIds.mesh_skyscraper_chunk      = "rbxassetid://102528222902039"
 -- and paste IDs here. CatAnimations.server.lua reads these and patches the
 -- default Animate script's StringValue children. Falls back to default Roblox
 -- humanoid anims if any are still 0. =====
-AssetIds.anim_cat_idle            = "rbxassetid://0"
-AssetIds.anim_cat_walk            = "rbxassetid://0"
-AssetIds.anim_cat_run             = "rbxassetid://0"
-AssetIds.anim_cat_jump            = "rbxassetid://0"
-AssetIds.anim_cat_fall            = "rbxassetid://0"
+AssetIds.anim_cat_idle            = "rbxassetid://507766388"
+AssetIds.anim_cat_walk            = "rbxassetid://507777826"
+AssetIds.anim_cat_run             = "rbxassetid://507767714"
+AssetIds.anim_cat_jump            = "rbxassetid://507765000"
+AssetIds.anim_cat_fall            = "rbxassetid://507767968"
 
 -- ===== BADGES — TODO create in Creator Hub > Badges, paste IDs here.
 -- AchievementSystem.server only awards if AssetIds.has() returns true. =====

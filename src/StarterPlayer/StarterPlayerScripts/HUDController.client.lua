@@ -50,8 +50,10 @@ local function spawnToast(text, color, duration)
 end
 
 local topBar         = hud:WaitForChild("TopBar")
-local chaosWrap      = topBar:WaitForChild("ChaosWrap")
-local chaosLabel     = chaosWrap:WaitForChild("ChaosLabel")
+-- v3.99.10: ChaosWrap may be removed. Use direct ChaosLabel under TopBar as fallback.
+local chaosWrap = topBar:FindFirstChild("ChaosWrap")
+local chaosLabel = (chaosWrap and chaosWrap:FindFirstChild("ChaosLabel")) or topBar:FindFirstChild("ChaosLabel", true)
+if not chaosLabel then chaosLabel = Instance.new("TextLabel"); chaosLabel.Text = "0"; chaosLabel.Parent = topBar end
 local hellWrap       = topBar:WaitForChild("HellWrap")
 local hellLabel      = hellWrap:WaitForChild("HellLabel")
 local levelContainer = topBar:WaitForChild("LevelContainer")

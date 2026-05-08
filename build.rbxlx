@@ -170,11 +170,11 @@ AssetIds.mesh_skyscraper_chunk      = "rbxassetid://102528222902039"
 -- and paste IDs here. CatAnimations.server.lua reads these and patches the
 -- default Animate script's StringValue children. Falls back to default Roblox
 -- humanoid anims if any are still 0. =====
-AssetIds.anim_cat_idle            = "rbxassetid://0"
-AssetIds.anim_cat_walk            = "rbxassetid://0"
-AssetIds.anim_cat_run             = "rbxassetid://0"
-AssetIds.anim_cat_jump            = "rbxassetid://0"
-AssetIds.anim_cat_fall            = "rbxassetid://0"
+AssetIds.anim_cat_idle            = "rbxassetid://507766388"
+AssetIds.anim_cat_walk            = "rbxassetid://507777826"
+AssetIds.anim_cat_run             = "rbxassetid://507767714"
+AssetIds.anim_cat_jump            = "rbxassetid://507765000"
+AssetIds.anim_cat_fall            = "rbxassetid://507767968"
 
 -- ===== BADGES — TODO create in Creator Hub > Badges, paste IDs here.
 -- AchievementSystem.server only awards if AssetIds.has() returns true. =====
@@ -1119,9 +1119,9 @@ return UIUtil
 
 local VersionInfo = {}
 
-VersionInfo.tag        = "v3.99.9"
+VersionInfo.tag        = "v3.99.10"
 VersionInfo.commitHash = "dc54e1e+v3.99"
-VersionInfo.buildDate  = "2026-05-08-2"
+VersionInfo.buildDate  = "2026-05-08-3"
 VersionInfo.note       = "trade + clan + housing + territory + 4 districts + drivable cars + mounts + race + KOTH + duels + interiors + tutorial + hit-stop + reaction bubbles + landmarks + powerups + collectibles + chatter + boss stinger + fountain particles"
 
 return VersionInfo
@@ -7200,7 +7200,7 @@ local function spawnInteractable(kind, position)
     bb.Size = UDim2.new(0, 120, 0, 30)
     bb.StudsOffset = Vector3.new(0, 2, 0)
     bb.AlwaysOnTop = true
-    bb.MaxDistance = 14  -- v3.99.2: only show prompt within 14 studs to dedupe
+    bb.MaxDistance = 10  -- v3.99.2: only show prompt within 14 studs to dedupe
     local lbl = Instance.new("TextLabel", bb)
     lbl.Size = UDim2.new(1, 0, 1, 0)
     lbl.BackgroundTransparency = 0.4
@@ -15574,8 +15574,10 @@ local function spawnToast(text, color, duration)
 end
 
 local topBar         = hud:WaitForChild("TopBar")
-local chaosWrap      = topBar:WaitForChild("ChaosWrap")
-local chaosLabel     = chaosWrap:WaitForChild("ChaosLabel")
+-- v3.99.10: ChaosWrap may be removed. Use direct ChaosLabel under TopBar as fallback.
+local chaosWrap = topBar:FindFirstChild("ChaosWrap")
+local chaosLabel = (chaosWrap and chaosWrap:FindFirstChild("ChaosLabel")) or topBar:FindFirstChild("ChaosLabel", true)
+if not chaosLabel then chaosLabel = Instance.new("TextLabel"); chaosLabel.Text = "0"; chaosLabel.Parent = topBar end
 local hellWrap       = topBar:WaitForChild("HellWrap")
 local hellLabel      = hellWrap:WaitForChild("HellLabel")
 local levelContainer = topBar:WaitForChild("LevelContainer")
@@ -16198,7 +16200,10 @@ print("[HUDFix v3.69] DONE — destroyed SUMMON, hid BottomBar+ACH+PASS+duplicat
       <Item class="LocalScript" referent="101">
         <Properties>
           <string name="Name">HUDNuke</string>
-          <string name="Source"><![CDATA[-- HUDNuke.client.lua  v3.99.8 (destroy-not-hide + verbose)
+          <string name="Source"><![CDATA[-- HUDNuke v3.99.10
+print("========== HUDNuke v3.99.10 DEFINITIVELY LOADED ==========")
+warn("HUDNuke v3.99.10 entered — if you see this, client scripts run")
+-- HUDNuke.client.lua  v3.99.8 (destroy-not-hide + verbose)
 local Players, RunService, Workspace, TweenService, UIS, RS = game:GetService("Players"), game:GetService("RunService"), game:GetService("Workspace"), game:GetService("TweenService"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 print("[HUDNuke v3.99.8] script entered")

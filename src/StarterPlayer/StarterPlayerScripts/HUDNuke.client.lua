@@ -1,3 +1,6 @@
+-- HUDNuke v3.99.10
+print("========== HUDNuke v3.99.10 DEFINITIVELY LOADED ==========")
+warn("HUDNuke v3.99.10 entered — if you see this, client scripts run")
 -- HUDNuke.client.lua  v3.99.8 (destroy-not-hide + verbose)
 local Players, RunService, Workspace, TweenService, UIS, RS = game:GetService("Players"), game:GetService("RunService"), game:GetService("Workspace"), game:GetService("TweenService"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
