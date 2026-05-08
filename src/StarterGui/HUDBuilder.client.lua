@@ -148,7 +148,8 @@ local function buildCurrencyCell(parent, name, iconKey, iconColor, posX, sizeX)
 end
 
 -- Chaos counter (left): coin icon + amount
-local chaosWrap = buildCurrencyCell(topBar, "ChaosWrap", "coin", PALETTE_PRIMARY, 0.01, 0.18)
+-- v3.99.9: removed left ChaosWrap (duplicate of right-side counter)
+local chaosWrap = Instance.new("Frame"); chaosWrap.Visible = false; chaosWrap.Parent = topBar
 bind(makeLabel({
     Name = "ChaosLabel",
     Size = UDim2.new(1, -40, 1, 0),
@@ -160,7 +161,8 @@ bind(makeLabel({
 }), 14, 28)
 
 -- Hell-tokens counter: gem icon + amount
-local hellWrap = buildCurrencyCell(topBar, "HellWrap", "gem", Color3.fromRGB(220, 110, 220), 0.21, 0.16)
+-- v3.99.9: removed center HellWrap (duplicate)
+local hellWrap = Instance.new("Frame"); hellWrap.Visible = false; hellWrap.Parent = topBar
 bind(makeLabel({
     Name = "HellLabel",
     Size = UDim2.new(1, -40, 1, 0),
@@ -508,6 +510,7 @@ local bottomBar = makeFrame({
     BackgroundTransparency = 0.25,
     Parent = screenGui,
 })
+bottomBar.Visible = false  -- v3.99.9: hidden, chips replace it
 Instance.new("UICorner", bottomBar).CornerRadius = UDim.new(0, 12)
 local bbStroke = Instance.new("UIStroke", bottomBar)
 bbStroke.Thickness = 2; bbStroke.Color = Color3.fromRGB(110, 75, 40)
