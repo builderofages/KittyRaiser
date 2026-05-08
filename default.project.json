@@ -374,6 +374,9 @@
         },
         "HUDNuke": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/HUDNuke.client.lua"
+        },
+        "RuntimeDiag": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/RuntimeDiag.client.lua"
         }
       }
     },

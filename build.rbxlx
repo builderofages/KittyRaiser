@@ -16795,6 +16795,39 @@ local function nearestNPC(maxRange)
     return closest
 end
 
+-- v3.95: raycast from camera to exact click/tap position for precise NPC targeting
+local camera = workspace.CurrentCamera
+local function rayCastForNPC(screenPos)
+    local unitRay = camera:ScreenPointToRay(screenPos.X, screenPos.Y)
+    local params  = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local char = player.Character
+    if char then params.FilterDescendantsInstances = {char} end
+    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 80, params)
+    if not result then return nil end
+    -- Check model at hit point
+    local model = result.Instance:FindFirstAncestorOfClass('Model')
+    if model and (model:GetAttribute('KittyRaiserNPC') or model:GetAttribute('AmbientNPC'))
+        and not model:GetAttribute('Pranked') then
+        _G.KR_LastTarget = model
+        return model
+    end
+    -- Sphere fallback for HitZone parts
+    local op = OverlapParams.new()
+    op.FilterType = Enum.RaycastFilterType.Exclude
+    if char then op.FilterDescendantsInstances = {char} end
+    for _, part in ipairs(workspace:GetPartBoundsInRadius(result.Position, 4, op)) do
+        local m = part:FindFirstAncestorOfClass('Model')
+        if m and (m:GetAttribute('KittyRaiserNPC') or m:GetAttribute('AmbientNPC'))
+            and not m:GetAttribute('Pranked') then
+            _G.KR_LastTarget = m
+            return m
+        end
+    end
+    return nil
+end
+
+
 -- ===== Button pop animation =====
 local function pop(btn)
     local origSize = btn.Size
@@ -16879,8 +16912,9 @@ UserInputService.InputBegan:Connect(function(input, gp)
         local prankName = bestUnlockedPrank()
         if not prankName then return end
         local prank = PrankConfig.Pranks[prankName]
-        local npc = nearestNPC(prank.rangeStuds)
+        local npc = rayCastForNPC(input.Position) or nearestNPC(prank.rangeStuds)
         if npc then
+            _G.KR_LastTarget = npc
             lastMouseFire = now
             Remotes.RequestPrank:FireServer(prankName, npc)
         else
@@ -19299,6 +19333,119 @@ print("[ReactionBubbles v1] online")
       </Item>
       <Item class="LocalScript" referent="117">
         <Properties>
+          <string name="Name">RuntimeDiag</string>
+          <string name="Source"><![CDATA[-- RuntimeDiag.client.lua
+-- Dumps EVERYTHING to F9 console at game start so we can see the truth.
+local Players      = game:GetService("Players")
+local Workspace    = game:GetService("Workspace")
+local RS           = game:GetService("ReplicatedStorage")
+local UIS          = game:GetService("UserInputService")
+local player       = Players.LocalPlayer
+local playerGui    = player:WaitForChild("PlayerGui")
+
+task.wait(5)  -- let everything else load
+
+print("\n========== KITTY RAISER RUNTIME DIAGNOSTIC ==========")
+local ok, vinfo = pcall(function() return require(RS.Modules.VersionInfo) end)
+if ok then print("BUILD: " .. vinfo.tag .. "  " .. vinfo.buildDate) else print("BUILD: VersionInfo missing") end
+
+print("\n--- ScreenGuis under PlayerGui ---")
+for _, sg in ipairs(playerGui:GetChildren()) do
+    if sg:IsA("ScreenGui") then
+        print(string.format("  ScreenGui '%s' enabled=%s children=%d", sg.Name, tostring(sg.Enabled), #sg:GetChildren()))
+    end
+end
+
+local hud = playerGui:FindFirstChild("MainHUD")
+if hud then
+    print("\n--- MainHUD direct children (sorted) ---")
+    local kids = {}
+    for _, c in ipairs(hud:GetChildren()) do table.insert(kids, c) end
+    table.sort(kids, function(a, b) return a.Name < b.Name end)
+    for _, c in ipairs(kids) do
+        local pos = c:IsA("GuiObject") and string.format("pos=(%.2f,%d,%.2f,%d)", c.Position.X.Scale, c.Position.X.Offset, c.Position.Y.Scale, c.Position.Y.Offset) or ""
+        local vis = c:IsA("GuiObject") and ("vis=" .. tostring(c.Visible)) or ""
+        print(string.format("  %s [%s] %s %s", c.Name, c.ClassName, vis, pos))
+    end
+    print("\n--- TopBar contents ---")
+    local tb = hud:FindFirstChild("TopBar")
+    if tb then
+        for _, c in ipairs(tb:GetChildren()) do
+            if c:IsA("GuiObject") then
+                print(string.format("  TopBar/%s [%s] vis=%s pos=(%.2f,%.2f) anchor=(%.1f,%.1f)",
+                    c.Name, c.ClassName, tostring(c.Visible), c.Position.X.Scale, c.Position.Y.Scale, c.AnchorPoint.X, c.AnchorPoint.Y))
+            end
+        end
+    end
+    print("\n--- BottomBar contents ---")
+    local bb = hud:FindFirstChild("BottomBar")
+    if bb then
+        print(string.format("  BottomBar visible=%s", tostring(bb.Visible)))
+        for _, c in ipairs(bb:GetChildren()) do
+            if c:IsA("GuiObject") then
+                print(string.format("    BottomBar/%s [%s] vis=%s", c.Name, c.ClassName, tostring(c.Visible)))
+            end
+        end
+    end
+end
+
+print("\n--- Workspace folders + counts ---")
+for _, name in ipairs({"AmbientCrowd", "PrankNPCs", "DrivableVehicles", "Mounts", "WorldPowerups", "CollectiblesSystem", "InteriorBuildings", "DistrictExpansion", "Plaza", "CityRebuild"}) do
+    local f = Workspace:FindFirstChild(name)
+    if f then
+        local n = #f:GetChildren()
+        print(string.format("  %s: %d children", name, n))
+    else
+        print(string.format("  %s: MISSING", name))
+    end
+end
+
+print("\n--- Player Character state ---")
+local char = player.Character
+if char then
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        print(string.format("  Humanoid: Health=%d/%d, DisplayDistanceType=%s", hum.Health, hum.MaxHealth, tostring(hum.DisplayDistanceType)))
+    end
+end
+
+-- Listen for prank failures
+local Remotes = require(RS.Modules.RemoteEvents)
+if Remotes.PrankFailed then
+    Remotes.PrankFailed.OnClientEvent:Connect(function(reason)
+        warn("[RuntimeDiag] PRANK FAILED reason: " .. tostring(reason))
+    end)
+end
+if Remotes.UpdatePlayerData then
+    Remotes.UpdatePlayerData.OnClientEvent:Connect(function(data)
+        print(string.format("[RuntimeDiag] UpdatePlayerData -> chaos=%d xp=%d level=%d",
+            data.chaosPoints or 0, data.xp or 0, data.level or 1))
+    end)
+end
+
+-- Hotkey M = manual diagnostic dump
+UIS.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.M then
+        print("\n======== MANUAL DIAG (key M) ========")
+        for _, p in ipairs(Players:GetPlayers()) do
+            local c = p.Character
+            if c then
+                local hrp = c:FindFirstChild("HumanoidRootPart")
+                if hrp then print(string.format("  player %s at (%.1f, %.1f, %.1f)", p.Name, hrp.Position.X, hrp.Position.Y, hrp.Position.Z)) end
+            end
+        end
+        local data = require(RS.Modules.RemoteEvents)
+    end
+end)
+
+print("\n========== END DIAGNOSTIC ==========\n")
+print("Press M anytime for live position dump")
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="LocalScript" referent="118">
+        <Properties>
           <string name="Name">SettingsMenu</string>
           <string name="Source"><![CDATA[-- SettingsMenu.client.lua  v1
 -- Adds a MENU button to the HUD bottom bar that opens a settings + pause modal.
@@ -19802,7 +19949,7 @@ print("[SettingsMenu v1] menu + volume + graphics + motion + controls help ready
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="118">
+      <Item class="LocalScript" referent="119">
         <Properties>
           <string name="Name">SocialBadges</string>
           <string name="Source"><![CDATA[-- SocialBadges.client.lua
@@ -19895,7 +20042,7 @@ print("[SocialBadges v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="119">
+      <Item class="LocalScript" referent="120">
         <Properties>
           <string name="Name">SurvivalUI</string>
           <string name="Source"><![CDATA[-- SurvivalUI.client.lua  v2 — hunger + thirst bars, warm theme, responsive.
@@ -20027,7 +20174,7 @@ print("[SurvivalUI v2] hunger + thirst bars, warm theme")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="120">
+      <Item class="LocalScript" referent="121">
         <Properties>
           <string name="Name">TerritoryHUD</string>
           <string name="Source"><![CDATA[-- TerritoryHUD.client.lua  v1 — top-of-screen banner shows current zone
@@ -20107,7 +20254,7 @@ print("[TerritoryHUD v1] online")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="121">
+      <Item class="LocalScript" referent="122">
         <Properties>
           <string name="Name">TradePanel</string>
           <string name="Source"><![CDATA[-- TradePanel.client.lua  v1 — UI for TradingSystem.
@@ -20386,7 +20533,7 @@ print("[TradePanel v1] online - press T near another player to start a trade")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="122">
+      <Item class="LocalScript" referent="123">
         <Properties>
           <string name="Name">TutorialController</string>
           <string name="Source"><![CDATA[-- TutorialController.client.lua
@@ -20462,7 +20609,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="123">
+      <Item class="LocalScript" referent="124">
         <Properties>
           <string name="Name">VersionDisplay</string>
           <string name="Source"><![CDATA[-- VersionDisplay.client.lua  v1 — small chip bottom-right showing what
@@ -20526,7 +20673,7 @@ print("[VersionDisplay] running " .. VersionInfo.tag .. " (" .. VersionInfo.comm
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="124">
+      <Item class="LocalScript" referent="125">
         <Properties>
           <string name="Name">WeatherClient</string>
           <string name="Source"><![CDATA[-- WeatherClient.client.lua
@@ -20672,7 +20819,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="125">
+      <Item class="LocalScript" referent="126">
         <Properties>
           <string name="Name">ZoneAmbience</string>
           <string name="Source"><![CDATA[-- ZoneAmbience.client.lua
@@ -20781,7 +20928,7 @@ print("[ZoneAmbience v1] online")
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="126">
+  <Item class="Workspace" referent="127">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>
