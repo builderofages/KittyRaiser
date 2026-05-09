@@ -19,7 +19,7 @@ local Players    = game:GetService("Players")
 local Workspace  = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 
-local TARGET_VISIBLE = 30
+local TARGET_VISIBLE = 80  -- v3.99.12: tripled for density
 local NEAR_RADIUS    = 60
 local FAR_RADIUS     = 240
 local DESPAWN_RADIUS = 400

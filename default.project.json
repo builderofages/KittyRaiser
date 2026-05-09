@@ -246,6 +246,9 @@
       },
       "HousingSystem": {
         "$path": "src/ServerScriptService/HousingSystem.server.lua"
+      },
+      "StreetVendors": {
+        "$path": "src/ServerScriptService/StreetVendors.server.lua"
       }
     },
     "StarterGui": {
