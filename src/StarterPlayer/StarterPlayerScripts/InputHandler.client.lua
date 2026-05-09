@@ -161,6 +161,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1
        or input.UserInputType == Enum.UserInputType.Touch then
+        print("[InputHandler] click detected")
         local now = os.clock()
         if now - lastMouseFire < 0.3 then return end
         local prankName = bestUnlockedPrank()
@@ -187,6 +188,22 @@ UserInputService.InputBegan:Connect(function(input, gp)
         return
     end
     if input.KeyCode == Enum.KeyCode.E then
+        -- v3.99.11: don't fire summon if a car/mount ProximityPrompt is in range
+        local Workspace = game:GetService("Workspace")
+        local char = player.Character
+        if char and char.PrimaryPart then
+            local pos = char.PrimaryPart.Position
+            for _, folder in ipairs({Workspace:FindFirstChild("DrivableVehicles"), Workspace:FindFirstChild("Mounts")}) do
+                if folder then
+                    for _, m in ipairs(folder:GetChildren()) do
+                        local seat = m:FindFirstChildOfClass("VehicleSeat") or m:FindFirstChildOfClass("Seat")
+                        if seat and (seat.Position - pos).Magnitude < 14 then
+                            return  -- let ProximityPrompt handle E
+                        end
+                    end
+                end
+            end
+        end
         Remotes.RequestSummonHuman:FireServer()
         return
     end

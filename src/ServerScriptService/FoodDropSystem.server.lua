@@ -156,3 +156,36 @@ task.spawn(function()
 end)
 
 print("[FoodDropSystem v1] online — food/water drops + 2% NPC drops + breakable stands")
+-- v3.99.11 PROXIMITY_AUTO_CONSUME: walking near a fountain or food stand auto-consumes every 2s
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local lastConsume = {}
+task.spawn(function()
+    while task.wait(1) do
+        for _, player in ipairs(Players:GetPlayers()) do
+            local char = player.Character
+            if char then
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    for _, stand in ipairs(Workspace:GetChildren()) do
+                        if stand:IsA("BasePart") and (stand.Name == "FoodStand" or stand.Name == "WaterStand" or stand.Name == "Fountain") then
+                            local d = (stand.Position - hrp.Position).Magnitude
+                            if d < 8 then
+                                local k = tostring(player.UserId) .. "_" .. stand.Name
+                                local now = os.clock()
+                                if not lastConsume[k] or now - lastConsume[k] > 2 then
+                                    lastConsume[k] = now
+                                    if Remotes and Remotes.SurvivalDelta then
+                                        local kind = stand.Name == "FoodStand" and "hunger" or "thirst"
+                                        Remotes.SurvivalDelta:FireClient(player, {[kind] = 12})
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
