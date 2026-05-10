@@ -249,6 +249,9 @@
       },
       "StreetVendors": {
         "$path": "src/ServerScriptService/StreetVendors.server.lua"
+      },
+      "ServerHUDGuard": {
+        "$path": "src/ServerScriptService/ServerHUDGuard.server.lua"
       }
     },
     "StarterGui": {
