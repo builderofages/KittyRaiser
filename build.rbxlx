@@ -1119,9 +1119,9 @@ return UIUtil
 
 local VersionInfo = {}
 
-VersionInfo.tag        = "v3.99.12"
+VersionInfo.tag        = "v3.99.13"
 VersionInfo.commitHash = "dc54e1e+v3.99"
-VersionInfo.buildDate  = "2026-05-08-5"
+VersionInfo.buildDate  = "2026-05-08-6"
 VersionInfo.note       = "trade + clan + housing + territory + 4 districts + drivable cars + mounts + race + KOTH + duels + interiors + tutorial + hit-stop + reaction bubbles + landmarks + powerups + collectibles + chatter + boss stinger + fountain particles"
 
 return VersionInfo
@@ -2771,8 +2771,9 @@ local function buildCatShape(character, furColor)
 	-- Floating name tag above the cat head.
 	local g = Instance.new("BillboardGui")
 	g.Name = "CatNameTag"
-	g.Size = UDim2.new(0, 200, 0, 40)
+	g.Size = UDim2.new(0, 90, 0, 22)  -- v3.99.13: smaller, less screen-blocking
 	g.StudsOffset = Vector3.new(0, s(1.4), 0)
+	g.MaxDistance = 60  -- v3.99.13: only show within 60 studs
 	g.AlwaysOnTop = true
 	g.Parent = head
 	local lbl = Instance.new("TextLabel", g)
@@ -2784,7 +2785,7 @@ local function buildCatShape(character, furColor)
 	lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
 	lbl.TextStrokeTransparency = 0
 	lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
-	local c = Instance.new("UITextSizeConstraint", lbl); c.MinTextSize = 14; c.MaxTextSize = 24
+	local c = Instance.new("UITextSizeConstraint", lbl); c.MinTextSize = 8; c.MaxTextSize = 14  -- v3.99.13: smaller
 
 	-- Run trail: dust ParticleEmitter on a tiny part welded under the cat,
 	-- enabled only when the cat is actually moving fast enough to "run".
@@ -20744,6 +20745,75 @@ return true
       </Item>
       <Item class="LocalScript" referent="125">
         <Properties>
+          <string name="Name">UIScaler</string>
+          <string name="Source"><![CDATA[-- UIScaler.client.lua  v3.99.13 — adapts HUD to screen size for mobile/tablet/desktop
+local Players       = game:GetService("Players")
+local UserInput     = game:GetService("UserInputService")
+local GuiService    = game:GetService("GuiService")
+local player        = Players.LocalPlayer
+local playerGui     = player:WaitForChild("PlayerGui")
+
+print("[UIScaler v3.99.13] starting")
+
+local function applyScale()
+    local hud = playerGui:FindFirstChild("MainHUD")
+    if not hud then return end
+
+    -- Determine screen size + platform
+    local cam = workspace.CurrentCamera
+    local size = cam and cam.ViewportSize or Vector2.new(1920, 1080)
+    local isMobile = UserInput.TouchEnabled and not UserInput.MouseEnabled
+    local isTablet = isMobile and size.X >= 1024
+    local isPhone  = isMobile and not isTablet
+
+    -- Calculate scale factor
+    local scale = 1.0
+    if isPhone then
+        scale = math.min(size.X / 1280, size.Y / 720) * 1.15  -- bump up for readability
+    elseif isTablet then
+        scale = math.min(size.X / 1280, size.Y / 720)
+    else  -- desktop
+        scale = math.min(size.X / 1920, size.Y / 1080)
+    end
+    scale = math.clamp(scale, 0.7, 1.4)
+
+    -- Apply UIScale to HUD root
+    local existing = hud:FindFirstChildOfClass("UIScale")
+    if not existing then
+        existing = Instance.new("UIScale", hud)
+    end
+    existing.Scale = scale
+
+    -- Make TouchEnabled buttons bigger (min 44px target per Apple HIG / 48dp Material)
+    if isMobile then
+        for _, c in ipairs(hud:GetDescendants()) do
+            if c:IsA("GuiButton") then
+                local s = c.Size
+                if s.X.Offset > 0 and s.X.Offset < 44 then
+                    c.Size = UDim2.new(s.X.Scale, math.max(s.X.Offset, 44), s.Y.Scale, math.max(s.Y.Offset, 44))
+                end
+            end
+        end
+    end
+
+    print(string.format("[UIScaler] viewport %dx%d, mobile=%s, scale=%.2f", size.X, size.Y, tostring(isMobile), scale))
+end
+
+-- Apply on spawn + viewport changes
+applyScale()
+workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(applyScale)
+
+-- Watch for HUD recreation
+playerGui.ChildAdded:Connect(function(c)
+    if c.Name == "MainHUD" then task.wait(0.5); applyScale() end
+end)
+
+print("[UIScaler v3.99.13] online")
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="LocalScript" referent="126">
+        <Properties>
           <string name="Name">VersionDisplay</string>
           <string name="Source"><![CDATA[-- VersionDisplay.client.lua  v1 — small chip bottom-right showing what
 -- version of the source is actually running in the player's session.
@@ -20806,7 +20876,7 @@ print("[VersionDisplay] running " .. VersionInfo.tag .. " (" .. VersionInfo.comm
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="126">
+      <Item class="LocalScript" referent="127">
         <Properties>
           <string name="Name">WeatherClient</string>
           <string name="Source"><![CDATA[-- WeatherClient.client.lua
@@ -20952,7 +21022,7 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="127">
+      <Item class="LocalScript" referent="128">
         <Properties>
           <string name="Name">ZoneAmbience</string>
           <string name="Source"><![CDATA[-- ZoneAmbience.client.lua
@@ -21061,7 +21131,7 @@ print("[ZoneAmbience v1] online")
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="128">
+  <Item class="Workspace" referent="129">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>

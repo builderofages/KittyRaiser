@@ -332,8 +332,9 @@ local function buildCatShape(character, furColor)
 	-- Floating name tag above the cat head.
 	local g = Instance.new("BillboardGui")
 	g.Name = "CatNameTag"
-	g.Size = UDim2.new(0, 200, 0, 40)
+	g.Size = UDim2.new(0, 90, 0, 22)  -- v3.99.13: smaller, less screen-blocking
 	g.StudsOffset = Vector3.new(0, s(1.4), 0)
+	g.MaxDistance = 60  -- v3.99.13: only show within 60 studs
 	g.AlwaysOnTop = true
 	g.Parent = head
 	local lbl = Instance.new("TextLabel", g)
@@ -345,7 +346,7 @@ local function buildCatShape(character, furColor)
 	lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
 	lbl.TextStrokeTransparency = 0
 	lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
-	local c = Instance.new("UITextSizeConstraint", lbl); c.MinTextSize = 14; c.MaxTextSize = 24
+	local c = Instance.new("UITextSizeConstraint", lbl); c.MinTextSize = 8; c.MaxTextSize = 14  -- v3.99.13: smaller
 
 	-- Run trail: dust ParticleEmitter on a tiny part welded under the cat,
 	-- enabled only when the cat is actually moving fast enough to "run".
