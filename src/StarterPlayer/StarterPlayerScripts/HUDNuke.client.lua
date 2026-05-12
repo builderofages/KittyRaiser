@@ -71,7 +71,7 @@ local ok, err = pcall(function()
 
     -- 2. Vitals top-left at ZIndex 99999
     local vitals = Instance.new("Frame", hud)
-    vitals.Size = UDim2.new(0, 220, 0, 96); vitals.Position = UDim2.new(0, 16, 0, 160); vitals.BackgroundTransparency = 1; vitals.ZIndex = 99999
+    vitals.Size = UDim2.new(0, 220, 0, 96); vitals.Position = UDim2.new(0, 16, 0, 160); vitals.BackgroundTransparency = 1; vitals.ZIndex = 99999; vitals.Visible = true
     local vL = Instance.new("UIListLayout", vitals); vL.Padding = UDim.new(0, 4)
     local function bar(name, color, order)
         local row = Instance.new("Frame", vitals); row.Size = UDim2.new(1,0,0,26); row.BackgroundColor3 = Color3.fromRGB(20,14,10); row.LayoutOrder = order; row.ZIndex = 99999
@@ -177,3 +177,17 @@ local ok, err = pcall(function()
     print("[HUDNuke v3.99.8] online — full takeover applied")
 end)
 if not ok then warn("[HUDNuke] script error: " .. tostring(err)) end
+-- v3.99.18: heartbeat keep-alive for vitals - force-show every frame
+local RS_ = game:GetService("RunService")
+RS_.Heartbeat:Connect(function()
+    if playerGui then
+        local h = playerGui:FindFirstChild("MainHUD")
+        if h then
+            local v = h:FindFirstChild("NukeVitals")
+            if v then v.Visible = true end
+            local pc = h:FindFirstChild("PrankColumn")
+            if pc then pc:Destroy() end
+        end
+    end
+end)
+

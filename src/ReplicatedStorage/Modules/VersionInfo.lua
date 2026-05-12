@@ -5,9 +5,9 @@
 
 local VersionInfo = {}
 
-VersionInfo.tag        = "v3.99.17"
+VersionInfo.tag        = "v3.99.18"
 VersionInfo.commitHash = "dc54e1e+v3.99"
-VersionInfo.buildDate  = "2026-05-12-skill"
+VersionInfo.buildDate  = "2026-05-12-overlap"
 VersionInfo.note       = "trade + clan + housing + territory + 4 districts + drivable cars + mounts + race + KOTH + duels + interiors + tutorial + hit-stop + reaction bubbles + landmarks + powerups + collectibles + chatter + boss stinger + fountain particles"
 
 return VersionInfo

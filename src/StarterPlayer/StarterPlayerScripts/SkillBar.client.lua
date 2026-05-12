@@ -307,8 +307,12 @@ end)
 task.spawn(function()
   local hud = playerGui:WaitForChild("MainHUD", 10)
   if not hud then return end
-  local col = hud:FindFirstChild("PrankColumn")
-  if col then col.Visible = false end
+  -- v3.99.18: DESTROY the old PrankColumn so it can't fight with SkillBar
+  while true do
+    local col = hud:FindFirstChild("PrankColumn")
+    if col then col:Destroy() end
+    task.wait(1)
+  end
 end)
 
 print("[SkillBar] Loaded — Diablo-style 8-prank bar active (1-8 keys + tap)")
