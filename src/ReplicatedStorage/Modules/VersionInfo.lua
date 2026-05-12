@@ -5,9 +5,9 @@
 
 local VersionInfo = {}
 
-VersionInfo.tag        = "v3.99.15"
+VersionInfo.tag        = "v3.99.16"
 VersionInfo.commitHash = "dc54e1e+v3.99"
-VersionInfo.buildDate  = "2026-05-12-FORCE"
+VersionInfo.buildDate  = "2026-05-12-orph"
 VersionInfo.note       = "trade + clan + housing + territory + 4 districts + drivable cars + mounts + race + KOTH + duels + interiors + tutorial + hit-stop + reaction bubbles + landmarks + powerups + collectibles + chatter + boss stinger + fountain particles"
 
 return VersionInfo
