@@ -395,6 +395,9 @@
         },
         "SkillBar": {
           "$path": "src/StarterPlayer/StarterPlayerScripts/SkillBar.client.lua"
+        },
+        "SkillCastAnimator": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/SkillCastAnimator.client.lua"
         }
       }
     },

@@ -21,13 +21,13 @@ local function applyScale()
     -- Calculate scale factor
     local scale = 1.0
     if isPhone then
-        scale = math.min(size.X / 1280, size.Y / 720) * 1.15  -- bump up for readability
+        scale = math.min(size.X / 800, size.Y / 600) * 1.0  -- bump up for readability
     elseif isTablet then
         scale = math.min(size.X / 1280, size.Y / 720)
     else  -- desktop
         scale = math.min(size.X / 1920, size.Y / 1080)
     end
-    scale = math.clamp(scale, 0.7, 1.4)
+    scale = math.clamp(scale, 0.8, 2.2)
 
     -- Apply UIScale to HUD root
     local existing = hud:FindFirstChildOfClass("UIScale")
